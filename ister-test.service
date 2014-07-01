@@ -1,0 +1,10 @@
+[Unit]
+Description=ister test
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /root/ister_test.py
+ExecStartPost=/usr/sbin/poweroff
+
+[Install]
+WantedBy=multi-user.target

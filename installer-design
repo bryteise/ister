@@ -1,0 +1,68 @@
+* ister
+** Goals
+   - Installer will run without user interaction
+   - Will use a template to allow customization
+   - Template may be a local or remote file
+*** Installer template system
+    - Template will have the following structure (key: {} object,
+      [] array, ! optional, || options):
+      {
+        SourceType : |local, remote|,
+        SourceLocation : URI,
+        !PartitionLayout : [ { disk : 'sda', partition : 1,
+      size : |rest, X|M, G, T|| type : |EFI, linux, swap| }, ... ],
+        !FilesystemTypes : [ { disk : 'sda', partition : 1,
+      type : |vfat, ext4, btrfs, xfs, swap, ... |
+      !options : |mkfs options| }, ... ],
+	!PartitionMountPoints : [ { disk : 'sda', partition : 1,
+      mount : '/' }, ... ],
+	!Users : [ { username : 'uname', !key : URI, !uid : 1000,
+      !sudo : |password| }, ... ],
+        //Future
+        !PostNonChroot : [ '/path/to/script', ... ],
+	!PostChroot : [ '/path/to/script', ... ],
+        !InstallPackages : [ { repo : 'reponame', package :
+      'packagename' }, ... ],
+	!RaidSupport : |md lvm btrfs|,
+	!RaidSetup : [ { raid : 'md-raid0', rdisk : 'md0', rpartitions :
+      [ sda1, sda2, ... ] }, ... ],
+      }
+    - Use json as template format
+    - Can have a checksum file for verifying the content
+*** "Image" for install
+    - Will have special service and installer programs added
+    - Have multiple versions, one that is a full image that can be
+      used for usb boot and one that is just a ramdisk which can be
+      used for PXE install
+    - Contains either a local image or install will download an
+      image from a provisioning server
+    - Can have checksum file for verification of image
+** Installer image creation
+   - For now kiwi recipes to create special installer image
+** Installer programs
+   - One program that will be started via systemd
+   - Can be configured to use a local or remote install template
+   - Installer will parse and validate template, download and validate
+     source file if needed, either use the template for partitioning
+     and filesystem creation as well as mount point locations or
+     identify the first non installer disk and use a default
+     partition scheme and create filesystems on the disk, mount the
+     partitions and the source image and sync the source to target
+   - partitions will be identified by UUID and used in gummiboot and
+     fstab configuration files
+*** Installer dependencies
+    - python3 (installer runtime)
+    - parted (partition creation)
+    - e2fsprogs (filesystem creation)
+    - gummiboot (bootloader installation)
+    - dosfstools (filesystem creation)
+    - btrfs-progs (filesystem creation)
+    - xfsprogs (filesystem creation)
+    - util-linux (UUID verification)
+    - zypper (package installation)
+    - rsync (copy os)
+    - qemu (source image mounting)
+    - nbd enabled kernel (source image mounting)
+    - xz (extract source image)
+    - qemu efi bios (testing)
+    - partprobe (detect partitions)

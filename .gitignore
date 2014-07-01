@@ -1,0 +1,7 @@
+installenv/
+__pycache__/
+*.pyc
+*.img
+test-log
+*.xz
+efi.bios

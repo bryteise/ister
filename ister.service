@@ -1,0 +1,10 @@
+[Unit]
+Description=ister installer
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/bin/ister.py
+ExecStartPost=/usr/sbin/reboot
+
+[Install]
+WantedBy=multi-user.target
