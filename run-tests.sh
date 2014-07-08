@@ -35,6 +35,7 @@ setup() {
     cp ister-test.service test/etc/systemd/system/
     ln -s ../ister-test.service test/etc/systemd/system/multi-user.target.wants/ister.service
     cp "${simg}" test/good.raw.xz
+    cp "${simg}" good.raw.xz
     cp ister.py test/root/
     cp ister_test.py test/root/
     cp good-ister.conf test/root/
@@ -47,6 +48,13 @@ setup() {
 
 run_qemu() {
     qemu-system-x86_64 -m 1024 -usb -device usb-kbd -cpu qemu64,+vmx -enable-kvm -hda test.img -hdb target.img &> /dev/null
+}
+
+run_tests() {
+    python -m http.server 8001 &
+    local httpd_process=$!
+    run_qemu
+    kill "${httpd_process}"
 }
 
 copy_logs() {
@@ -65,6 +73,7 @@ cleanup() {
     rm -fr target/
     rm -f test.img
     rm -f target.img
+    rm -f good.raw.xz
     if [ "${nbd_cleanup}" -eq 1 ] ; then
 	rmmod nbd &> /dev/null
     fi
@@ -82,13 +91,14 @@ error() {
     umount target/ &> /dev/null
     qemu-nbd -d "${device}" &> /dev/null
     cleanup
-    exit 1
+    exit -1
 }
 trap 'error ${LINENO}' ERR
 
 enable_nbd nbd_cleanup
 
 setup "${test_image}" "${source_image}" "${device}"
-run_qemu
+(run_tests &> /dev/null)
 copy_logs "${device}"
 cleanup
+exit 0

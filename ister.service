@@ -1,5 +1,7 @@
 [Unit]
 Description=ister installer
+After=network-online.target
+Requires=network-online.target
 
 [Service]
 Type=oneshot

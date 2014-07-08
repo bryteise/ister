@@ -1,5 +1,7 @@
 [Unit]
 Description=ister test
+After=network-online.target
+Requires=network-online.target
 
 [Service]
 Type=oneshot

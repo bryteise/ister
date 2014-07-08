@@ -18,11 +18,14 @@
 #
 
 import ister
-import os
 import json
+import os
+import time
 
 def good_min_template():
     return u'{"ImageSourceType": "local", "ImageSourceLocation": "file:///good.raw.xz"}'
+def good_min_remote_template():
+    return u'{"ImageSourceType": "local", "ImageSourceLocation": "http://10.0.2.2:8001/good.raw.xz"}'
 def good_user_template():
     return u'{"ImageSourceType": "local", "ImageSourceLocation": "file:///good.raw.xz", \
     "Users": [{"username": "test"}]}'
@@ -69,8 +72,15 @@ def load_min_good_local_template():
     if template != good:
         raise Exception("JSON template doesn't match")
 
+def load_min_good_remote_template():
+    filename = "http://10.0.2.2:8001/min-good.json"
+    template = ister.get_template(filename)
+    good = json.loads(good_min_template())
+    if template != good:
+        raise Exception("JSON remote template doesn't match")
+
 def validate_good_template():
-    good_templates = [good_min_template, good_user_template, good_user_key_template, good_user_uid_template, good_user_sudop_template, good_disk_template, full_user_install_template]
+    good_templates = [good_min_template, good_min_remote_template, good_user_template, good_user_key_template, good_user_uid_template, good_user_sudop_template, good_disk_template, full_user_install_template]
 
     for template_string in good_templates:
         template = json.loads(template_string())
@@ -167,9 +177,12 @@ def run_tests(tests):
     flog.close()
 
 if __name__ == '__main__':
+    # In case network-online.service doesn't work right
+    time.sleep(3)
     tests = [
         read_good_local_conf,
         load_min_good_local_template,
+        load_min_good_remote_template,
         validate_good_template,
         validate_fs_default_detection,
         validate_full_user_install
