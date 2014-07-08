@@ -157,7 +157,9 @@ def create_filesystems(template):
 def setup_mounts(template):
     """Mount source and target folders
 
-    Returns a tuple containing source and target folders
+    Returns a tuple containing source and target folders.
+
+    This function will raise an Exception on finding an error.
     """
     try:
         source_dir = tempfile.mkdtemp()
