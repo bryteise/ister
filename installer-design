@@ -7,8 +7,8 @@
     - Template will have the following structure (key: {} object,
       [] array, ! optional, || options):
       {
-        SourceType : |local, remote|,
-        SourceLocation : URI,
+        ImageSourceType : |local, remote|,
+        ImageSourceLocation : URI,
         !PartitionLayout : [ { disk : 'sda', partition : 1,
       size : |rest, X|M, G, T|| type : |EFI, linux, swap| }, ... ],
         !FilesystemTypes : [ { disk : 'sda', partition : 1,
