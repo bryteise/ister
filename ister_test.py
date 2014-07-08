@@ -79,6 +79,15 @@ def load_min_good_remote_template():
     if template != good:
         raise Exception("JSON remote template doesn't match")
 
+def get_valid_remote_image():
+    template = json.loads(good_min_remote_template())
+    try:
+        ister.get_source_image(template)
+    except:
+        raise Exception("Unable to download template file")
+    if template["ImageSourceLocation"] != "file:///image.xz":
+        raise Exception("Failed to update ImageSourceLocation")
+
 def validate_good_template():
     good_templates = [good_min_template, good_min_remote_template, good_user_template, good_user_key_template, good_user_uid_template, good_user_sudop_template, good_disk_template, full_user_install_template]
 
@@ -163,6 +172,30 @@ def validate_full_user_install():
     except Exception as e:
         raise Exception("Unable to cleanup after install: {}".format(e))
 
+def validate_remote_image_setup():
+    template = json.loads(good_min_remote_template())
+    ister.get_source_image(template)
+    ister.insert_fs_defaults(template)
+    try:
+        ister.create_partitions(template)
+    except Exception as e:
+        raise Exception("Unable to create partitions ({0}): {1}".format(template["PartitionLayout"], e))
+
+    try:
+        ister.create_filesystems(template)
+    except Exception as e:
+        raise Exception("Unable to create filesystems ({0}): {1}".format(template["FilesystemTypes"], e))
+
+    try:
+        (s, t) = ister.setup_mounts(template)
+    except Exception as e:
+        raise Exception("Unable to setup mount points ({0}): {1}".format(template["PartitionMountPoints"], e))
+
+    try:
+        ister.cleanup(template, s, t)
+    except Exception as e:
+        raise Exception("Unable to cleanup after install: {}".format(e))
+
 def run_tests(tests):
     flog = open("/root/test-log", "w")
 
@@ -183,9 +216,11 @@ if __name__ == '__main__':
         read_good_local_conf,
         load_min_good_local_template,
         load_min_good_remote_template,
+        get_valid_remote_image,
         validate_good_template,
         validate_fs_default_detection,
-        validate_full_user_install
+        validate_full_user_install,
+        validate_remote_image_setup
     ]
 
     run_tests(tests)
