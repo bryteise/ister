@@ -599,10 +599,9 @@ def get_source_image(template):
     """Download install source image
 
     If download is successful, update ImageSourceLocation to be the local file.
-
-    This function will raise an Exception on finding an error.
     """
-    raise Exception("Unable to obtain remote image")
+    request.urlretrieve(template["ImageSourceLocation"], "/image.xz")
+    template["ImageSourceLocation"] = "file:///image.xz"
 
 def install_os():
     """Install the OS
