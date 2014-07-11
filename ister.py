@@ -25,6 +25,7 @@ import pwd
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.request as request
 
 def select_disk(install_disk):
@@ -621,11 +622,16 @@ def install_os():
     do_install(template)
 
 if __name__ == '__main__':
+    console = os.open("/dev/tty1", os.O_RDWR)
+    os.write(console, b"\x1b[2J\x1b[H")
+    os.write(console, b"Starting installation\n")
     try:
         install_os()
     except Exception as e:
-        sys.stderr.write("Installation failed: {}\n".format(e))
+        os.write(console, b"Installation failed: {}\n".format(e))
+        time.sleep(5)
         sys.exit(-1)
 
-    print("Installation complete")
+    os.write(console, b"Installation complete")
+    time.sleep(5)
     sys.exit(0)
