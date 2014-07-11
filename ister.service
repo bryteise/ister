@@ -6,7 +6,7 @@ Requires=network-online.target
 [Service]
 Type=oneshot
 ExecStart=/usr/bin/python3 /usr/bin/ister.py
-ExecStartPost=/usr/sbin/reboot
+ExecStartPost=/usr/sbin/poweroff
 
 [Install]
 WantedBy=multi-user.target
