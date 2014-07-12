@@ -203,8 +203,10 @@ def run_tests(tests):
         try:
             test()
         except Exception as e:
+            print("Test: {0} failed: {1}.".format(test.__name__, e))
             flog.write("Test: {0} failed: {1}.\n".format(test.__name__, e))
         else:
+            print("Test: {0} passed.".format(test.__name__))
             flog.write("Test: {0} passed.\n".format(test.__name__))
 
     flog.close()
