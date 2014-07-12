@@ -32,8 +32,7 @@ setup() {
     mkdir test/
     mount "${dev}p2" test/ &> /dev/null
     mount "${dev}p1" test/boot/ &> /dev/null
-    cp ister-test.service test/etc/systemd/system/
-    ln -s ../ister-test.service test/etc/systemd/system/multi-user.target.wants/ister.service
+    cp ister-test.service test/usr/lib/systemd/system/multi-user.target.wants/ister.service
     cp "${simg}" test/good.raw.xz
     cp "${simg}" good.raw.xz
     cp ister.py test/root/
@@ -47,11 +46,11 @@ setup() {
 }
 
 run_qemu() {
-    qemu-system-x86_64 -m 1024 -usb -device usb-kbd -cpu qemu64,+vmx -enable-kvm -hda test.img -hdb target.img &> /dev/null
+    qemu-system-x86_64 -bios efi.bios -m 1024 -usb -device usb-kbd -cpu qemu64,+vmx -enable-kvm -hda test.img -hdb target.img &> /dev/null
 }
 
 run_tests() {
-    python -m http.server 8001 &
+    python3 -m http.server 8001 &
     local httpd_process=$!
     run_qemu
     kill "${httpd_process}"
