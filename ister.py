@@ -628,7 +628,8 @@ if __name__ == '__main__':
     try:
         install_os()
     except Exception as e:
-        os.write(console, b"Installation failed: {}\n".format(e))
+        os.write(console, "Installation failed: {}\n".format(e)
+                 .encode("ascii"))
         time.sleep(5)
         sys.exit(-1)
 
