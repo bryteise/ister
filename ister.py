@@ -268,7 +268,7 @@ def update_loader(uuids, target_dir):
             uuid = part["uuid"]
             break
     try:
-        with open("{}/boot/loader/entries/clear.conf".format(target_dir), "r+") as loader:
+        with open("{}/boot/loader/entries/default.conf".format(target_dir), "r+") as loader:
             conf = loader.readlines()
             conf[3] = "options root=UUID={}\n".format(uuid)
             loader.seek(0)
