@@ -270,12 +270,21 @@ def update_loader(uuids, target_dir):
     try:
         with open("{}/boot/loader/entries/default.conf".format(target_dir), "r+") as loader:
             conf = loader.readlines()
-            conf[3] = "options root=UUID={}\n".format(uuid)
+            # 3rd line contains:
+            # options root=UUID=XXXX kernel commandline options
+            options = conf[3].split(' ')
+            root_len = len("root=")
+            for i in range(len(options)):
+                if options[i][:root_len] == "root=":
+                    options[i] = "root=UUID={}".format(uuid)
+                    break
+            conf[3] = ' '.join(options)
             loader.seek(0)
             loader.truncate()
             loader.writelines(conf)
-    except:
-        raise Exception("Unable to open bootloader configuration file")
+    except Exception as exep:
+        raise Exception("Unable to open or invalid bootloader configuration \
+        file: {}".format(exep))
 
 def update_fstab(uuids, target_dir):
     """Add PARTUUID entries to /etc/fstab
