@@ -168,7 +168,7 @@ def validate_full_user_install():
         raise Exception("Unable to add users: {0}".format(e))
 
     try:
-        ister.cleanup(template, s, t)
+        ister.cleanup(s, t)
     except Exception as e:
         raise Exception("Unable to cleanup after install: {}".format(e))
 
@@ -192,7 +192,7 @@ def validate_remote_image_setup():
         raise Exception("Unable to setup mount points ({0}): {1}".format(template["PartitionMountPoints"], e))
 
     try:
-        ister.cleanup(template, s, t)
+        ister.cleanup(s, t)
     except Exception as e:
         raise Exception("Unable to cleanup after install: {}".format(e))
 
