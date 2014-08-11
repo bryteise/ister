@@ -208,6 +208,7 @@ def setup_mounts(template):
         raise Exception("Failed to extract source image")
     run_command("modprobe nbd max_part=2")
     run_command("qemu-nbd -c /dev/nbd0 /source")
+    run_command("partprobe /dev/nbd0")
     run_command("mount -o ro /dev/nbd0p2 {}".format(source_dir))
     run_command("mount -o ro /dev/nbd0p1 {}/boot".format(source_dir))
     for part in sorted(template["PartitionMountPoints"], key=lambda v:
