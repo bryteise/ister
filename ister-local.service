@@ -1,8 +1,6 @@
 [Unit]
-Description=ister installer
-After=network-online.target
-Requires=network-online.target
-ConditionPathExists=!/image.xz
+Description=ister local installer
+ConditionPathExists=/image.xz
 
 [Service]
 Type=oneshot
