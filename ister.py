@@ -692,7 +692,7 @@ def validate_user_template(users):
 
         if sudo:
             if sudo != "password":
-                raise Exception("Invalid sudo option: ".format(sudo))
+                raise Exception("Invalid sudo option: {}".format(sudo))
 
 
 def validate_template(template):
