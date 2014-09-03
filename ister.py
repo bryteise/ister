@@ -59,15 +59,6 @@ def find_target_disk():
     """
     install_uuid = 'UUID="53E0-A0AB"'
 
-    if not os.path.exists("/dev/sda2"):
-        return "sda"
-
-    if not os.path.exists("/dev/sdb"):
-        raise Exception("No target disk available")
-
-    if not os.path.exists("/dev/sdb2"):
-        return "sdb"
-
     try:
         blkid = subprocess.check_output("blkid").decode("utf-8").splitlines()
     except:
@@ -84,6 +75,20 @@ def find_target_disk():
         if line.find("/dev/sd") == 0:
             if line.find("on / ") != -1:
                 return select_disk(line)
+
+    # In the case of a PXE boot, there will be no installer UUID
+    # found, only a target partition.
+    sda = 0
+    sdb = 0
+
+    for line in blkid:
+        if line.find("/dev/sda") == 0:
+            sda = 1
+        if line.find("/dev/sdb") == 0:
+            sdb = 1
+
+    if sda and not sdb:
+        return "/dev/sda"
 
     raise Exception("Could not distinguish install disk")
 
