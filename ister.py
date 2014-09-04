@@ -21,6 +21,9 @@
 # If we see an exception it is always fatal so the broad exception
 # warning isn't helpful.
 # pylint: disable=W0703
+# We aren't using classes for anything other than with handling so
+# a warning about too few methods being implemented isn't useful.
+# pylint: disable=R0903
 
 import ctypes
 import json
@@ -369,31 +372,41 @@ def update_fstab(uuids, target_dir):
     return
 
 
-def setup_chroot(target_dir):
-    """chroot to target directory and return a fd to the real root
-
-    This function will raise an Exception on finding an error.
+class ChrootOpen(object):
+    """Class encapsulating chroot setup and teardown
     """
-    try:
-        root = os.open("/", os.O_RDONLY)
-        os.chroot(target_dir)
-    except:
-        raise Exception("Unable to setup chroot to create users")
+    def __init__(self, target_dir):
+        """Stores the target directory for the chroot
+        """
+        self.target_dir = target_dir
+        self.old_root = -1
 
-    return root
+    def __enter__(self):
+        """Using the target directory, setup the chroot
 
+        This function will raise an Exception on finding an error.
+        """
+        try:
+            self.old_root = os.open("/", os.O_RDONLY)
+            os.chroot(self.target_dir)
+        except:
+            raise Exception("Unable to setup chroot to create users")
 
-def teardown_chroot(root):
-    """Restore real root after chroot
+        return self.target_dir
 
-    This function will raise an Exception on finding an error.
-    """
-    try:
-        os.chdir(root)
-        os.chroot(".")
-        os.close(root)
-    except:
-        raise Exception("Unable to restore real root after chroot")
+    def __exit__(self, *args):
+        """Using the old root, teardown the chroot
+
+        This function will raise an Exception on finding an error.
+        """
+        try:
+            os.chdir(self.old_root)
+            os.chroot(".")
+            os.close(self.old_root)
+        except:
+            raise Exception("Unable to restore real root after chroot")
+
+        return True
 
 
 def create_account(user, target_dir):
@@ -408,9 +421,9 @@ def create_account(user, target_dir):
             .format(user["uid"], user["username"])
     else:
         command = "useradd -U -m -p '' {}".format(user["username"])
-    root = setup_chroot(target_dir)
-    run_command(command)
-    teardown_chroot(root)
+
+    with ChrootOpen(target_dir) as _:
+        run_command(command)
 
 
 def add_user_key(user, target_dir):
@@ -422,23 +435,22 @@ def add_user_key(user, target_dir):
     # Must run pwd.getpwnam outside of chroot to load installer shared
     # lib instead of target which prevents umount on cleanup
     pwd.getpwnam("root")
-    root = setup_chroot(target_dir)
-    try:
-        os.makedirs("/home/{0}/.ssh".format(user["username"]), mode=700)
-        pwinfo = pwd.getpwnam(user["username"])
-        uid = pwinfo[2]
-        gid = pwinfo[3]
-        os.chown("/home/{0}/.ssh".format(user["username"]), uid, gid)
-        akey = open("/home/{0}/.ssh/authorized_keys"
-                    .format(user["username"]), "a")
-        akey.write(key)
-        akey.close()
-        os.chown("/home/{0}/.ssh/authorized_keys"
-                 .format(user["username"]), uid, gid)
-    except Exception as exep:
-        raise Exception("Unable to add {0}'s ssh key to authorized keys: {1}"
-                        .format(user["username"], exep))
-    teardown_chroot(root)
+    with ChrootOpen(target_dir) as _:
+        try:
+            os.makedirs("/home/{0}/.ssh".format(user["username"]), mode=700)
+            pwinfo = pwd.getpwnam(user["username"])
+            uid = pwinfo[2]
+            gid = pwinfo[3]
+            os.chown("/home/{0}/.ssh".format(user["username"]), uid, gid)
+            akey = open("/home/{0}/.ssh/authorized_keys"
+                        .format(user["username"]), "a")
+            akey.write(key)
+            akey.close()
+            os.chown("/home/{0}/.ssh/authorized_keys"
+                     .format(user["username"]), uid, gid)
+        except Exception as exep:
+            raise Exception("Unable to add {0}'s ssh key to authorized \
+            keys: {1}".format(user["username"], exep))
 
 
 def setup_sudo(user, target_dir):
