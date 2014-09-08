@@ -67,6 +67,14 @@ def good_user_sudop_template():
     "Users": [{"username": "test", "sudo": "password"}]}'
 
 
+def good_post_install_template():
+    """Return string representation of good_post_package_install_template"""
+    return u'{"ImageSourceType": "local", "ImageSourceLocation": \
+    "file:///good.raw.xz", \
+    "PostInstallPackages": [{"packagemanager": "zypper", "type": "single", \
+    "name": "linux"}]}'
+
+
 def good_disk_template():
     """Return string representation of good_disk_template"""
     return u'{"ImageSourceType": "local", "ImageSourceLocation": \
@@ -144,7 +152,8 @@ def validate_good_template():
     good_templates = [good_min_template, good_min_remote_template,
                       good_user_template, good_user_key_template,
                       good_user_uid_template, good_user_sudop_template,
-                      good_disk_template, full_user_install_template]
+                      good_disk_template, full_user_install_template,
+                      good_post_install_template]
 
     for template_string in good_templates:
         template = json.loads(template_string())
@@ -244,6 +253,61 @@ def validate_full_user_install():
         raise Exception("Unable to cleanup after install: {}".format(exep))
 
 
+def validate_post_package_install():
+    """Run validate_post_package_install test"""
+    template = json.loads(good_post_install_template())
+
+    try:
+        ister.validate_template(template)
+    except Exception as exep:
+        raise Exception("Unable to validate template ({0}): {1}"
+                        .format(template, exep))
+
+    try:
+        ister.create_partitions(template)
+    except Exception as exep:
+        raise Exception("Unable to create partitions ({0}): {1}"
+                        .format(template["PartitionLayout"], exep))
+
+    try:
+        ister.create_filesystems(template)
+    except Exception as exep:
+        raise Exception("Unable to create filesystems ({0}): {1}"
+                        .format(template["FilesystemTypes"], exep))
+
+    try:
+        (source, target) = ister.setup_mounts(template)
+    except Exception as exep:
+        raise Exception("Unable to setup mount points ({0}): {1}"
+                        .format(template["PartitionMountPoints"], exep))
+
+    try:
+        ister.copy_files(source, target)
+    except Exception as exep:
+        raise Exception("Unable to install OS: {0}".format(exep))
+
+    try:
+        uuids = ister.get_uuids(template)
+    except Exception as exep:
+        raise Exception("Unable to get uuids in ({0}): {1}"
+                        .format(template, exep))
+
+    try:
+        ister.update_loader(uuids, target)
+    except Exception as exep:
+        raise Exception("Unable to update loader conf: {0}".format(exep))
+
+    try:
+        ister.post_install_packages(template, target)
+    except Exception as exep:
+        raise Exception("Unable to post install package: {0}".format(exep))
+
+    try:
+        ister.cleanup(source, target)
+    except Exception as exep:
+        raise Exception("Unable to cleanup after install: {}".format(exep))
+
+
 def validate_remote_image_setup():
     """Run validate_remote_image_setup test"""
     template = json.loads(good_min_remote_template())
@@ -300,6 +364,7 @@ if __name__ == '__main__':
         validate_good_template,
         validate_fs_default_detection,
         validate_full_user_install,
+        validate_post_package_install,
         validate_remote_image_setup
     ]
 

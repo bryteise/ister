@@ -486,6 +486,29 @@ def add_users(template, target_dir):
             setup_sudo(user, target_dir)
 
 
+def install_packages(packages):
+    """Install packages to the current rootfs
+    """
+    for package in packages:
+        if package["packagemanager"] == "zypper":
+            if package["type"] == "group":
+                command = "zypper in -n -t pattern {}".format(package["name"])
+            else:
+                command = "zypper in -n {}".format(package["name"])
+        run_command(command)
+
+
+def post_install_packages(template, target_dir):
+    """Install packages after system installation completed
+    """
+    packages = template.get("PostInstallPackages")
+    if not packages:
+        return
+
+    with ChrootOpen(target_dir) as _:
+        install_packages(packages)
+
+
 def cleanup(source_dir, target_dir, raise_exception=True):
     """Unmount and remove temporary files
 
@@ -511,6 +534,7 @@ def do_install(template):
     update_loader(uuids, target_dir)
     update_fstab(uuids, target_dir)
     add_users(template, target_dir)
+    post_install_packages(template, target_dir)
     cleanup(source_dir, target_dir)
 
 
@@ -707,6 +731,37 @@ def validate_user_template(users):
                 raise Exception("Invalid sudo option: {}".format(sudo))
 
 
+def validate_post_install_packages(post_packages):
+    """Attempt to verify all package related information is sane
+
+    This function will raise an Exception on finding an error.
+    """
+    accepted_package_managers = ["zypper"]
+    accepted_package_types = ["single", "group"]
+    for package in post_packages:
+        package_manager = package.get("packagemanager")
+        package_type = package.get("type")
+        package_name = package.get("name")
+
+        if not package_manager:
+            raise Exception("Missing package manager for post install \
+            entry: {}".format(package))
+        if not package_type:
+            raise Exception("Missing package type for post install entry: {}"
+                            .format(package))
+        if not package_name:
+            raise Exception("Missing package name for post install entry: {}"
+                            .format(package))
+
+        if package_manager not in accepted_package_managers:
+            raise Exception("Invalid package manager {0}, accepted package \
+            managers are: {1}".format(package_manager,
+                                      accepted_package_managers))
+        if package_type not in accepted_package_types:
+            raise Exception("Invalid package type {0}, accepted package types \
+            are: {1}".format(package_type, accepted_package_types))
+
+
 def validate_template(template):
     """Attempt to verify template is sane
 
@@ -731,6 +786,9 @@ def validate_template(template):
 
     if template.get("Users"):
         validate_user_template(template["Users"])
+
+    if template.get("PostInstallPackages"):
+        validate_post_install_packages(template["PostInstallPackages"])
     return
 
 
