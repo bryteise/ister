@@ -18,11 +18,13 @@
       mount : '/' }, ... ],
 	!Users : [ { username : 'uname', !key : URI, !uid : 1000,
       !sudo : |password| }, ... ],
+        !PostInstallPackages : [ { packagemanager : |zypper|,
+      type : |single, group|, name : 'pkgname' }, ... ],
         //Future
+        InstallPackages : [ { packagemanager : |zypper|,
+      type : |single, group|, name : 'pkgname' }, ... ],
         !PostNonChroot : [ '/path/to/script', ... ],
 	!PostChroot : [ '/path/to/script', ... ],
-        !InstallPackages : [ { repo : 'reponame', package :
-      'packagename' }, ... ],
 	!RaidSupport : |md lvm btrfs|,
 	!RaidSetup : [ { raid : 'md-raid0', rdisk : 'md0', rpartitions :
       [ sda1, sda2, ... ] }, ... ],
