@@ -34,6 +34,8 @@ setup() {
     mount "${dev}p1" test/boot/ &> /dev/null
     cp ister-test.service test/usr/lib/systemd/system/multi-user.target.wants/ister.service
     cp "${simg}" test/good.raw.xz
+    rm test/etc/zypp/repos.d/*
+    cp ister-zypp.repo test/etc/zypp/repos.d/ister-test.repo
     cp "${simg}" good.raw.xz
     cp ister.py test/root/
     cp ister_test.py test/root/
@@ -80,9 +82,10 @@ cleanup() {
 
 error() {
     set +e
-    local lno=$1
+    local cmd=$1
+    local lno=$2
 
-    echo "Error near ${lno}"
+    echo "Error at '${cmd}' near line '${lno}'"
 
     umount test/boot/ &> /dev/null
     umount test/ &> /dev/null
@@ -92,7 +95,7 @@ error() {
     cleanup
     exit -1
 }
-trap 'error ${LINENO}' ERR
+trap 'error "${BASH_COMMAND}" "${LINENO}"' ERR
 
 enable_nbd nbd_cleanup
 
