@@ -1,0 +1,6 @@
+[ister-test-repo]
+name=ister test repo
+type=rpm-md
+baseurl=http://10.0.2.2/repos/zypper/
+gpgcheck=0
+enabled=1

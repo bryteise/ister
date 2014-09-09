@@ -5,5 +5,4 @@ __pycache__/
 test-log
 *.xz
 efi.bios
-*.repo
 repos/
