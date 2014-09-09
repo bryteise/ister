@@ -82,9 +82,10 @@ cleanup() {
 
 error() {
     set +e
-    local lno=$1
+    local cmd=$1
+    local lno=$2
 
-    echo "Error near ${lno}"
+    echo "Error at '${cmd}' near line '${lno}'"
 
     umount test/boot/ &> /dev/null
     umount test/ &> /dev/null
@@ -94,7 +95,7 @@ error() {
     cleanup
     exit -1
 }
-trap 'error ${LINENO}' ERR
+trap 'error "${BASH_COMMAND}" "${LINENO}"' ERR
 
 enable_nbd nbd_cleanup
 
