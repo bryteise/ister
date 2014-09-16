@@ -97,6 +97,11 @@ error() {
 }
 trap 'error "${BASH_COMMAND}" "${LINENO}"' ERR
 
+if [ ! -f "efi.bios" ] ; then
+    echo "Missing efi bios, please use: http://tianocore.sourceforge.net/wiki/OVMF"
+    exit -1
+fi
+
 enable_nbd nbd_cleanup
 
 setup "${test_image}" "${source_image}" "${device}"
