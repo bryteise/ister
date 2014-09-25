@@ -48,7 +48,7 @@ setup() {
 }
 
 run_qemu() {
-    qemu-system-x86_64 -bios efi.bios -m 1024 -usb -device usb-kbd -cpu qemu64,+vmx -enable-kvm -hda test.img -hdb target.img &> /dev/null
+    qemu-system-x86_64 -bios efi.bios -m 2048 -usb -device usb-kbd -cpu qemu64,+vmx -enable-kvm -hda test.img -hdb target.img &> /dev/null
 }
 
 run_tests() {
