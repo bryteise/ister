@@ -143,7 +143,7 @@ def get_valid_remote_image():
         ister.get_source_image(template)
     except:
         raise Exception("Unable to download template file")
-    if template["ImageSourceLocation"] != "file:///image.xz":
+    if template["ImageSourceLocation"] != "file:///tmp/image.xz":
         raise Exception("Failed to update ImageSourceLocation")
 
 

@@ -207,7 +207,7 @@ def setup_mounts(template):
                         .format(source_image_compressed))
 
     try:
-        with open("/source", "w") as ofile:
+        with open("/tmp/source", "w") as ofile:
             if subprocess.call("xz -dc {0}"
                                .format(source_image_compressed)
                                .split(" "), stdout=ofile) != 0:
@@ -215,7 +215,7 @@ def setup_mounts(template):
     except:
         raise Exception("Failed to extract source image")
     run_command("modprobe nbd max_part=2")
-    run_command("qemu-nbd -c /dev/nbd0 /source")
+    run_command("qemu-nbd -c /dev/nbd0 /tmp/source")
     run_command("partprobe /dev/nbd0")
     run_command("mount -o ro /dev/nbd0p2 {}".format(source_dir))
     run_command("mount -o ro /dev/nbd0p1 {}/boot".format(source_dir))
@@ -797,8 +797,8 @@ def get_source_image(template):
 
     If download is successful, update ImageSourceLocation to be the local file.
     """
-    request.urlretrieve(template["ImageSourceLocation"], "/image.xz")
-    template["ImageSourceLocation"] = "file:///image.xz"
+    request.urlretrieve(template["ImageSourceLocation"], "/tmp/image.xz")
+    template["ImageSourceLocation"] = "file:///tmp/image.xz"
 
 
 def install_os():
