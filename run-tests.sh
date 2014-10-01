@@ -33,6 +33,7 @@ setup() {
     mount "${dev}p2" test/ &> /dev/null
     mount "${dev}p1" test/boot/ &> /dev/null
     cp ister-test.service test/usr/lib/systemd/system/multi-user.target.wants/ister.service
+    rm test/usr/lib/systemd/system/multi-user.target.wants/ister-local.service
     cp "${simg}" test/good.raw.xz
     rm test/etc/zypp/repos.d/*
     cp ister-zypp.repo test/etc/zypp/repos.d/ister-test.repo
