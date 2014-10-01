@@ -144,6 +144,8 @@ def create_partitions(template):
         command = "{0} {1} /dev/{2} mklabel gpt".\
                   format(parted, alignment, disk)
         run_command(command)
+        command = "partprobe /dev/{0}".format(disk)
+        run_command(command)
     for part in sorted(template["PartitionLayout"], key=lambda v: v["disk"]
                        + str(v["partition"])):
         if part["disk"] != cdisk:
@@ -161,6 +163,8 @@ def create_partitions(template):
             ptype = "ext2"
         command = "{0} {1} -- /dev/{2} mkpart primary {3} {4} {5}"\
             .format(parted, alignment, part["disk"], ptype, start, end)
+        run_command(command)
+        command = "partprobe /dev/{}".format(part["disk"])
         run_command(command)
         if part["type"] == "EFI":
             command = "parted -s /dev/{0} set {1} boot on"\
