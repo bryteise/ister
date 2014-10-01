@@ -68,3 +68,4 @@
     - xz (extract source image)
     - qemu efi bios (testing)
     - partprobe (detect partitions)
+    - systemd (setting machine-id)

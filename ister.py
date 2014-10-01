@@ -376,6 +376,14 @@ def update_fstab(uuids, target_dir):
     return
 
 
+def setup_machine_id(target_dir):
+    """Create a machine-id for the target system
+    """
+
+    command = "systemd-machine-id-setup --root={}".format(target_dir)
+    run_command(command)
+
+
 class ChrootOpen(object):
     """Class encapsulating chroot setup and teardown
     """
@@ -537,6 +545,7 @@ def do_install(template):
     uuids = get_uuids(template)
     update_loader(uuids, target_dir)
     update_fstab(uuids, target_dir)
+    setup_machine_id(target_dir)
     add_users(template, target_dir)
     post_install_packages(template, target_dir)
     cleanup(source_dir, target_dir)

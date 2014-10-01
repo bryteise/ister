@@ -243,6 +243,11 @@ def validate_full_user_install():
         raise Exception("Unable to update fstab: {0}".format(exep))
 
     try:
+        ister.setup_machine_id(target)
+    except Exception as exep:
+        raise Exception("Unable to setup machine-id: {0}".format(exep))
+
+    try:
         ister.add_users(template, target)
     except Exception as exep:
         raise Exception("Unable to add users: {0}".format(exep))
