@@ -504,9 +504,9 @@ def install_packages(packages):
     for package in packages:
         if package["packagemanager"] == "zypper":
             if package["type"] == "group":
-                command = "zypper in -n -t pattern {}".format(package["name"])
+                command = "zypper -n in -t pattern {}".format(package["name"])
             else:
-                command = "zypper in -n {}".format(package["name"])
+                command = "zypper -n in {}".format(package["name"])
         run_command(command)
 
 
