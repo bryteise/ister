@@ -91,7 +91,7 @@ def find_target_disk():
             sdb = 1
 
     if sda and not sdb:
-        return "/dev/sda"
+        return "sda"
 
     raise Exception("Could not distinguish install disk")
 
