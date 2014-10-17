@@ -103,6 +103,7 @@ if [ ! -f "efi.bios" ] ; then
     exit -1
 fi
 
+nbd_cleanup=0
 enable_nbd nbd_cleanup
 
 setup "${test_image}" "${source_image}" "${device}"
