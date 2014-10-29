@@ -498,18 +498,6 @@ def add_users(template, target_dir):
             setup_sudo(user, target_dir)
 
 
-def install_packages(packages):
-    """Install packages to the current rootfs
-    """
-    for package in packages:
-        if package["packagemanager"] == "zypper":
-            if package["type"] == "group":
-                command = "zypper -n in -t pattern {}".format(package["name"])
-            else:
-                command = "zypper -n in {}".format(package["name"])
-        run_command(command)
-
-
 def post_install_packages(template, target_dir):
     """Install packages after system installation completed
     """
@@ -517,8 +505,13 @@ def post_install_packages(template, target_dir):
     if not packages:
         return
 
-    with ChrootOpen(target_dir) as _:
-        install_packages(packages)
+    for package in packages:
+        if package["packagemanager"] == "zypper":
+            if package["type"] == "group":
+                command = "zypper --root {0} -n in -t pattern {1}".format(target_dir, package["name"])
+            else:
+                command = "zypper --root {0} -n in {1}".format(target_dir, package["name"])
+        run_command(command)
 
 
 def cleanup(source_dir, target_dir, raise_exception=True):
