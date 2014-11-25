@@ -150,7 +150,7 @@ def create_partitions(template):
     for part in sorted(template["PartitionLayout"], key=lambda v: v["disk"]
                        + str(v["partition"])):
         if part["disk"] != cdisk:
-            start = 0
+            start = 1
         if part["size"] == "rest":
             end = -1
         else:
