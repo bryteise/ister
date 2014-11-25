@@ -162,6 +162,10 @@ def create_partitions(template):
             ptype = "linux-swap"
         else:
             ptype = "ext2"
+        if start == 0:
+            # Using 0% on the first partition to get the first 1MB
+            # border that is correctly aligned
+            start = "0%"
         command = "{0} {1} -- /dev/{2} {3} mkpart primary {4} {5} {6}"\
             .format(parted, alignment, part["disk"], units, ptype,
                     start, end)
