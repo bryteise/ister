@@ -36,91 +36,6 @@ import time
 import urllib.request as request
 
 
-def select_disk(install_disk):
-    """Find the target disk given the install disk
-
-    This function will raise an Exception on finding an error.
-    """
-    if install_disk.find("/dev/sda") == 0:
-        return "sdb"
-    else:
-        return "sda"
-
-
-def find_target_disk():
-    """Search for the first disk that isn't the installer
-
-    Disk detection is by process of elimination to find the installer,
-    then the target disk will be the first disk not the installer.
-    Ensure that we have at least two disks, then check if either of
-    the first two disks doesn't have two partitions as the installer
-    will contain two. Next check blkid for the UUID given to the
-    installer image. And finally fallback to the output of mount to
-    see if a '/dev/sdx' shows up with '/' as the mount point.
-
-    This function will raise an Exception on finding an error.
-    """
-    install_uuid = 'UUID="53E0-A0AB"'
-
-    try:
-        blkid = subprocess.check_output("blkid").decode("utf-8").splitlines()
-    except:
-        raise Exception("Call to blkid failed")
-    for line in blkid:
-        if line.find(install_uuid) == 0:
-            return select_disk(line)
-
-    try:
-        mount = subprocess.check_output("mount").decode("utf-8").splitlines()
-    except:
-        raise Exception("Call to mount failed")
-    for line in mount:
-        if line.find("/dev/sd") == 0:
-            if line.find("on / ") != -1:
-                return select_disk(line)
-
-    # In the case of a PXE boot, there will be no installer UUID
-    # found, only a target partition.
-    sda = 0
-    sdb = 0
-
-    for line in blkid:
-        if line.find("/dev/sda") == 0:
-            sda = 1
-        if line.find("/dev/sdb") == 0:
-            sdb = 1
-
-    if sda and not sdb:
-        return "sda"
-
-    raise Exception("Could not distinguish install disk")
-
-
-def insert_fs_defaults(template):
-    """Add default partition, filesystem and mounts to the template
-
-    Used when the template doesn't specify partition and filesystem
-    sections. The default inserted will be to use the first non install
-    disk (sdx) and split it into two partitions. The first partition will
-    be the EFI partition and will be 512M in size the second partition
-    will be ext4 and take up the rest of the disk.
-    """
-    dev = find_target_disk()
-    template["PartitionLayout"] = [{"disk": dev, "partition": 1, "size":
-                                    "512M", "type": "EFI"},
-                                   {"disk": dev, "partition": 2, "size":
-                                    "rest", "type": "linux"}]
-    template["FilesystemTypes"] = [{"disk": dev, "partition": 1, "type":
-                                    "vfat"},
-                                   {"disk": dev, "partition": 2, "type":
-                                    "ext4"}]
-    template["PartitionMountPoints"] = [{"disk": dev, "partition": 1, "mount":
-                                         "/boot"},
-                                        {"disk": dev, "partition": 2, "mount":
-                                         "/"}]
-    return
-
-
 def run_command(cmd, raise_exception=True):
     """Execute given command in a subprocess
 
@@ -128,6 +43,23 @@ def run_command(cmd, raise_exception=True):
     """
     if subprocess.call(cmd.split(" ")) != 0 and raise_exception:
         raise Exception("{0} failed".format(cmd))
+
+
+def create_virtual_disk(template):
+    """Create virtual disk file for install target
+    """
+    image_size = 0
+    min_size = 20000
+    match = {"M": 1, "G": 1024, "T": 1024 * 1024}
+    for part in template["PartitionLayout"]:
+        if part["size"] != "rest":
+            image_size += int(part["size"][:-1]) * match[part["size"][-1]]
+    if image_size < min_size:
+        image_size = min_size
+
+    command = "qemu-img create {0} {1}M".\
+              format(template["PartitionLayout"][0]["disk"], image_size)
+    run_command(command)
 
 
 def create_partitions(template):
@@ -141,18 +73,23 @@ def create_partitions(template):
     cdisk = ""
     for disk in template["PartitionLayout"]:
         disks.add(disk["disk"])
+    # Setup GPT tables on disks
     for disk in disks:
-        command = "{0} {1} /dev/{2} {3} mklabel gpt".\
-                  format(parted, alignment, disk, units)
+        if template.get("DestinationType") == "physical":
+            command = "{0} {1} /dev/{2} {3} mklabel gpt".\
+                      format(parted, alignment, disk, units)
+        else:
+            command = "{0} {1} {2} {3} mklabel gpt".\
+                      format(parted, alignment, disk, units)
         run_command(command)
-        command = "partprobe /dev/{0}".format(disk)
-        run_command(command)
+        time.sleep(1)
+    # Create partitions
     for part in sorted(template["PartitionLayout"], key=lambda v: v["disk"]
                        + str(v["partition"])):
         if part["disk"] != cdisk:
             start = 0
         if part["size"] == "rest":
-            end = -1
+            end = "-1M"
         else:
             mult = match[part["size"][-1]]
             end = int(part["size"][:-1]) * mult + start
@@ -166,18 +103,57 @@ def create_partitions(template):
             # Using 0% on the first partition to get the first 1MB
             # border that is correctly aligned
             start = "0%"
-        command = "{0} {1} -- /dev/{2} {3} mkpart primary {4} {5} {6}"\
-            .format(parted, alignment, part["disk"], units, ptype,
-                    start, end)
+        if template.get("DestinationType") == "physical":
+            command = "{0} {1} -- /dev/{2} {3} mkpart primary {4} {5} {6}"\
+                .format(parted, alignment, part["disk"], units, ptype,
+                        start, end)
+        else:
+            command = "{0} {1} -- {2} {3} mkpart primary {4} {5} {6}"\
+                .format(parted, alignment, part["disk"], units, ptype,
+                        start, end)
         run_command(command)
-        command = "partprobe /dev/{}".format(part["disk"])
-        run_command(command)
+        time.sleep(1)
         if part["type"] == "EFI":
-            command = "parted -s /dev/{0} set {1} boot on"\
-                .format(part["disk"], part["partition"])
+            if template.get("DestinationType") == "physical":
+                command = "parted -s /dev/{0} set {1} boot on"\
+                    .format(part["disk"], part["partition"])
+            else:
+                command = "parted -s {0} set {1} boot on"\
+                    .format(part["disk"], part["partition"])
             run_command(command)
+            time.sleep(1)
         start = end
         cdisk = part["disk"]
+
+
+def map_loop_device(template):
+    """Setup a loop device for the image file
+
+    This function will raise an Exception if the command fails.
+    """
+    disk_image = template["PartitionLayout"][0]["disk"]
+    command = "losetup --partscan --find --show {0}".format(disk_image)
+    try:
+        dev = subprocess.check_output(command.split(" ")).decode("utf-8").splitlines()
+    except:
+        raise Exception("losetup command failed: {0}: {1}".format(command, sys.exc_info()))
+    if len(dev) != 1:
+        raise Exception("losetup failed to create loop device")
+    time.sleep(1)
+    run_command("partprobe {0}".format(dev[0]))
+    time.sleep(1)
+
+    template["dev"] = dev[0]
+
+
+def get_device_name(template, disk):
+    """Return /dev/{loopXp, sdX} type device name
+    """
+    if template.get("dev"):
+        dev = template["dev"] + "p"
+    else:
+        dev = "/dev/{0}/".format(disk)
+    return dev
 
 
 def create_filesystems(template):
@@ -186,75 +162,40 @@ def create_filesystems(template):
     fs_util = {"ext2": "mkfs.ext2", "ext3": "mkfs.ext3", "ext4": "mkfs.ext4",
                "btrfs": "mkfs.btrfs", "vfat": "mkfs.vfat", "swap": "mkswap"}
     for fst in template["FilesystemTypes"]:
+        dev = get_device_name(template, fst["disk"])
         if fst.get("options"):
-            command = "{0} {1} /dev/{2}{3}".format(fs_util[fst["type"]],
-                                                   fst["options"], fst["disk"],
-                                                   fst["partition"])
+            command = "{0} {1} {2}{3}".format(fs_util[fst["type"]],
+                                              fst["options"], dev,
+                                              fst["partition"])
         else:
-            command = "{0} /dev/{1}{2}".format(fs_util[fst["type"]],
-                                               fst["disk"],
-                                               fst["partition"])
+            command = "{0} {1}{2}".format(fs_util[fst["type"]], dev,
+                                          fst["partition"])
         run_command(command)
 
 
 def setup_mounts(template):
-    """Mount source and target folders
+    """Mount target folder
 
-    Returns a tuple containing source and target folders.
+    Returns target folder name
 
     This function will raise an Exception on finding an error.
     """
     try:
-        source_dir = tempfile.mkdtemp()
         target_dir = tempfile.mkdtemp()
     except:
         raise Exception("Failed to setup mounts for install")
 
-    prefix_len = len("file://")
-    source_image_compressed = template["ImageSourceLocation"][prefix_len:]
-    if not os.path.exists(source_image_compressed):
-        raise Exception("Source image ({}) not found"
-                        .format(source_image_compressed))
-
-    try:
-        with open("/tmp/source", "w") as ofile:
-            if subprocess.call("xz -dc {0}"
-                               .format(source_image_compressed)
-                               .split(" "), stdout=ofile) != 0:
-                raise Exception()
-    except:
-        raise Exception("Failed to extract source image")
-    run_command("modprobe nbd max_part=2")
-    run_command("qemu-nbd -c /dev/nbd0 /tmp/source")
-    run_command("partprobe /dev/nbd0")
-    run_command("mount -o ro /dev/nbd0p2 {}".format(source_dir))
-    run_command("mount -o ro /dev/nbd0p1 {}/boot".format(source_dir))
     for part in sorted(template["PartitionMountPoints"], key=lambda v:
                        v["mount"]):
         if part["mount"] != "/":
             run_command("mkdir {0}{1}".format(target_dir, part["mount"]))
-        run_command("mount /dev/{0}{1} {2}{3}".format(part["disk"],
-                                                      part["partition"],
-                                                      target_dir,
-                                                      part["mount"]))
+        dev = get_device_name(template, part["disk"])
+        run_command("mount {0}{1} {2}{3}".format(dev,
+                                                 part["partition"],
+                                                 target_dir,
+                                                 part["mount"]))
 
-    return (source_dir, target_dir)
-
-
-def copy_files(source_dir, target_dir, mini_rsync=False):
-    """Sync files, from source to target folders
-
-    Allow just syncing folders with mini_rsync
-    """
-    if mini_rsync:
-        command = ['rsync', '-aAHX', '--exclude', 'lost+found',
-                   '-f', "+ */", '-f', "- *", '{}/'.format(source_dir),
-                   target_dir]
-    else:
-        command = ['rsync', '-aAHX', '--exclude', 'lost+found', '{}/'
-                   .format(source_dir), target_dir]
-    if subprocess.call(command) != 0:
-        raise Exception("rsync failed with: {}".format(" ".join(command)))
+    return target_dir
 
 
 def match_uuids(updated_layout, used_partitions):
@@ -277,7 +218,7 @@ def match_uuids(updated_layout, used_partitions):
         # PARTUUID="4921334c-d69f-43c0-a85d-cb4976817b93"
         pline = line.split(" ")
         dev = pline[0][:-1]
-        if dev.find("/dev/nbd0") == 0:
+        if dev.find("/dev/loop") == 0:
             continue
         disk_part = os.path.basename(dev)
         if not updated_layout.get(disk_part):
@@ -351,7 +292,7 @@ def update_loader(uuids, target_dir):
             loader.writelines(conf)
     except Exception as exep:
         raise Exception("Unable to open or invalid bootloader configuration \
-        file: {}".format(exep))
+file: {}".format(exep))
 
 
 def update_fstab(uuids, target_dir):
@@ -449,7 +390,7 @@ def add_user_key(user, target_dir):
 
     This function will raise an Exception on finding an error.
     """
-    key = request.urlopen(user["key"]).read().decode("utf-8")
+    key = open(user["key"], "r").read().decode("utf-8")
     # Must run pwd.getpwnam outside of chroot to load installer shared
     # lib instead of target which prevents umount on cleanup
     pwd.getpwnam("root")
@@ -468,7 +409,7 @@ def add_user_key(user, target_dir):
                      .format(user["username"]), uid, gid)
         except Exception as exep:
             raise Exception("Unable to add {0}'s ssh key to authorized \
-            keys: {1}".format(user["username"], exep))
+keys: {1}".format(user["username"], exep))
 
 
 def setup_sudo(user, target_dir):
@@ -504,50 +445,15 @@ def add_users(template, target_dir):
             setup_sudo(user, target_dir)
 
 
-def post_install_packages(template, target_dir):
-    """Install packages after system installation completed
-    """
-    packages = template.get("PostInstallPackages")
-    if not packages:
-        return
-
-    for package in packages:
-        if package["packagemanager"] == "zypper":
-            if package["type"] == "group":
-                command = "zypper --root {0} -n in -t pattern {1}".format(target_dir, package["name"])
-            else:
-                command = "zypper --root {0} -n in {1}".format(target_dir, package["name"])
-        run_command(command)
-
-
-def cleanup(source_dir, target_dir, raise_exception=True):
+def cleanup(template, target_dir, raise_exception=True):
     """Unmount and remove temporary files
-
-    This function may raise an Exception on finding an error.
     """
     run_command("umount -R {}".format(target_dir),
                 raise_exception=raise_exception)
-    run_command("umount -R {}".format(source_dir),
-                raise_exception=raise_exception)
+    if template.get("dev"):
+        run_command("losetup --detach {0}".format(template["dev"]),
+                    raise_exception=raise_exception)
     run_command("rm -fr {}".format(target_dir))
-    run_command("rm -fr {}".format(source_dir))
-    run_command("qemu-nbd -d /dev/nbd0", raise_exception=raise_exception)
-
-
-def do_install(template):
-    """Create partitions, filesystems, and copy files for install
-    """
-    create_partitions(template)
-    create_filesystems(template)
-    (source_dir, target_dir) = setup_mounts(template)
-    copy_files(source_dir, target_dir)
-    uuids = get_uuids(template)
-    update_loader(uuids, target_dir)
-    update_fstab(uuids, target_dir)
-    setup_machine_id(target_dir)
-    add_users(template, target_dir)
-    post_install_packages(template, target_dir)
-    cleanup(source_dir, target_dir)
 
 
 def get_template_location(path):
@@ -563,9 +469,15 @@ def get_template_location(path):
     return contents[1]
 
 
-def get_template(template_location):
+def get_template():
     """Fetch JSON template file for installer
     """
+    if os.path.exists("/etc/ister.conf"):
+        template_location = get_template_location("/etc/ister.conf")
+    else:
+        template_location = get_template_location(
+            "/usr/share/defaults/ister/ister.conf"
+        )
     json_file = request.urlopen(template_location)
     return json.loads(json_file.read().decode("utf-8"))
 
@@ -599,10 +511,14 @@ def validate_layout(template):
 
         if ptype not in accepted_ptypes:
             raise Exception("Invalid partiton type {0}, supported types \
-            are: {1}".format(ptype, accepted_ptypes))
+are: {1}".format(ptype, accepted_ptypes))
 
         if ptype == "EFI" and has_efi:
             raise Exception("Multiple EFI partitions defined")
+        if ptype == "EFI":
+            if size == "rest" or int(size[:-1]) < 512:
+                raise Exception("EFI partition has invalid size: {0}"
+                                .format(size))
 
         if ptype == "EFI":
             has_efi = True
@@ -611,19 +527,29 @@ def validate_layout(template):
         if disk_to_parts.get(disk):
             if part in disk_to_parts[disk]:
                 raise Exception("Duplicate disk {0} and partition {1} entry \
-                in PartitionLayout".format(disk, part))
+in PartitionLayout".format(disk, part))
             disk_to_parts[disk].append(part)
+        else:
+            disk_to_parts[disk] = [part]
         parts_to_size[disk_part] = size
 
+    for disk in disk_to_parts:
+        if len(disk_to_parts[disk]) > 128:
+            raise Exception("GPT disk with more than 128 partitions: {0}"
+                            .format(disk))
+
+    if template["DestinationType"] == "virtual" and len(disk_to_parts) != 1:
+        raise Exception("Mulitple files for virtual disk \
+destination is unsupported")
     if not has_efi:
         raise Exception("No EFI partition defined")
 
     for key in disk_to_parts:
         parts = sorted(disk_to_parts[key])
         for part in parts:
-            if parts_to_size[key + part] == "rest" and part != parts[-1]:
+            if parts_to_size[key + str(part)] == "rest" and part != parts[-1]:
                 raise Exception("Partition other than last uses rest of \
-                disk {0} partition {1}".format(key, part))
+disk {0} partition {1}".format(key, part))
 
     return parts_to_size
 
@@ -648,15 +574,15 @@ def validate_fstypes(template, parts_to_size):
 
         if fstype not in accepted_fstypes:
             raise Exception("Invalid filesystem type {0}, supported types \
-            are: {1}".format(fstype, accepted_fstypes))
+are: {1}".format(fstype, accepted_fstypes))
 
         disk_part = disk + str(part)
         if disk_part in partition_fstypes:
             raise Exception("Duplicate disk {0} and partition {1} entry in \
-            FilesystemTypes".format(disk, part))
+FilesystemTypes".format(disk, part))
         if disk_part not in parts_to_size:
             raise Exception("disk {0} partition {1} used in FilesystemTypes \
-            not found in PartitionLayout".format(disk, part))
+not found in PartitionLayout".format(disk, part))
         partition_fstypes.add(disk_part)
 
     return partition_fstypes
@@ -667,6 +593,8 @@ def validate_partition_mounts(template, partition_fstypes):
 
     This function will raise an Exception on finding an error.
     """
+    has_rootfs = False
+    has_boot = False
     partition_mounts = set()
     for pmount in template["PartitionMountPoints"]:
         disk = pmount.get("disk")
@@ -676,29 +604,39 @@ def validate_partition_mounts(template, partition_fstypes):
             raise Exception("Invalid PartitionMountPoints section: {}"
                             .format(pmount))
 
+        if mount == "/":
+            has_rootfs = True
+        if mount == "/boot":
+            has_boot = True
         disk_part = disk + str(part)
         if disk_part in partition_mounts:
             raise Exception("Duplicate disk {0} and partition {1} entry in \
-            PartitionMountPoints".format(disk, part))
+PartitionMountPoints".format(disk, part))
         if disk_part not in partition_fstypes:
             raise Exception("disk {0} partition {1} used in \
-            PartitionMountPoints not found in FilesystemTypes"
+PartitionMountPoints not found in FilesystemTypes"
                             .format(disk, part))
         partition_mounts.add(disk_part)
+
+    if not has_rootfs:
+        raise Exception("Missing rootfs mount")
+    if not has_boot:
+        raise Exception("Missing boot mount")
+
+
+def validate_type_template(template):
+    """Attempt to verify the type of install target is sane
+
+    This function will raise an Exception on finding an error.
+    """
+    dest_type = template["DestinationType"]
+    if dest_type not in ("physical", "virtual"):
+        raise Exception("Invalid destination type")
 
 
 def validate_disk_template(template):
     """Attempt to verify all disk layout related information is sane
-
-    This function will raise an Exception on finding an error.
     """
-    if not template.get("PartitionLayout"):
-        raise Exception("Invalid template, missing PartitionLayout")
-    elif not template.get("FilesystemTypes"):
-        raise Exception("Invalid template, missing FilesystemTypes")
-    elif not template.get("PartitionMountPoints"):
-        raise Exception("Invalid template, missing PartitionMountPoints")
-
     parts_to_size = validate_layout(template)
     partition_fstypes = validate_fstypes(template, parts_to_size)
     validate_partition_mounts(template, partition_fstypes)
@@ -735,43 +673,9 @@ def validate_user_template(users):
                 raise Exception("Invalid UID: {}".format(uid))
             uids[uid] = uid
 
-        if user.get("key"):
-            request.urlopen(user["key"])
-
         if sudo:
             if sudo != "password":
                 raise Exception("Invalid sudo option: {}".format(sudo))
-
-
-def validate_post_install_packages(post_packages):
-    """Attempt to verify all package related information is sane
-
-    This function will raise an Exception on finding an error.
-    """
-    accepted_package_managers = ["zypper"]
-    accepted_package_types = ["single", "group"]
-    for package in post_packages:
-        package_manager = package.get("packagemanager")
-        package_type = package.get("type")
-        package_name = package.get("name")
-
-        if not package_manager:
-            raise Exception("Missing package manager for post install \
-            entry: {}".format(package))
-        if not package_type:
-            raise Exception("Missing package type for post install entry: {}"
-                            .format(package))
-        if not package_name:
-            raise Exception("Missing package name for post install entry: {}"
-                            .format(package))
-
-        if package_manager not in accepted_package_managers:
-            raise Exception("Invalid package manager {0}, accepted package \
-            managers are: {1}".format(package_manager,
-                                      accepted_package_managers))
-        if package_type not in accepted_package_types:
-            raise Exception("Invalid package type {0}, accepted package types \
-            are: {1}".format(package_type, accepted_package_types))
 
 
 def validate_template(template):
@@ -779,29 +683,18 @@ def validate_template(template):
 
     This function will raise an Exception on finding an error.
     """
-    disk_info = False
-    if not template.get("ImageSourceType"):
-        raise Exception("Missing ImageSourceType field")
-    if not template.get("ImageSourceLocation"):
-        raise Exception("Missing ImageSourceLocation field")
-    if template.get("ParitionLayout"):
-        disk_info = True
-    if template.get("FilesystemTypes"):
-        disk_info = True
-    if template.get("PartitionMountPoints"):
-        disk_info = True
-
-    if disk_info:
-        validate_disk_template(template)
-    else:
-        insert_fs_defaults(template)
-
+    if not template.get("DestinationType"):
+        raise Exception("Missing DestinationType field")
+    if not template.get("PartitionLayout"):
+        raise Exception("Missing PartitionLayout field")
+    if not template.get("FilesystemTypes"):
+        raise Exception("Missing FilesystemTypes field")
+    if not template.get("PartitionMountPoints"):
+        raise Exception("Missing PartitionMountPoints field")
+    validate_type_template(template)
+    validate_disk_template(template)
     if template.get("Users"):
         validate_user_template(template["Users"])
-
-    if template.get("PostInstallPackages"):
-        validate_post_install_packages(template["PostInstallPackages"])
-    return
 
 
 def get_source_image(template):
@@ -818,17 +711,23 @@ def install_os():
 
     Start out parsing the configuration file for URI of the template.
     After the template file is located, download the template and validate it.
-    If the template is valid, run the installation procedure and reboot.
-
-    This function will raise an Exception on finding an error.
+    If the template is valid, run the installation procedure.
     """
-    template_location = get_template_location("/etc/ister.conf")
-    template = get_template(template_location)
+    template = get_template()
     validate_template(template)
-    if template["ImageSourceType"] == "remote":
-        get_source_image(template)
-
-    do_install(template)
+    if template["DestinationType"] == "virtual":
+        create_virtual_disk(template)
+    create_partitions(template)
+    if template["DestinationType"] == "virtual":
+        map_loop_device(template)
+    create_filesystems(template)
+    target_dir = setup_mounts(template)
+    uuids = get_uuids(template)
+    update_loader(uuids, target_dir)
+    update_fstab(uuids, target_dir)
+    setup_machine_id(target_dir)
+    add_users(template, target_dir)
+    cleanup(template, target_dir)
 
 
 def main():

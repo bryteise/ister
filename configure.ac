@@ -25,6 +25,7 @@ AC_MSG_RESULT([
 
         prefix:                 ${prefix}
         datarootdir:            ${datarootdir}
+        sysconfdir:             ${sysconfdir}
         exec_prefix:            ${exec_prefix}
         bindir:                 ${bindir}
         systemdsystemunitdir:   ${systemdsystemunitdir}

@@ -1,6 +1,5 @@
 {
-    "ImageSourceType" : "local",
-    "ImageSourceLocation" : "file:///good.raw",
+    "DestinationType" : "disk",
     "PartitionLayout" : [ { "disk" : "sda", "partition" : 1, "size" : "512M", "type" : "EFI" },
 			  { "disk" : "sda", "partition" : 2, "size" : "rest", "type" : "linux" } ],
     "FilesystemTypes" : [ { "disk" : "sda", "partition" : 1, "type" : "vfat" },

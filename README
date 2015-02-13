@@ -9,8 +9,4 @@ Ister aims to be pylint and pep8 clean. New code should verify both pass without
 exception before being submitted. If a new exception makes sense it can be added
 on a case by case basis.
 
-Testing is supported through the run-tests.sh script, it requires an image source
-in a format qemu-nbd can handle. It will attempt to detect nbd support in the
-kernel and load it if it isn't already active. The script also uses partprobe,
-qemu-img, and qemu-nbd to setup a VM to run the tests in. After the VM exists,
-the test results are shown and the system is restored to its previous state.
+Testing is supported through the run-tests.sh script.
