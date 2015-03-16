@@ -39,10 +39,15 @@ import urllib.request as request
 def run_command(cmd, raise_exception=True):
     """Execute given command in a subprocess
 
-    This function will raise an Exception if the command fails.
+    This function will raise an Exception if the command fails unless
+    raise_exception is False.
     """
-    if subprocess.call(cmd.split(" ")) != 0 and raise_exception:
-        raise Exception("{0} failed".format(cmd))
+    try:
+        if subprocess.call(cmd.split(" ")) != 0 and raise_exception:
+            raise Exception("{0} failed".format(cmd))
+    except Exception as exep:
+        if raise_exception:
+            raise Exception("{0} failed: {1}".format(cmd, exep))
 
 
 def create_virtual_disk(template):
@@ -62,7 +67,7 @@ def create_virtual_disk(template):
     run_command(command)
 
 
-def create_partitions(template):
+def create_partitions(template, sleep_time=1):
     """Create partitions according to template configuration
     """
     match = {"M": 1, "G": 1024, "T": 1024 * 1024}
@@ -74,7 +79,7 @@ def create_partitions(template):
     for disk in template["PartitionLayout"]:
         disks.add(disk["disk"])
     # Setup GPT tables on disks
-    for disk in disks:
+    for disk in sorted(disks):
         if template.get("DestinationType") == "physical":
             command = "{0} {1} /dev/{2} {3} mklabel gpt".\
                       format(parted, alignment, disk, units)
@@ -82,7 +87,7 @@ def create_partitions(template):
             command = "{0} {1} {2} {3} mklabel gpt".\
                       format(parted, alignment, disk, units)
         run_command(command)
-        time.sleep(1)
+        time.sleep(sleep_time)
     # Create partitions
     for part in sorted(template["PartitionLayout"], key=lambda v: v["disk"]
                        + str(v["partition"])):
@@ -112,7 +117,7 @@ def create_partitions(template):
                 .format(parted, alignment, part["disk"], units, ptype,
                         start, end)
         run_command(command)
-        time.sleep(1)
+        time.sleep(sleep_time)
         if part["type"] == "EFI":
             if template.get("DestinationType") == "physical":
                 command = "parted -s /dev/{0} set {1} boot on"\
@@ -121,12 +126,12 @@ def create_partitions(template):
                 command = "parted -s {0} set {1} boot on"\
                     .format(part["disk"], part["partition"])
             run_command(command)
-            time.sleep(1)
+            time.sleep(sleep_time)
         start = end
         cdisk = part["disk"]
 
 
-def map_loop_device(template):
+def map_loop_device(template, sleep_time=1):
     """Setup a loop device for the image file
 
     This function will raise an Exception if the command fails.
@@ -139,9 +144,9 @@ def map_loop_device(template):
         raise Exception("losetup command failed: {0}: {1}".format(command, sys.exc_info()))
     if len(dev) != 1:
         raise Exception("losetup failed to create loop device")
-    time.sleep(1)
+    time.sleep(sleep_time)
     run_command("partprobe {0}".format(dev[0]))
-    time.sleep(1)
+    time.sleep(sleep_time)
 
     template["dev"] = dev[0]
 
@@ -152,7 +157,7 @@ def get_device_name(template, disk):
     if template.get("dev"):
         dev = template["dev"] + "p"
     else:
-        dev = "/dev/{0}/".format(disk)
+        dev = "/dev/{0}".format(disk)
     return dev
 
 
@@ -160,7 +165,8 @@ def create_filesystems(template):
     """Create filesystems according to template configuration
     """
     fs_util = {"ext2": "mkfs.ext2", "ext3": "mkfs.ext3", "ext4": "mkfs.ext4",
-               "btrfs": "mkfs.btrfs", "vfat": "mkfs.vfat", "swap": "mkswap"}
+               "btrfs": "mkfs.btrfs", "vfat": "mkfs.vfat", "swap": "mkswap",
+               "xfs": "mkfs.xfs"}
     for fst in template["FilesystemTypes"]:
         dev = get_device_name(template, fst["disk"])
         if fst.get("options"):
@@ -198,139 +204,6 @@ def setup_mounts(template):
     return target_dir
 
 
-def match_uuids(updated_layout, used_partitions):
-    """Match uuids from blkid to devices in updated_layout
-
-    This function will raise an exception on finding an error.
-    """
-    uuids = []
-
-    try:
-        blkids = subprocess.check_output("blkid").decode("utf-8").splitlines()
-    except:
-        raise Exception("Call to blkid failed")
-
-    for line in blkids:
-        uuid = ""
-        # Example line:
-        # /dev/sda1: SEC_TYPE="msdos" UUID="53E0-A0AB" TYPE="vfat" \
-        #    PARTLABEL="EFI System"
-        # PARTUUID="4921334c-d69f-43c0-a85d-cb4976817b93"
-        pline = line.split(" ")
-        dev = pline[0][:-1]
-        if dev.find("/dev/loop") == 0:
-            continue
-        disk_part = os.path.basename(dev)
-        if not updated_layout.get(disk_part):
-            continue
-        if disk_part not in used_partitions:
-            continue
-        for i in pline:
-            if i.find('UUID="') == 0:
-                uuid = i.split('"')[1]
-        if uuid == "":
-            raise Exception("Partition uuid not found in {}".format(line))
-        updated_layout[disk_part]["uuid"] = uuid
-        uuids.append(updated_layout[disk_part])
-
-    return uuids
-
-
-def get_uuids(template):
-    """Relate partition uuids from blkid to partition layout
-
-    In order to relate partition uuids from blkid, first update partition
-    layout information to match what blkid returns.
-    """
-    used_disk_part = []
-    updated_layout = {}
-
-    for part in template["PartitionLayout"]:
-        disk_part = part["disk"] + str(part["partition"])
-        updated_layout[disk_part] = part.copy()
-        if updated_layout[disk_part]["type"] == "swap":
-            updated_layout[disk_part]["mount"] = "none"
-
-    for part in template["FilesystemTypes"]:
-        disk_part = part["disk"] + str(part["partition"])
-        updated_layout[disk_part]["type"] = part["type"]
-
-    for part in template["PartitionMountPoints"]:
-        disk_part = part["disk"] + str(part["partition"])
-        used_disk_part.append(disk_part)
-        updated_layout[disk_part]["mount"] = part["mount"]
-        if part.get("options"):
-            updated_layout[disk_part]["options"] = part["options"]
-
-    return match_uuids(updated_layout, used_disk_part)
-
-
-def update_loader(uuids, target_dir):
-    """Update root UUID in bootloader configuration
-
-    This function will raise an Exception on finding an error.
-    """
-    for part in uuids:
-        if part["mount"] == "/":
-            uuid = part["uuid"]
-            break
-    try:
-        with open("{}/boot/loader/entries/default.conf"
-                  .format(target_dir), "r+") as loader:
-            conf = loader.readlines()
-            # 3rd line contains:
-            # options root=UUID=0000-0000 kernel commandline options
-            options = conf[3].split(' ')
-            root_len = len("root=")
-            for i in range(len(options)):
-                if options[i][:root_len] == "root=":
-                    options[i] = "root=UUID={}".format(uuid)
-                    break
-            conf[3] = ' '.join(options)
-            loader.seek(0)
-            loader.truncate()
-            loader.writelines(conf)
-    except Exception as exep:
-        raise Exception("Unable to open or invalid bootloader configuration \
-file: {}".format(exep))
-
-
-def update_fstab(uuids, target_dir):
-    """Add PARTUUID entries to /etc/fstab
-
-    This function will raise an Exception on finding an error.
-    """
-    default_options = "rw,relatime 0 0"
-    try:
-        fstab = open("{}/etc/fstab".format(target_dir), "w")
-    except:
-        raise Exception("Failed to open {}/etc/fstab".format(target_dir))
-
-    try:
-        for part in uuids:
-            if part.get("options"):
-                options = part["options"]
-            else:
-                options = default_options
-            line = "UUID={0}	{1}	{2}	{3}\n".\
-                   format(part["uuid"], part["mount"], part["type"], options)
-            fstab.write(line)
-    except:
-        raise Exception("Failed to update {}/etc/fstab".format(target_dir))
-    finally:
-        fstab.close()
-
-    return
-
-
-def setup_machine_id(target_dir):
-    """Create a machine-id for the target system
-    """
-
-    command = "systemd-machine-id-setup --root={}".format(target_dir)
-    run_command(command)
-
-
 class ChrootOpen(object):
     """Class encapsulating chroot setup and teardown
     """
@@ -365,8 +238,6 @@ class ChrootOpen(object):
         except:
             raise Exception("Unable to restore real root after chroot")
 
-        return True
-
 
 def create_account(user, target_dir):
     """Add user to the system
@@ -390,7 +261,6 @@ def add_user_key(user, target_dir):
 
     This function will raise an Exception on finding an error.
     """
-    key = open(user["key"], "r").read().decode("utf-8")
     # Must run pwd.getpwnam outside of chroot to load installer shared
     # lib instead of target which prevents umount on cleanup
     pwd.getpwnam("root")
@@ -403,13 +273,13 @@ def add_user_key(user, target_dir):
             os.chown("/home/{0}/.ssh".format(user["username"]), uid, gid)
             akey = open("/home/{0}/.ssh/authorized_keys"
                         .format(user["username"]), "a")
-            akey.write(key)
+            akey.write(user["key"])
             akey.close()
             os.chown("/home/{0}/.ssh/authorized_keys"
                      .format(user["username"]), uid, gid)
         except Exception as exep:
-            raise Exception("Unable to add {0}'s ssh key to authorized \
-keys: {1}".format(user["username"], exep))
+            raise Exception("Unable to add {0}'s ssh key to authorized "
+                            "keys: {1}".format(user["username"], exep))
 
 
 def setup_sudo(user, target_dir):
@@ -568,7 +438,7 @@ def validate_fstypes(template, parts_to_size):
         disk = fstype.get("disk")
         part = fstype.get("partition")
         fstype = fstype.get("type")
-        if not disk or not part or not type:
+        if not disk or not part or not fstype:
             raise Exception("Invalid FilesystemTypes section: {}"
                             .format(fstype))
 
@@ -595,6 +465,7 @@ def validate_partition_mounts(template, partition_fstypes):
     """
     has_rootfs = False
     has_boot = False
+    disk_partitions = set()
     partition_mounts = set()
     for pmount in template["PartitionMountPoints"]:
         disk = pmount.get("disk")
@@ -609,14 +480,17 @@ def validate_partition_mounts(template, partition_fstypes):
         if mount == "/boot":
             has_boot = True
         disk_part = disk + str(part)
-        if disk_part in partition_mounts:
+        if mount in partition_mounts:
+            raise Exception("Duplicate mount points found")
+        if disk_part in disk_partitions:
             raise Exception("Duplicate disk {0} and partition {1} entry in \
 PartitionMountPoints".format(disk, part))
         if disk_part not in partition_fstypes:
             raise Exception("disk {0} partition {1} used in \
 PartitionMountPoints not found in FilesystemTypes"
                             .format(disk, part))
-        partition_mounts.add(disk_part)
+        partition_mounts.add(mount)
+        disk_partitions.add(disk_part)
 
     if not has_rootfs:
         raise Exception("Missing rootfs mount")
@@ -657,6 +531,7 @@ def validate_user_template(users):
         name = user.get("username")
         uid = user.get("uid")
         sudo = user.get("sudo")
+        key = user.get("key")
 
         if not name:
             raise Exception("Missing username for user entry: {}".format(user))
@@ -676,6 +551,10 @@ def validate_user_template(users):
         if sudo:
             if sudo != "password":
                 raise Exception("Invalid sudo option: {}".format(sudo))
+
+        if key:
+            with open(user["key"], "r") as key_file:
+                user["key"] = key_file.read()
 
 
 def validate_template(template):
@@ -697,15 +576,6 @@ def validate_template(template):
         validate_user_template(template["Users"])
 
 
-def get_source_image(template):
-    """Download install source image
-
-    If download is successful, update ImageSourceLocation to be the local file.
-    """
-    request.urlretrieve(template["ImageSourceLocation"], "/tmp/image.xz")
-    template["ImageSourceLocation"] = "file:///tmp/image.xz"
-
-
 def install_os():
     """Install the OS
 
@@ -722,9 +592,6 @@ def install_os():
         map_loop_device(template)
     create_filesystems(template)
     target_dir = setup_mounts(template)
-    uuids = get_uuids(template)
-    update_loader(uuids, target_dir)
-    update_fstab(uuids, target_dir)
     setup_machine_id(target_dir)
     add_users(template, target_dir)
     cleanup(template, target_dir)
