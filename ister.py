@@ -25,6 +25,7 @@
 # a warning about too few methods being implemented isn't useful.
 # pylint: disable=R0903
 
+import argparse
 import ctypes
 import json
 import os
@@ -597,9 +598,25 @@ def install_os():
     cleanup(template, target_dir)
 
 
+def handle_options():
+    """Setup option parsing"""
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-c", "--config-file", action="store",
+                        default=None,
+                        help="Path to configuration file to use")
+    parser.add_argument("-t", "--template-file", action="store",
+                        default=None,
+                        help="Path to template file to use")
+    parser.add_argument("-i", "--install", action="store_true", default=False,
+                        help="Setup to be run as an installer")
+    args = parser.parse_args()
+    return args
+
+
 def main():
     """Start the installer
     """
+    args = handle_options()
     console = os.open("/dev/tty1", os.O_RDWR)
     os.write(console, b"\x1b[2J\x1b[H")
     os.write(console, b"Starting installation\n")

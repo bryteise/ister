@@ -28,6 +28,7 @@ import functools
 import json
 import time
 import os
+import sys
 
 COMMAND_RESULTS = []
 
@@ -1439,6 +1440,38 @@ def validate_template_bad_missing_partition_mount_points():
         raise Exception("Failed to detect missing PartitionMountPoints")
 
 
+def validate_handle_options():
+    """Test all values handle options supports"""
+    # Test short options first
+    sys.argv = ["ister.py", "-c", "cfg", "-t", "tpt", "-i"]
+    args = ister.handle_options()
+    if not args.config_file == "cfg":
+        raise Exception("Failed to correctly set short config file")
+    if not args.template_file == "tpt":
+        raise Exception("Failed to correctly set short template file")
+    if not args.install:
+        raise Exception("Failed to correctly set short install")
+    # Test long options next
+    sys.argv = ["ister.py", "--config-file=cfg", "--template-file=tpt",
+            "--install"]
+    args = ister.handle_options()
+    if not args.config_file == "cfg":
+        raise Exception("Failed to correctly set long config file")
+    if not args.template_file == "tpt":
+        raise Exception("Failed to correctly set long template file")
+    if not args.install:
+        raise Exception("Failed to correctly set long install")
+    # Test default options
+    sys.argv = ["ister.py"]
+    args = ister.handle_options()
+    if args.config_file:
+        raise Exception("Incorrect default config file set")
+    if args.template_file:
+        raise Exception("Incorrect default template file set")
+    if args.install:
+        raise Exception("Incorrect default install set")
+
+
 def run_tests(tests):
     """Run ister test suite"""
     flog = open("test-log", "w")
@@ -1538,7 +1571,8 @@ if __name__ == '__main__':
         validate_template_bad_missing_destination_type,
         validate_template_bad_missing_partition_layout,
         validate_template_bad_missing_filesystem_types,
-        validate_template_bad_missing_partition_mount_points
+        validate_template_bad_missing_partition_mount_points,
+        validate_handle_options
     ]
 
     run_tests(TESTS)
