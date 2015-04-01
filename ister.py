@@ -205,6 +205,13 @@ def setup_mounts(template):
     return target_dir
 
 
+def copy_os(template, target_dir):
+    """Wrapper for running install command"""
+    run_command("swupd_verify -V --fix --path={0} --manifest={1}"
+                "--contenturl=http://clearlinux-sandbox.jf.intel.com/update"
+                .format(target_dir, template["Version"]))
+
+
 class ChrootOpen(object):
     """Class encapsulating chroot setup and teardown
     """
@@ -340,15 +347,9 @@ def get_template_location(path):
     return contents[1]
 
 
-def get_template():
+def get_template(template_location):
     """Fetch JSON template file for installer
     """
-    if os.path.exists("/etc/ister.conf"):
-        template_location = get_template_location("/etc/ister.conf")
-    else:
-        template_location = get_template_location(
-            "/usr/share/defaults/ister/ister.conf"
-        )
     json_file = request.urlopen(template_location)
     return json.loads(json_file.read().decode("utf-8"))
 
@@ -571,20 +572,50 @@ def validate_template(template):
         raise Exception("Missing FilesystemTypes field")
     if not template.get("PartitionMountPoints"):
         raise Exception("Missing PartitionMountPoints field")
+    if not template.get("Version"):
+        raise Exception("Missing Version field")
     validate_type_template(template)
     validate_disk_template(template)
+    try:
+        request.urlopen("http://clearlinux-sandbox.jf.intel.com/update/" +
+                        str(template["Version"]))
+    except:
+        raise Exception("Invalid version number")
     if template.get("Users"):
         validate_user_template(template["Users"])
 
 
-def install_os():
+def parse_config(args):
+    """Setup configuration dict holding ister settings
+    """
+    config = {}
+    if args.config_file:
+        config["template"] = get_template_location(args.config_file)
+    elif os.path.isfile("/etc/ister.conf"):
+        config["template"] = get_template_location("/etc/ister.conf")
+    else:
+        config["template"] = get_template_location(
+            "/usr/share/defaults/ister/ister.conf"
+        )
+
+    if args.template_file:
+        if args.template_file[0] == "/":
+            config["template"] = "file://" + args.template_file
+        else:
+            config["template"] = "file://" + os.path.abspath(args.template_file)
+
+    return config
+
+
+def install_os(args):
     """Install the OS
 
     Start out parsing the configuration file for URI of the template.
     After the template file is located, download the template and validate it.
     If the template is valid, run the installation procedure.
     """
-    template = get_template()
+    configuration = parse_config(args)
+    template = get_template(configuration["template"])
     validate_template(template)
     if template["DestinationType"] == "virtual":
         create_virtual_disk(template)
@@ -593,13 +624,14 @@ def install_os():
         map_loop_device(template)
     create_filesystems(template)
     target_dir = setup_mounts(template)
-    setup_machine_id(target_dir)
+    copy_os(template, target_dir)
     add_users(template, target_dir)
     cleanup(template, target_dir)
 
 
 def handle_options():
-    """Setup option parsing"""
+    """Setup option parsing
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("-c", "--config-file", action="store",
                         default=None,
@@ -617,19 +649,25 @@ def main():
     """Start the installer
     """
     args = handle_options()
-    console = os.open("/dev/tty1", os.O_RDWR)
-    os.write(console, b"\x1b[2J\x1b[H")
-    os.write(console, b"Starting installation\n")
+    if args.install:
+        console = os.open("/dev/tty1", os.O_WRONLY)
+    else:
+        console = os.open(sys.stdout.fileno(), os.O_WRONLY)
+    if args.install:
+        os.write(console, b"\x1b[2J\x1b[H")
+        os.write(console, b"Starting installation\n")
     try:
-        install_os()
+        install_os(args)
     except Exception as exep:
-        os.write(console, "Installation failed: {}\n".format(exep)
+        os.write(console, "Failed: {}\n".format(exep)
                  .encode("ascii"))
-        time.sleep(5)
+        if args.install:
+            time.sleep(5)
         sys.exit(-1)
 
-    os.write(console, b"Installation complete")
-    time.sleep(5)
+    if args.install:
+        os.write(console, b"Installation complete")
+        time.sleep(5)
     sys.exit(0)
 
 if __name__ == '__main__':

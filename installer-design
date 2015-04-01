@@ -17,6 +17,7 @@
       mount : '/' }, ... ],
 	!Users : [ { username : 'uname', !key : URI, !uid : 1000,
       !sudo : |password| }, ... ],
+        Version : version-number,
         //Future
         !Bundles : [ 'bundle1', ... ],
         !PostNonChroot : [ '/path/to/script', ... ],

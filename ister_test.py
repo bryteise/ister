@@ -46,7 +46,8 @@ def good_virtual_disk_template():
     {"disk" : "gvdt", "partition" : 3, "type" : "ext4"}], \
     "PartitionMountPoints" : \
     [{"disk" : "gvdt", "partition" : 1, "mount" : "/boot"}, {"disk" : "gvdt", \
-    "partition" : 3, "mount" : "/"}]}'
+    "partition" : 3, "mount" : "/"}], \
+    "Version" : 800}'
 
 
 def full_user_install_template():
@@ -275,8 +276,8 @@ def create_virtual_disk_good_tera():
 def commands_compare_helper(commands):
     """Helper function to verify expected commands vs results"""
     if len(commands) != len(COMMAND_RESULTS):
-        raise Exception("results don't match expectations: {0}"
-                        .format(COMMAND_RESULTS))
+        raise Exception("results {0} don't match expectations: {1}"
+                        .format(COMMAND_RESULTS, commands))
     for idx in range(len(commands)):
         if commands[idx] != COMMAND_RESULTS[idx]:
             raise Exception("command at position {0} doesn't match expected "
@@ -550,6 +551,15 @@ def setup_mounts_bad():
         raise Exception("Failed to handle mkdtemp failure")
 
 
+@run_command_wrapper
+def copy_os_good():
+    """Check installer command"""
+    commands = ["swupd_verify -V --fix --path=/ --manifest=0"
+                "--contenturl=http://clearlinux-sandbox.jf.intel.com/update"]
+    ister.copy_os({"Version": 0}, "/")
+    commands_compare_helper(commands)
+
+
 @chroot_open_wrapper("good")
 def chroot_open_class_good():
     """Handle creation and teardown of chroots"""
@@ -785,49 +795,14 @@ def get_template_location_bad_malformed():
 
 
 def get_template_good():
-    """Test /etc and /usr template configuration files"""
-    import json
-    global COMMAND_RESULTS
-    COMMAND_RESULTS = []
-    backup_exists = os.path.exists
-    backup_get_template_location = ister.get_template_location
-    backup_loads = json.loads
-    def mock_exists_true(path):
-        global COMMAND_RESULTS
-        COMMAND_RESULTS.append(path)
-        return True
-    def mock_exists_false(path):
-        global COMMAND_RESULTS
-        COMMAND_RESULTS.append(path)
-        return False
-    def mock_get_template_location_etc(_):
-        return "file://{0}/etc.conf".format(os.getcwd())
-    def mock_get_template_location_usr(_):
-        return "file://{0}/usr.conf".format(os.getcwd())
-    def mock_loads(data):
-        return data
-    os.path.exists = mock_exists_true
-    ister.get_template_location = mock_get_template_location_etc
-    json.loads = mock_loads
-    commands = ["/etc/ister.conf"]
+    """Test loading valid json file"""
     try:
-        template_file = ister.get_template()
-        commands_compare_helper(commands)
-        if template_file != "template=file:///etc.json\n":
-            raise Exception("etc template does not match expected value")
-        COMMAND_RESULTS = []
-        os.path.exists = mock_exists_false
-        ister.get_template_location = mock_get_template_location_usr
-        template_file = ister.get_template()
-        commands_compare_helper(commands)
-        if template_file != "template=file:///usr.json\n":
-            raise Exception("usr template does not match expected value")
+        template = ister.get_template("file://{0}/test.json"
+                                      .format(os.getcwd()))
+        if template != {"test": 1}:
+            raise Exception("json does not match expected value")
     except Exception as exep:
         raise exep
-    finally:
-        os.path.exists = backup_exists
-        ister.get_template_location = backup_get_template_location
-        json.loads = backup_loads
 
 
 def validate_layout_good():
@@ -1389,7 +1364,8 @@ def validate_template_bad_missing_destination_type():
     exception_flag = False
     template = {"PartitionLayout": [],
                 "FilesystemTypes": [],
-                "PartitionMountPoints": []}
+                "PartitionMountPoints": [],
+                "Version": 10}
     try:
         ister.validate_template(template)
     except:
@@ -1403,7 +1379,8 @@ def validate_template_bad_missing_partition_layout():
     exception_flag = False
     template = {"DestinationType": [],
                 "FilesystemTypes": [],
-                "PartitionMountPoints": []}
+                "PartitionMountPoints": [],
+                "Version": 10}
     try:
         ister.validate_template(template)
     except:
@@ -1417,7 +1394,8 @@ def validate_template_bad_missing_filesystem_types():
     exception_flag = False
     template = {"PartitionLayout": [],
                 "DestinationType": [],
-                "PartitionMountPoints": []}
+                "PartitionMountPoints": [],
+                "Version": 10}
     try:
         ister.validate_template(template)
     except:
@@ -1431,7 +1409,8 @@ def validate_template_bad_missing_partition_mount_points():
     exception_flag = False
     template = {"PartitionLayout": [],
                 "FilesystemTypes": [],
-                "DestinationType": []}
+                "DestinationType": [],
+                "Version": 10}
     try:
         ister.validate_template(template)
     except:
@@ -1440,7 +1419,108 @@ def validate_template_bad_missing_partition_mount_points():
         raise Exception("Failed to detect missing PartitionMountPoints")
 
 
-def validate_handle_options():
+def validate_template_bad_missing_version():
+    """Bad validate_template missing Version"""
+    exception_flag = False
+    template = {"PartitionLayout": [],
+                "FilesystemTypes": [],
+                "DestinationType": [],
+                "PartitionMountPoints": []}
+    try:
+        ister.validate_template(template)
+    except:
+        exception_flag = True
+    if not exception_flag:
+        raise Exception("Failed to detect missing Version")
+
+
+def validate_template_bad_version():
+    """Bad validate_template bad Version"""
+    exception_flag = False
+    template = {"PartitionLayout": [],
+                "FilesystemTypes": [],
+                "DestinationType": [],
+                "PartitionMountPoints": [],
+                "Version": 0}
+    try:
+        ister.validate_template(template)
+    except:
+        exception_flag = True
+    if not exception_flag:
+        raise Exception("Failed to detect bad Version")
+
+
+def parse_config_good():
+    """Test configuration parsing"""
+    global COMMAND_RESULTS
+    COMMAND_RESULTS = []
+    backup_exists = os.path.exists
+    backup_get_template_location = ister.get_template_location
+    def mock_exists_true(path):
+        global COMMAND_RESULTS
+        COMMAND_RESULTS.append(path)
+        return True
+    def mock_exists_false(path):
+        global COMMAND_RESULTS
+        COMMAND_RESULTS.append(path)
+        return False
+    def mock_get_template_location_etc(path):
+        global COMMAND_RESULTS
+        COMMAND_RESULTS.append(path)
+        return "file:///etc.json"
+    def mock_get_template_location_usr(path):
+        global COMMAND_RESULTS
+        COMMAND_RESULTS.append(path)
+        return "file:///usr.json"
+    def mock_get_template_location_cmd(path):
+        global COMMAND_RESULTS
+        COMMAND_RESULTS.append(path)
+        return "file:///cmd.json"
+    args = lambda: None
+    args.config_file = None
+    args.template_file = None
+    os.path.isfile = mock_exists_true
+    ister.get_template_location = mock_get_template_location_etc
+    try:
+        config = ister.parse_config(args)
+        commands = ["/etc/ister.conf", "/etc/ister.conf"]
+        commands_compare_helper(commands)
+        if config["template"] != "file:///etc.json":
+            raise Exception("etc template does not match expected value")
+        COMMAND_RESULTS = []
+        os.path.isfile = mock_exists_false
+        ister.get_template_location = mock_get_template_location_usr
+        config = ister.parse_config(args)
+        commands = ["/etc/ister.conf", "/usr/share/defaults/ister/ister.conf"]
+        commands_compare_helper(commands)
+        if config["template"] != "file:///usr.json":
+            raise Exception("usr template does not match expected value")
+        COMMAND_RESULTS = []
+        args.config_file = "cmd.conf"
+        ister.get_template_location = mock_get_template_location_cmd
+        config = ister.parse_config(args)
+        commands = ["cmd.conf"]
+        commands_compare_helper(commands)
+        if config["template"] != "file:///cmd.json":
+            raise Exception("cmd template does not match expected value")
+        args.template_file = "/template.json"
+        config = ister.parse_config(args)
+        if config["template"] != "file:///template.json":
+            raise Exception("full template arg does not match expected value")
+        args.template_file = "template.json"
+        config = ister.parse_config(args)
+        if config["template"] != "file://{0}/template.json".format(
+                os.getcwd()):
+            raise Exception("relative template arg does not match expected "
+                            "value")
+    except Exception as exep:
+        raise exep
+    finally:
+        os.path.exists = backup_exists
+        ister.get_template_location = backup_get_template_location
+
+
+def handle_options_good():
     """Test all values handle options supports"""
     # Test short options first
     sys.argv = ["ister.py", "-c", "cfg", "-t", "tpt", "-i"]
@@ -1508,6 +1588,7 @@ if __name__ == '__main__':
         create_filesystems_good_options,
         setup_mounts_good,
         setup_mounts_bad,
+        copy_os_good,
         chroot_open_class_good,
         chroot_open_class_bad_open,
         chroot_open_class_bad_chroot,
@@ -1572,7 +1653,10 @@ if __name__ == '__main__':
         validate_template_bad_missing_partition_layout,
         validate_template_bad_missing_filesystem_types,
         validate_template_bad_missing_partition_mount_points,
-        validate_handle_options
+        validate_template_bad_missing_version,
+        validate_template_bad_version,
+        parse_config_good,
+        handle_options_good
     ]
 
     run_tests(TESTS)
