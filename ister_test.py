@@ -554,8 +554,7 @@ def setup_mounts_bad():
 @run_command_wrapper
 def copy_os_good():
     """Check installer command"""
-    commands = ["swupd_verify -V --fix --path=/ --manifest=0"
-                "--contenturl=http://clearlinux-sandbox.jf.intel.com/update"]
+    commands = ["swupd_verify -V --fix --path=/ --manifest=0"]
     ister.copy_os({"Version": 0}, "/")
     commands_compare_helper(commands)
 
@@ -1451,16 +1450,26 @@ def validate_template_bad_version():
 
 
 def parse_config_good():
-    """Test configuration parsing"""
+    """Positive tests for configuration parsing"""
     global COMMAND_RESULTS
     COMMAND_RESULTS = []
-    backup_exists = os.path.exists
+    backup_isfile = os.path.isfile
     backup_get_template_location = ister.get_template_location
-    def mock_exists_true(path):
+    def mock_isfile_true_etc(path):
         global COMMAND_RESULTS
         COMMAND_RESULTS.append(path)
-        return True
-    def mock_exists_false(path):
+        if path.startswith("/etc"):
+            return True
+        else:
+            return False
+    def mock_isfile_true_usr(path):
+        global COMMAND_RESULTS
+        COMMAND_RESULTS.append(path)
+        if path.startswith("/usr"):
+            return True
+        else:
+            return False
+    def mock_isfile_false(path):
         global COMMAND_RESULTS
         COMMAND_RESULTS.append(path)
         return False
@@ -1476,27 +1485,29 @@ def parse_config_good():
         global COMMAND_RESULTS
         COMMAND_RESULTS.append(path)
         return "file:///cmd.json"
-    args = lambda: None
-    args.config_file = None
-    args.template_file = None
-    os.path.isfile = mock_exists_true
-    ister.get_template_location = mock_get_template_location_etc
     try:
+        args = lambda: None
+        args.config_file = None
+        args.template_file = None
+        os.path.isfile = mock_isfile_true_etc
+        ister.get_template_location = mock_get_template_location_etc
         config = ister.parse_config(args)
         commands = ["/etc/ister.conf", "/etc/ister.conf"]
         commands_compare_helper(commands)
         if config["template"] != "file:///etc.json":
             raise Exception("etc template does not match expected value")
         COMMAND_RESULTS = []
-        os.path.isfile = mock_exists_false
+        os.path.isfile = mock_isfile_true_usr
         ister.get_template_location = mock_get_template_location_usr
         config = ister.parse_config(args)
-        commands = ["/etc/ister.conf", "/usr/share/defaults/ister/ister.conf"]
+        commands = ["/etc/ister.conf", "/usr/share/defaults/ister/ister.conf",
+                    "/usr/share/defaults/ister/ister.conf"]
         commands_compare_helper(commands)
         if config["template"] != "file:///usr.json":
             raise Exception("usr template does not match expected value")
         COMMAND_RESULTS = []
         args.config_file = "cmd.conf"
+        os.path.isfile = mock_isfile_false
         ister.get_template_location = mock_get_template_location_cmd
         config = ister.parse_config(args)
         commands = ["cmd.conf"]
@@ -1516,8 +1527,22 @@ def parse_config_good():
     except Exception as exep:
         raise exep
     finally:
-        os.path.exists = backup_exists
+        os.path.isfile = backup_isfile
         ister.get_template_location = backup_get_template_location
+
+
+def parse_config_bad():
+    """Negative tests for configuration parsing"""
+    exception_flag = False
+    try:
+        args = lambda: None
+        args.config_file = None
+        args.template_file = None
+        ister.parse_config(args)
+    except:
+        exception_flag = True
+    if not exception_flag:
+        raise Exception("Failed to detect missing configuration file")
 
 
 def handle_options_good():
@@ -1656,6 +1681,7 @@ if __name__ == '__main__':
         validate_template_bad_missing_version,
         validate_template_bad_version,
         parse_config_good,
+        parse_config_bad,
         handle_options_good
     ]
 

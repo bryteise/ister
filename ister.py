@@ -55,7 +55,7 @@ def create_virtual_disk(template):
     """Create virtual disk file for install target
     """
     image_size = 0
-    min_size = 20000
+    min_size = 8000
     match = {"M": 1, "G": 1024, "T": 1024 * 1024}
     for part in template["PartitionLayout"]:
         if part["size"] != "rest":
@@ -208,7 +208,6 @@ def setup_mounts(template):
 def copy_os(template, target_dir):
     """Wrapper for running install command"""
     run_command("swupd_verify -V --fix --path={0} --manifest={1}"
-                "--contenturl=http://clearlinux-sandbox.jf.intel.com/update"
                 .format(target_dir, template["Version"]))
 
 
@@ -593,10 +592,14 @@ def parse_config(args):
         config["template"] = get_template_location(args.config_file)
     elif os.path.isfile("/etc/ister.conf"):
         config["template"] = get_template_location("/etc/ister.conf")
-    else:
+    elif os.path.isfile("/usr/share/defaults/ister/ister.conf"):
         config["template"] = get_template_location(
             "/usr/share/defaults/ister/ister.conf"
         )
+    elif args.template_file:
+        pass
+    else:
+        raise Exception("Couldn't find configuration file")
 
     if args.template_file:
         if args.template_file[0] == "/":
@@ -652,7 +655,7 @@ def main():
     if args.install:
         console = os.open("/dev/tty1", os.O_WRONLY)
     else:
-        console = os.open(sys.stdout.fileno(), os.O_WRONLY)
+        console = sys.stdout.fileno()
     if args.install:
         os.write(console, b"\x1b[2J\x1b[H")
         os.write(console, b"Starting installation\n")
