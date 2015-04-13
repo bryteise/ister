@@ -47,7 +47,7 @@ def good_virtual_disk_template():
     "PartitionMountPoints" : \
     [{"disk" : "gvdt", "partition" : 1, "mount" : "/boot"}, {"disk" : "gvdt", \
     "partition" : 3, "mount" : "/"}], \
-    "Version" : 800}'
+    "Version" : 800, "Bundles" : ["linux-kvm"]}'
 
 
 def full_user_install_template():
@@ -162,6 +162,14 @@ def open_wrapper(test_type):
                     global COMMAND_RESULTS
                     COMMAND_RESULTS.append("close")
                     return
+                def writelines(self, data):
+                    global COMMAND_RESULTS
+                    COMMAND_RESULTS += data
+                    return
+                def __exit__(self, *args):
+                    return
+                def __enter__(self, *args):
+                    return self
             def mock_open_good(dest, perm):
                 global COMMAND_RESULTS
                 COMMAND_RESULTS.append(dest)
@@ -551,11 +559,30 @@ def setup_mounts_bad():
         raise Exception("Failed to handle mkdtemp failure")
 
 
+@open_wrapper("good")
+def add_bundles_good():
+    """Ensure bundle outputs to correct file"""
+    global COMMAND_RESULTS
+    COMMAND_RESULTS = []
+    commands = ["/tmp/var/lib/swupd/subscriptions",
+                "w",
+                "a",
+                "\n",
+                "b"]
+    ister.add_bundles({"Bundles": ['a', 'b']}, "/tmp")
+    commands_compare_helper(commands)
+
+
 @run_command_wrapper
 def copy_os_good():
     """Check installer command"""
-    commands = ["swupd_verify -V --fix --path=/ --manifest=0"]
+    backup_add_bundles = ister.add_bundles
+    ister.add_bundles = lambda x,y: None
+    commands = ["swupd_verify -V --fix --path=/ --manifest=0",
+                "kernel_updater.sh -p /",
+                "gummiboot_updaters.sh -p /",]
     ister.copy_os({"Version": 0}, "/")
+    ister.add_bundles = backup_add_bundles
     commands_compare_helper(commands)
 
 
@@ -1364,7 +1391,8 @@ def validate_template_bad_missing_destination_type():
     template = {"PartitionLayout": [],
                 "FilesystemTypes": [],
                 "PartitionMountPoints": [],
-                "Version": 10}
+                "Version": 10,
+                "Bundles": []}
     try:
         ister.validate_template(template)
     except:
@@ -1379,7 +1407,8 @@ def validate_template_bad_missing_partition_layout():
     template = {"DestinationType": [],
                 "FilesystemTypes": [],
                 "PartitionMountPoints": [],
-                "Version": 10}
+                "Version": 10,
+                "Bundles": []}
     try:
         ister.validate_template(template)
     except:
@@ -1394,7 +1423,8 @@ def validate_template_bad_missing_filesystem_types():
     template = {"PartitionLayout": [],
                 "DestinationType": [],
                 "PartitionMountPoints": [],
-                "Version": 10}
+                "Version": 10,
+                "Bundles": []}
     try:
         ister.validate_template(template)
     except:
@@ -1409,7 +1439,8 @@ def validate_template_bad_missing_partition_mount_points():
     template = {"PartitionLayout": [],
                 "FilesystemTypes": [],
                 "DestinationType": [],
-                "Version": 10}
+                "Version": 10,
+                "Bundles": []}
     try:
         ister.validate_template(template)
     except:
@@ -1424,7 +1455,24 @@ def validate_template_bad_missing_version():
     template = {"PartitionLayout": [],
                 "FilesystemTypes": [],
                 "DestinationType": [],
-                "PartitionMountPoints": []}
+                "PartitionMountPoints": [],
+                "Bundles": []}
+    try:
+        ister.validate_template(template)
+    except:
+        exception_flag = True
+    if not exception_flag:
+        raise Exception("Failed to detect missing Version")
+
+
+def validate_template_bad_missing_bundles():
+    """Bad validate_template missing Bundles"""
+    exception_flag = False
+    template = {"PartitionLayout": [],
+                "FilesystemTypes": [],
+                "DestinationType": [],
+                "PartitionMountPoints": [],
+                "Version": 10}
     try:
         ister.validate_template(template)
     except:
@@ -1613,6 +1661,7 @@ if __name__ == '__main__':
         create_filesystems_good_options,
         setup_mounts_good,
         setup_mounts_bad,
+        add_bundles_good,
         copy_os_good,
         chroot_open_class_good,
         chroot_open_class_bad_open,
@@ -1679,6 +1728,7 @@ if __name__ == '__main__':
         validate_template_bad_missing_filesystem_types,
         validate_template_bad_missing_partition_mount_points,
         validate_template_bad_missing_version,
+        validate_template_bad_missing_bundles,
         validate_template_bad_version,
         parse_config_good,
         parse_config_bad,

@@ -18,8 +18,8 @@
 	!Users : [ { username : 'uname', !key : URI, !uid : 1000,
       !sudo : |password| }, ... ],
         Version : version-number,
+        Bundles : [ 'bundle1', ... ],
         //Future
-        !Bundles : [ 'bundle1', ... ],
         !PostNonChroot : [ '/path/to/script', ... ],
 	!PostChroot : [ '/path/to/script', ... ],
 	!RaidSupport : |md lvm btrfs|,

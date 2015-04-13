@@ -8,5 +8,6 @@
                         {"disk": "test.img", "partition": 3, "type": "ext4"}],
     "PartitionMountPoints": [{"disk": "test.img", "partition": 1, "mount": "/boot"},
                              {"disk": "test.img", "partition": 3, "mount": "/"}],
-    "Version": 930
+    "Version": 930,
+    "Bundles": ["kernel-kvm"]
 }

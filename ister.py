@@ -205,10 +205,21 @@ def setup_mounts(template):
     return target_dir
 
 
+def add_bundles(template, target_dir):
+    """Create bundle subscription file
+    """
+    with open(target_dir + "/var/lib/swupd/subscriptions", "w") as subs:
+        subs.writelines("\n".join(template["Bundles"]))
+
+
 def copy_os(template, target_dir):
-    """Wrapper for running install command"""
+    """Wrapper for running install command
+    """
+    add_bundles(template, target_dir)
     run_command("swupd_verify -V --fix --path={0} --manifest={1}"
                 .format(target_dir, template["Version"]))
+    run_command("kernel_updater.sh -p {0}".format(target_dir))
+    run_command("gummiboot_updaters.sh -p {0}".format(target_dir))
 
 
 class ChrootOpen(object):
@@ -573,6 +584,8 @@ def validate_template(template):
         raise Exception("Missing PartitionMountPoints field")
     if not template.get("Version"):
         raise Exception("Missing Version field")
+    if not template.get("Bundles"):
+        raise Exception("Missing Bundles field")
     validate_type_template(template)
     validate_disk_template(template)
     try:
