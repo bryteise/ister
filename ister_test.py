@@ -564,13 +564,20 @@ def add_bundles_good():
     """Ensure bundle outputs to correct file"""
     global COMMAND_RESULTS
     COMMAND_RESULTS = []
-    commands = ["/tmp/var/lib/swupd/subscriptions",
+    backup_makedirs = os.makedirs
+    def mock_makedirs(dir_name):
+        global COMMAND_RESULTS
+        COMMAND_RESULTS.append(dir_name)
+    os.makedirs = mock_makedirs
+    commands = ["/dne/var/lib/swupd",
+                "/dne/var/lib/swupd/subscriptions",
                 "w",
                 "a",
                 "\n",
                 "b"]
-    ister.add_bundles({"Bundles": ['a', 'b']}, "/tmp")
+    ister.add_bundles({"Bundles": ['a', 'b']}, "/dne")
     commands_compare_helper(commands)
+    os.makedirs = backup_makedirs
 
 
 @run_command_wrapper
@@ -773,8 +780,8 @@ def cleanup_virtual_good():
     """Test cleanup of virtual device"""
     template = {"dev": "image"}
     commands = ["umount -R /tmp",
-                "losetup --detach image",
-                "rm -fr /tmp"]
+                "rm -fr /tmp",
+                "losetup --detach image"]
     ister.cleanup(template, "/tmp")
     commands_compare_helper(commands)
 

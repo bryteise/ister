@@ -208,6 +208,7 @@ def setup_mounts(template):
 def add_bundles(template, target_dir):
     """Create bundle subscription file
     """
+    os.makedirs(target_dir + "/var/lib/swupd")
     with open(target_dir + "/var/lib/swupd/subscriptions", "w") as subs:
         subs.writelines("\n".join(template["Bundles"]))
 
@@ -336,12 +337,14 @@ def add_users(template, target_dir):
 def cleanup(template, target_dir, raise_exception=True):
     """Unmount and remove temporary files
     """
-    run_command("umount -R {}".format(target_dir),
-                raise_exception=raise_exception)
+    if target_dir:
+        run_command("umount -R {}".format(target_dir),
+                    raise_exception=raise_exception)
+        run_command("rm -fr {}".format(target_dir))
+
     if template.get("dev"):
         run_command("losetup --detach {0}".format(template["dev"]),
                     raise_exception=raise_exception)
-    run_command("rm -fr {}".format(target_dir))
 
 
 def get_template_location(path):
@@ -588,10 +591,7 @@ def validate_template(template):
         raise Exception("Missing Bundles field")
     validate_type_template(template)
     validate_disk_template(template)
-    try:
-        request.urlopen("http://clearlinux-sandbox.jf.intel.com/update/" +
-                        str(template["Version"]))
-    except:
+    if template["Version"] <= 0:
         raise Exception("Invalid version number")
     if template.get("Users"):
         validate_user_template(template["Users"])
@@ -630,19 +630,24 @@ def install_os(args):
     After the template file is located, download the template and validate it.
     If the template is valid, run the installation procedure.
     """
+    target_dir = None
     configuration = parse_config(args)
     template = get_template(configuration["template"])
     validate_template(template)
-    if template["DestinationType"] == "virtual":
-        create_virtual_disk(template)
-    create_partitions(template)
-    if template["DestinationType"] == "virtual":
-        map_loop_device(template)
-    create_filesystems(template)
-    target_dir = setup_mounts(template)
-    copy_os(template, target_dir)
-    add_users(template, target_dir)
-    cleanup(template, target_dir)
+    try:
+        if template["DestinationType"] == "virtual":
+            create_virtual_disk(template)
+        create_partitions(template)
+        if template["DestinationType"] == "virtual":
+            map_loop_device(template)
+        create_filesystems(template)
+        target_dir = setup_mounts(template)
+        copy_os(template, target_dir)
+        add_users(template, target_dir)
+    except Exception as excep:
+        raise excep
+    finally:
+        cleanup(template, target_dir, False)
 
 
 def handle_options():
