@@ -569,12 +569,13 @@ def add_bundles_good():
         global COMMAND_RESULTS
         COMMAND_RESULTS.append(dir_name)
     os.makedirs = mock_makedirs
-    commands = ["/dne/var/lib/swupd",
-                "/dne/var/lib/swupd/subscriptions",
+    commands = ["/dne/usr/share/clear/bundles/",
+                "/dne/usr/share/clear/bundles/a",
                 "w",
-                "a",
-                "\n",
-                "b"]
+                "close",
+                "/dne/usr/share/clear/bundles/b",
+                "w",
+                "close"]
     ister.add_bundles({"Bundles": ['a', 'b']}, "/dne")
     commands_compare_helper(commands)
     os.makedirs = backup_makedirs

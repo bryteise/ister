@@ -208,9 +208,10 @@ def setup_mounts(template):
 def add_bundles(template, target_dir):
     """Create bundle subscription file
     """
-    os.makedirs(target_dir + "/var/lib/swupd")
-    with open(target_dir + "/var/lib/swupd/subscriptions", "w") as subs:
-        subs.writelines("\n".join(template["Bundles"]))
+    bundles_dir = "/usr/share/clear/bundles/"
+    os.makedirs(target_dir + bundles_dir)
+    for bundle in template["Bundles"]:
+        open(target_dir + bundles_dir + bundle, "w").close()
 
 
 def copy_os(template, target_dir):
