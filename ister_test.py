@@ -208,7 +208,7 @@ def add_user_key_wrapper(func):
             global COMMAND_RESULTS
             COMMAND_RESULTS.append(dest)
             return [0, 0, 1000, 1000]
-        def mock_makedirs(dest, mode):
+        def mock_makedirs(dest, mode=0):
             global COMMAND_RESULTS
             COMMAND_RESULTS.append(dest)
             COMMAND_RESULTS.append(mode)
@@ -693,7 +693,7 @@ def add_user_key_good():
     template = {"username": "user", "key": "public"}
     commands = ["root",
                 "/home/user/.ssh",
-                700,
+                448,
                 "user",
                 "/home/user/.ssh",
                 1000,
@@ -731,9 +731,11 @@ def setup_sudo_good():
     global COMMAND_RESULTS
     COMMAND_RESULTS = []
     template = {"username": "user"}
-    commands = ["/tmp/etc/sudoers.d/user",
+    commands = ["/tmp/etc/sudoers.d",
+                0,
+                "/tmp/etc/sudoers.d/user",
                 "w",
-                "user ALL=(ALL) ALL",
+                "user ALL=(ALL) NOPASSWD: ALL\n",
                 "close"]
     ister.setup_sudo(template, "/tmp")
     commands_compare_helper(commands)
@@ -1295,7 +1297,7 @@ def validate_type_template_bad():
 
 def validate_user_template_good():
     """Good validate_user_template"""
-    template = [{"username": "user", "uid": "1000", "sudo": "password",
+    template = [{"username": "user", "uid": "1000", "sudo": True,
                  "key": "{}/key.pub".format(os.getcwd())}]
     ister.validate_user_template(template)
 
@@ -1303,7 +1305,7 @@ def validate_user_template_good():
 def validate_user_template_bad_missing_name():
     """Bad validate_user_template missing username"""
     exception_flag = False
-    template = [{"uid": "1000", "sudo": "password"}]
+    template = [{"uid": "1000", "sudo": True}]
     try:
         ister.validate_user_template(template)
     except:
@@ -1315,8 +1317,8 @@ def validate_user_template_bad_missing_name():
 def validate_user_template_bad_duplicate_name():
     """Bad validate_user_template duplicate username"""
     exception_flag = False
-    template = [{"username": "user", "uid": "1000", "sudo": "password"},
-                {"username": "user", "uid": "1001", "sudo": "password"}]
+    template = [{"username": "user", "uid": "1000", "sudo": True},
+                {"username": "user", "uid": "1001", "sudo": True}]
     try:
         ister.validate_user_template(template)
     except:
@@ -1328,8 +1330,8 @@ def validate_user_template_bad_duplicate_name():
 def validate_user_template_bad_duplicate_uid():
     """Bad validate_user_template duplicate uid"""
     exception_flag = False
-    template = [{"username": "user", "uid": "1000", "sudo": "password"},
-                {"username": "usertwo", "uid": "1000", "sudo": "password"}]
+    template = [{"username": "user", "uid": "1000", "sudo": True},
+                {"username": "usertwo", "uid": "1000", "sudo": True}]
     try:
         ister.validate_user_template(template)
     except:
@@ -1341,7 +1343,7 @@ def validate_user_template_bad_duplicate_uid():
 def validate_user_template_bad_invalid_uid_low():
     """Bad validate_user_template invalid uid (0)"""
     exception_flag = False
-    template = [{"username": "user", "uid": "0", "sudo": "password"}]
+    template = [{"username": "user", "uid": "0", "sudo": True}]
     try:
         ister.validate_user_template(template)
     except:
@@ -1353,7 +1355,7 @@ def validate_user_template_bad_invalid_uid_low():
 def validate_user_template_bad_invalid_uid_high():
     """Bad validate_user_template invalid uid (> uint32 max)"""
     exception_flag = False
-    template = [{"username": "user", "uid": "4294967296", "sudo": "password"}]
+    template = [{"username": "user", "uid": "4294967296", "sudo": True}]
     try:
         ister.validate_user_template(template)
     except:

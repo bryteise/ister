@@ -140,9 +140,11 @@ def map_loop_device(template, sleep_time=1):
     disk_image = template["PartitionLayout"][0]["disk"]
     command = "losetup --partscan --find --show {0}".format(disk_image)
     try:
-        dev = subprocess.check_output(command.split(" ")).decode("utf-8").splitlines()
+        dev = subprocess.check_output(command.split(" ")).decode("utf-8")\
+                                                         .splitlines()
     except:
-        raise Exception("losetup command failed: {0}: {1}".format(command, sys.exc_info()))
+        raise Exception("losetup command failed: {0}: {1}"
+                        .format(command, sys.exc_info()))
     if len(dev) != 1:
         raise Exception("losetup failed to create loop device")
     time.sleep(sleep_time)
@@ -266,6 +268,7 @@ def create_account(user, target_dir):
     passwordless login. Also add a new group with same name as the user
     """
 
+    os.makedirs(target_dir + "/home", exist_ok=True)
     if user.get("uid"):
         command = "useradd -U -m -p '' -u {0} {1}"\
             .format(user["uid"], user["username"])
@@ -286,7 +289,7 @@ def add_user_key(user, target_dir):
     pwd.getpwnam("root")
     with ChrootOpen(target_dir) as _:
         try:
-            os.makedirs("/home/{0}/.ssh".format(user["username"]), mode=700)
+            os.makedirs("/home/{0}/.ssh".format(user["username"]), mode=0o0700)
             pwinfo = pwd.getpwnam(user["username"])
             uid = pwinfo[2]
             gid = pwinfo[3]
@@ -307,8 +310,9 @@ def setup_sudo(user, target_dir):
 
     This function will raise an Exception on finding an error.
     """
-    sudoer_template = "{} ALL=(ALL) ALL".format(user["username"])
+    sudoer_template = "{} ALL=(ALL) NOPASSWD: ALL\n".format(user["username"])
     try:
+        os.makedirs("{0}/etc/sudoers.d".format(target_dir))
         conf = open("{0}/etc/sudoers.d/{1}"
                     .format(target_dir, user["username"]), "w")
         conf.write(sudoer_template)
@@ -331,7 +335,7 @@ def add_users(template, target_dir):
         create_account(user, target_dir)
         if user.get("key"):
             add_user_key(user, target_dir)
-        if user.get("sudo"):
+        if user.get("sudo") and user["sudo"]:
             setup_sudo(user, target_dir)
 
 
@@ -564,9 +568,9 @@ def validate_user_template(users):
                 raise Exception("Invalid UID: {}".format(uid))
             uids[uid] = uid
 
-        if sudo:
-            if sudo != "password":
-                raise Exception("Invalid sudo option: {}".format(sudo))
+        if sudo is not None:
+            if sudo is not True and sudo is not False:
+                raise Exception("Invalid sudo option")
 
         if key:
             with open(user["key"], "r") as key_file:
@@ -619,7 +623,8 @@ def parse_config(args):
         if args.template_file[0] == "/":
             config["template"] = "file://" + args.template_file
         else:
-            config["template"] = "file://" + os.path.abspath(args.template_file)
+            config["template"] = "file://" + os.path.\
+                                 abspath(args.template_file)
 
     return config
 
