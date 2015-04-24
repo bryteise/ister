@@ -755,6 +755,50 @@ def setup_sudo_bad():
         raise Exception("Didn't handle failure during setup sudo")
 
 
+def add_users_good():
+    """Verify add users is successful with valid input"""
+    backup_create_account = ister.create_account
+    backup_add_user_key = ister.add_user_key
+    backup_setup_sudo = ister.setup_sudo
+    def mock_create_account(user, target_dir):
+        global COMMAND_RESULTS
+        COMMAND_RESULTS.append(user["n"])
+        COMMAND_RESULTS.append(target_dir)
+    def mock_add_user_key(_, __):
+        global COMMAND_RESULTS
+        COMMAND_RESULTS.append("key")
+    def mock_setup_sudo(_, __):
+        global COMMAND_RESULTS
+        COMMAND_RESULTS.append("sudo")
+    ister.create_account = mock_create_account
+    ister.add_user_key = mock_add_user_key
+    ister.setup_sudo = mock_setup_sudo
+    global COMMAND_RESULTS
+    COMMAND_RESULTS = []
+    target_dir = "/tmp"
+    commands = ["one",
+                target_dir,
+                "key",
+                "sudo",
+                "two",
+                target_dir,
+                "key",
+                "three",
+                target_dir,
+                "sudo",
+                "four",
+                target_dir]
+    template = {"Users": [{"n": "one", "key": "akey", "sudo": True},
+                          {"n": "two", "key": "akey", "sudo": False},
+                          {"n": "three", "sudo": True},
+                          {"n": "four"}]}
+    ister.add_users(template, target_dir)
+    ister.create_account = backup_create_account
+    ister.add_user_key = backup_add_user_key
+    ister.setup_sudo = backup_setup_sudo
+    commands_compare_helper(commands)
+
+
 def add_users_none():
     """Verify that nothing happens without users to add"""
     backup_create_account = ister.create_account
@@ -1684,6 +1728,7 @@ if __name__ == '__main__':
         add_user_key_bad,
         setup_sudo_good,
         setup_sudo_bad,
+        add_users_good,
         add_users_none,
         cleanup_physical_good,
         cleanup_virtual_good,
