@@ -19,8 +19,8 @@
       !sudo : |password| }, ... ],
         Version : version-number,
         Bundles : [ 'bundle1', ... ],
-        //Future
         !PostNonChroot : [ '/path/to/script', ... ],
+        //Future
 	!PostChroot : [ '/path/to/script', ... ],
 	!RaidSupport : |md lvm btrfs|,
 	!RaidSetup : [ { raid : 'md-raid0', rdisk : 'md0', rpartitions :

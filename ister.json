@@ -8,5 +8,6 @@
                         {"disk": "/dev/sdb", "partition": 3, "type": "ext4"}],
     "PartitionMountPoints": [{"disk": "/dev/sdb", "partition": 1, "mount": "/boot"},
                              {"disk": "/dev/sdb", "partition": 3, "mount": "/"}],
-    "Version": 930
+    "Version": 0,
+    "Bundles": ["kernel-kvm"]
 }

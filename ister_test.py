@@ -814,6 +814,14 @@ def add_users_none():
 
 
 @run_command_wrapper
+def post_install_nonchroot_good():
+    """Test post install script execution"""
+    commands = ["file1 /tmp"]
+    ister.post_install_nonchroot({"PostNonChroot": ["file1"]}, "/tmp")
+    commands_compare_helper(commands)
+
+
+@run_command_wrapper
 def cleanup_physical_good():
     """Test cleanup of virtual device"""
     commands = ["umount -R /tmp",
@@ -1433,6 +1441,42 @@ def validate_user_template_bad_missing_key():
         raise Exception("Failed to detect missing key file")
 
 
+def validate_postnonchroot_template_good():
+    global COMMAND_RESULTS
+    COMMAND_RESULTS = []
+    backup_isfile = os.path.isfile
+    def mock_isfile(path):
+        global COMMAND_RESULTS
+        COMMAND_RESULTS.append(path)
+        return True
+    os.path.isfile = mock_isfile
+    commands = ["file1", "file2"]
+    ister.validate_postnonchroot_template([])
+    ister.validate_postnonchroot_template(commands)
+    os.path.isfile = backup_isfile
+    commands_compare_helper(commands)
+
+
+def validate_postnonchroot_template_bad():
+    global COMMAND_RESULTS
+    COMMAND_RESULTS = []
+    backup_isfile = os.path.isfile
+    exception_flag = False
+    def mock_isfile(path):
+        global COMMAND_RESULTS
+        COMMAND_RESULTS.append(path)
+        return False
+    os.path.isfile = mock_isfile
+    commands = ["file1"]
+    try:
+        ister.validate_postnonchroot_template(commands)
+    except:
+        exception_flag = True
+    os.path.isfile = backup_isfile
+    if not exception_flag:
+        raise Exception("Failed to detect missing script file")
+
+
 def validate_template_good():
     """Good validate_template"""
     template = json.loads(good_virtual_disk_template())
@@ -1730,6 +1774,7 @@ if __name__ == '__main__':
         setup_sudo_bad,
         add_users_good,
         add_users_none,
+        post_install_nonchroot_good,
         cleanup_physical_good,
         cleanup_virtual_good,
         get_template_location_good,
@@ -1777,6 +1822,8 @@ if __name__ == '__main__':
         validate_user_template_bad_invalid_uid_high,
         validate_user_template_bad_invalid_sudo,
         validate_user_template_bad_missing_key,
+        validate_postnonchroot_template_good,
+        validate_postnonchroot_template_bad,
         validate_template_good,
         validate_template_bad_missing_destination_type,
         validate_template_bad_missing_partition_layout,

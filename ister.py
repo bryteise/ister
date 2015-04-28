@@ -339,6 +339,20 @@ def add_users(template, target_dir):
             setup_sudo(user, target_dir)
 
 
+def post_install_nonchroot(template, target_dir):
+    """Run non chroot post install scripts
+
+    All post scripts must be executable.
+
+    The mount root for the install is passed as an argument to each script.
+    """
+    if not template.get("PostNonChroot"):
+        return
+
+    for script in template["PostNonChroot"]:
+        run_command(script + " {}".format(target_dir))
+
+
 def cleanup(template, target_dir, raise_exception=True):
     """Unmount and remove temporary files
     """
@@ -577,6 +591,17 @@ def validate_user_template(users):
                 user["key"] = key_file.read()
 
 
+def validate_postnonchroot_template(scripts):
+    """Attempt to verify all post scripts exist
+
+    This function will raise an Exception on finding an error.
+    """
+    for script in scripts:
+        if not os.path.isfile(script):
+            raise Exception("Missing post nonchroot script {}"
+                            .format(script))
+
+
 def validate_template(template):
     """Attempt to verify template is sane
 
@@ -600,6 +625,8 @@ def validate_template(template):
         raise Exception("Invalid version number")
     if template.get("Users"):
         validate_user_template(template["Users"])
+    if template.get("PostNonChroot"):
+        validate_postnonchroot_template(template["PostNonChroot"])
 
 
 def parse_config(args):
@@ -650,6 +677,7 @@ def install_os(args):
         target_dir = setup_mounts(template)
         copy_os(template, target_dir)
         add_users(template, target_dir)
+        post_install_nonchroot(template, target_dir)
     except Exception as excep:
         raise excep
     finally:
