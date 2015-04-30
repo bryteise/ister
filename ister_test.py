@@ -577,6 +577,7 @@ def setup_mounts_virtual_good():
                                           "partition": 2}],
                 "dev": "/dev/loop0"}
     commands = ["sgdisk /dev/loop0 --typecode=1:4f68bce3-e8cd-4db1-96e7-fbcaf984b709",
+                "sgdisk /dev/loop0 --partition-guid=1:4f68bce3-e8cd-4db1-96e7-fbcaf984b709",
                 "mount /dev/loop0p1 /tmp/",
                 "sgdisk /dev/loop0 --typecode=2:c12a7328-f81f-11d2-ba4b-00a0c93ec93b",
                 "mkdir /tmp/boot",

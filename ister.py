@@ -213,6 +213,10 @@ def setup_mounts(template):
             run_command("sgdisk {0} --typecode={1}:\
 4f68bce3-e8cd-4db1-96e7-fbcaf984b709"
                         .format(base_dev, part["partition"]))
+            if template.get("dev"):
+                run_command("sgdisk {0} --partition-guid={1}:\
+4f68bce3-e8cd-4db1-96e7-fbcaf984b709"
+                            .format(base_dev, part["partition"]))
         if part["mount"] == "/boot":
             run_command("sgdisk {0} --typecode={1}:\
 c12a7328-f81f-11d2-ba4b-00a0c93ec93b"
