@@ -482,8 +482,27 @@ def create_filesystems_good():
                 "mkfs.ext4 /dev/sda3",
                 "mkfs.btrfs /dev/sda4",
                 "mkfs.vfat /dev/sdb1",
+                "sgdisk /dev/sdb --typecode=2:0657fd6d-a4ab-43c4-84e5-0933c84b4f4f",
                 "mkswap /dev/sdb2",
                 "mkfs.xfs /dev/sdb3"]
+    ister.create_filesystems(template)
+    commands_compare_helper(commands)
+
+
+@run_command_wrapper
+def create_filesystems_virtual_good():
+    """Create virtual filesystems options"""
+    template = {"FilesystemTypes": [{"disk": "test", "type": "vfat",
+                                     "partition": 1},
+                                    {"disk": "test", "type": "swap",
+                                     "partition": 2},
+                                    {"disk": "test", "type": "ext4",
+                                     "partition": 3}],
+                "dev": "/dev/loop0"}
+    commands = ["mkfs.vfat /dev/loop0p1",
+                "sgdisk /dev/loop0 --typecode=2:0657fd6d-a4ab-43c4-84e5-0933c84b4f4f",
+                "mkswap /dev/loop0p2",
+                "mkfs.ext4 /dev/loop0p3"]
     ister.create_filesystems(template)
     commands_compare_helper(commands)
 
@@ -510,6 +529,7 @@ def create_filesystems_good_options():
                 "mkfs.ext4 opt /dev/sda3",
                 "mkfs.btrfs opt /dev/sda4",
                 "mkfs.vfat opt /dev/sdb1",
+                "sgdisk /dev/sdb --typecode=2:0657fd6d-a4ab-43c4-84e5-0933c84b4f4f",
                 "mkswap opt /dev/sdb2",
                 "mkfs.xfs opt /dev/sdb3"]
     ister.create_filesystems(template)
@@ -528,9 +548,39 @@ def setup_mounts_good():
                                           "partition": 1},
                                          {"mount": "/boot", "disk": "sda",
                                           "partition": 2}]}
-    commands = ["mount /dev/sda1 /tmp/",
+    commands = ["sgdisk /dev/sda --typecode=1:4f68bce3-e8cd-4db1-96e7-fbcaf984b709",
+                "mount /dev/sda1 /tmp/",
+                "sgdisk /dev/sda --typecode=2:c12a7328-f81f-11d2-ba4b-00a0c93ec93b",
                 "mkdir /tmp/boot",
                 "mount /dev/sda2 /tmp/boot"]
+    try:
+        target_dir = ister.setup_mounts(template)
+    finally:
+        tempfile.mkdtemp = backup_mkdtemp
+    if target_dir != "/tmp":
+        raise Exception("Target dir doesn't match expected: {0}"
+                        .format(target_dir))
+    commands_compare_helper(commands)
+
+
+@run_command_wrapper
+def setup_mounts_virtual_good():
+    """Setup virtual mount points for install"""
+    import tempfile
+    backup_mkdtemp = tempfile.mkdtemp
+    def mock_mkdtemp():
+        return "/tmp"
+    tempfile.mkdtemp = mock_mkdtemp
+    template = {"PartitionMountPoints": [{"mount": "/", "disk": "test",
+                                          "partition": 1},
+                                         {"mount": "/boot", "disk": "test",
+                                          "partition": 2}],
+                "dev": "/dev/loop0"}
+    commands = ["sgdisk /dev/loop0 --typecode=1:4f68bce3-e8cd-4db1-96e7-fbcaf984b709",
+                "mount /dev/loop0p1 /tmp/",
+                "sgdisk /dev/loop0 --typecode=2:c12a7328-f81f-11d2-ba4b-00a0c93ec93b",
+                "mkdir /tmp/boot",
+                "mount /dev/loop0p2 /tmp/boot"]
     try:
         target_dir = ister.setup_mounts(template)
     finally:
@@ -1756,8 +1806,10 @@ if __name__ == '__main__':
         get_device_name_good_virtual,
         get_device_name_good_physical,
         create_filesystems_good,
+        create_filesystems_virtual_good,
         create_filesystems_good_options,
         setup_mounts_good,
+        setup_mounts_virtual_good,
         setup_mounts_bad,
         add_bundles_good,
         copy_os_good,

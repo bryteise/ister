@@ -90,8 +90,8 @@ def create_partitions(template, sleep_time=1):
         run_command(command)
         time.sleep(sleep_time)
     # Create partitions
-    for part in sorted(template["PartitionLayout"], key=lambda v: v["disk"]
-                       + str(v["partition"])):
+    for part in sorted(template["PartitionLayout"], key=lambda v: v["disk"] +
+                       str(v["partition"])):
         if part["disk"] != cdisk:
             start = 0
         if part["size"] == "rest":
@@ -179,6 +179,14 @@ def create_filesystems(template):
         else:
             command = "{0} {1}{2}".format(fs_util[fst["type"]], dev,
                                           fst["partition"])
+        if fst["type"] == "swap":
+            if template.get("dev"):
+                base_dev = dev[:-1]
+            else:
+                base_dev = dev
+            run_command("sgdisk {0} --typecode={1}:\
+0657fd6d-a4ab-43c4-84e5-0933c84b4f4f"
+                        .format(base_dev, fst["partition"]))
         run_command(command)
 
 
@@ -196,9 +204,21 @@ def setup_mounts(template):
 
     for part in sorted(template["PartitionMountPoints"], key=lambda v:
                        v["mount"]):
+        dev = get_device_name(template, part["disk"])
+        if template.get("dev"):
+            base_dev = dev[:-1]
+        else:
+            base_dev = dev
+        if part["mount"] == "/":
+            run_command("sgdisk {0} --typecode={1}:\
+4f68bce3-e8cd-4db1-96e7-fbcaf984b709"
+                        .format(base_dev, part["partition"]))
+        if part["mount"] == "/boot":
+            run_command("sgdisk {0} --typecode={1}:\
+c12a7328-f81f-11d2-ba4b-00a0c93ec93b"
+                        .format(base_dev, part["partition"]))
         if part["mount"] != "/":
             run_command("mkdir {0}{1}".format(target_dir, part["mount"]))
-        dev = get_device_name(template, part["disk"])
         run_command("mount {0}{1} {2}{3}".format(dev,
                                                  part["partition"],
                                                  target_dir,
