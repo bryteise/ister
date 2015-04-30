@@ -251,7 +251,7 @@ def create_virtual_disk_good_meg():
     """Create disk with size specified in megabytes"""
     template = {"PartitionLayout": [{"size": "20000M", "disk": "vdisk_tmp"},
                                     {"size": "50M"}]}
-    command = "qemu-img create vdisk_tmp 20050M"
+    command = "qemu-img create vdisk_tmp 20051M"
     ister.create_virtual_disk(template)
     if command != COMMAND_RESULTS[0] or len(COMMAND_RESULTS) != 1:
         raise Exception("command to create image doesn't match expected "
@@ -263,7 +263,7 @@ def create_virtual_disk_good_gig():
     """Create disk with size specified in gigabytes"""
     template = {"PartitionLayout": [{"size": "20G", "disk": "vdisk_tmp"},
                                     {"size": "1G"}]}
-    command = "qemu-img create vdisk_tmp 21504M"
+    command = "qemu-img create vdisk_tmp 21505M"
     ister.create_virtual_disk(template)
     if command != COMMAND_RESULTS[0] or len(COMMAND_RESULTS) != 1:
         raise Exception("command to create image doesn't match expected "
@@ -274,7 +274,7 @@ def create_virtual_disk_good_gig():
 def create_virtual_disk_good_tera():
     """Create disk with size specified in terabytes"""
     template = {"PartitionLayout": [{"size": "1T", "disk": "vdisk_tmp"}]}
-    command = "qemu-img create vdisk_tmp 1048576M"
+    command = "qemu-img create vdisk_tmp 1048577M"
     ister.create_virtual_disk(template)
     if command != COMMAND_RESULTS[0] or len(COMMAND_RESULTS) != 1:
         raise Exception("command to create image doesn't match expected "

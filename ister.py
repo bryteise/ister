@@ -60,6 +60,7 @@ def create_virtual_disk(template):
         if part["size"] != "rest":
             image_size += int(part["size"][:-1]) * match[part["size"][-1]]
 
+    image_size += 1
     command = "qemu-img create {0} {1}M".\
               format(template["PartitionLayout"][0]["disk"], image_size)
     run_command(command)
