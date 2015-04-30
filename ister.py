@@ -55,13 +55,10 @@ def create_virtual_disk(template):
     """Create virtual disk file for install target
     """
     image_size = 0
-    min_size = 8000
     match = {"M": 1, "G": 1024, "T": 1024 * 1024}
     for part in template["PartitionLayout"]:
         if part["size"] != "rest":
             image_size += int(part["size"][:-1]) * match[part["size"][-1]]
-    if image_size < min_size:
-        image_size = min_size
 
     command = "qemu-img create {0} {1}M".\
               format(template["PartitionLayout"][0]["disk"], image_size)
@@ -436,6 +433,9 @@ def validate_layout(template):
         if size[-1] not in accepted_sizes and size != "rest":
             raise Exception("Invalid size specified in section {1}"
                             .format(layout))
+        if size != "rest" and int(size[:-1]) <= 0:
+            raise Exception("Invalid size specified in section {1}"
+                            .format(layout))
 
         if ptype not in accepted_ptypes:
             raise Exception("Invalid partiton type {0}, supported types \
@@ -443,10 +443,6 @@ are: {1}".format(ptype, accepted_ptypes))
 
         if ptype == "EFI" and has_efi:
             raise Exception("Multiple EFI partitions defined")
-        if ptype == "EFI":
-            if size == "rest" or int(size[:-1]) < 512:
-                raise Exception("EFI partition has invalid size: {0}"
-                                .format(size))
 
         if ptype == "EFI":
             has_efi = True

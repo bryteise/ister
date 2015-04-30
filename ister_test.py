@@ -1018,7 +1018,7 @@ def validate_layout_bad_missing_ptype():
         raise Exception("Failed to detect missing ptype")
 
 
-def validate_layout_bad_size():
+def validate_layout_bad_size_type():
     """Bad validate_layout size type"""
     exception_flag = False
     template = {"PartitionLayout": [{"disk": "sda", "partition": 1,
@@ -1029,6 +1029,19 @@ def validate_layout_bad_size():
         exception_flag = True
     if not exception_flag:
         raise Exception("Failed to detect invalid size type")
+
+
+def validate_layout_negative_size():
+    """Bad validate_layout negative partition size"""
+    exception_flag = False
+    template = {"PartitionLayout": [{"disk": "sda", "partition": 1,
+                                     "size": "-32M", "ptype": "EFI"}]}
+    try:
+        ister.validate_layout(template)
+    except:
+        exception_flag = True
+    if not exception_flag:
+        raise Exception("Failed to detect negative partition size")
 
 
 def validate_layout_bad_ptype():
@@ -1840,7 +1853,8 @@ if __name__ == '__main__':
         validate_layout_bad_missing_part,
         validate_layout_bad_missing_size,
         validate_layout_bad_missing_ptype,
-        validate_layout_bad_size,
+        validate_layout_bad_size_type,
+        validate_layout_negative_size,
         validate_layout_bad_ptype,
         validate_layout_bad_multiple_efis,
         validate_layout_bad_duplicate_parts,
