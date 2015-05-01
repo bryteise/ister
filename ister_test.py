@@ -1755,6 +1755,38 @@ def parse_config_bad():
         raise Exception("Failed to detect missing configuration file")
 
 
+@open_wrapper("good")
+def set_motd_notification_good():
+    """Verify motd is written correctly"""
+    global COMMAND_RESULTS
+    COMMAND_RESULTS = []
+    message = """Clear Linux for Intel Architecture installation in progress.
+
+You can login to the installer image and check installation status with:
+
+    systemctl status ister
+
+Your computer will power off once installation completes successfully.
+"""
+    commands = ["/tmp/etc/issue",
+                "w",
+                message]
+    ister.set_motd_notification("/tmp")
+    commands_compare_helper(commands)
+
+
+@open_wrapper("bad")
+def set_motd_notification_bad():
+    """Verify motd setting exceptions are handled as expected"""
+    exception_flag = False
+    try:
+        ister.set_motd_notification("/tmp")
+    except:
+        exception_flag = True
+    if not exception_flag:
+        raise Exception("Failed to detect setting motd failure")
+
+
 def handle_options_good():
     """Test all values handle options supports"""
     # Test short options first
@@ -1764,18 +1796,18 @@ def handle_options_good():
         raise Exception("Failed to correctly set short config file")
     if not args.template_file == "tpt":
         raise Exception("Failed to correctly set short template file")
-    if not args.install:
-        raise Exception("Failed to correctly set short install")
+    if not args.installer:
+        raise Exception("Failed to correctly set short installer")
     # Test long options next
     sys.argv = ["ister.py", "--config-file=cfg", "--template-file=tpt",
-            "--install"]
+            "--installer"]
     args = ister.handle_options()
     if not args.config_file == "cfg":
         raise Exception("Failed to correctly set long config file")
     if not args.template_file == "tpt":
         raise Exception("Failed to correctly set long template file")
-    if not args.install:
-        raise Exception("Failed to correctly set long install")
+    if not args.installer:
+        raise Exception("Failed to correctly set long installer")
     # Test default options
     sys.argv = ["ister.py"]
     args = ister.handle_options()
@@ -1783,8 +1815,8 @@ def handle_options_good():
         raise Exception("Incorrect default config file set")
     if args.template_file:
         raise Exception("Incorrect default template file set")
-    if args.install:
-        raise Exception("Incorrect default install set")
+    if args.installer:
+        raise Exception("Incorrect default installer set")
 
 
 def run_tests(tests):
@@ -1901,6 +1933,8 @@ if __name__ == '__main__':
         validate_template_bad_version,
         parse_config_good,
         parse_config_bad,
+        set_motd_notification_good,
+        set_motd_notification_bad,
         handle_options_good
     ]
 

@@ -652,6 +652,8 @@ def validate_template(template):
 
 def parse_config(args):
     """Setup configuration dict holding ister settings
+
+    This function will raise an Exception on finding an error.
     """
     config = {}
     if args.config_file:
@@ -677,12 +679,34 @@ def parse_config(args):
     return config
 
 
+def set_motd_notification(target_dir):
+    """Create a motd file for to display to users of installer images
+
+    This function will raise an Exception on finding an error.
+    """
+    message = """Clear Linux for Intel Architecture installation in progress.
+
+You can login to the installer image and check installation status with:
+
+    systemctl status ister
+
+Your computer will power off once installation completes successfully.
+"""
+    try:
+        with open(target_dir + "/etc/issue", "w") as mfile:
+            mfile.write(message)
+    except:
+        raise Exception("Unable to set installer image message")
+
+
 def install_os(args):
     """Install the OS
 
     Start out parsing the configuration file for URI of the template.
     After the template file is located, download the template and validate it.
     If the template is valid, run the installation procedure.
+
+    This function will raise an Exception on finding an error.
     """
     target_dir = None
     configuration = parse_config(args)
@@ -699,6 +723,8 @@ def install_os(args):
         copy_os(template, target_dir)
         add_users(template, target_dir)
         post_install_nonchroot(template, target_dir)
+        if args.installer:
+            set_motd_notification(target_dir)
     except Exception as excep:
         raise excep
     finally:
@@ -715,8 +741,8 @@ def handle_options():
     parser.add_argument("-t", "--template-file", action="store",
                         default=None,
                         help="Path to template file to use")
-    parser.add_argument("-i", "--install", action="store_true", default=False,
-                        help="Setup to be run as an installer")
+    parser.add_argument("-i", "--installer", action="store_true", default=False,
+                        help="Setup image to be an installer")
     args = parser.parse_args()
     return args
 
@@ -725,25 +751,12 @@ def main():
     """Start the installer
     """
     args = handle_options()
-    if args.install:
-        console = os.open("/dev/tty1", os.O_WRONLY)
-    else:
-        console = sys.stdout.fileno()
-    if args.install:
-        os.write(console, b"\x1b[2J\x1b[H")
-        os.write(console, b"Starting installation\n")
     try:
         install_os(args)
     except Exception as exep:
-        os.write(console, "Failed: {}\n".format(exep)
-                 .encode("ascii"))
-        if args.install:
-            time.sleep(5)
+        print("Failed: {}".format(exep))
         sys.exit(-1)
 
-    if args.install:
-        os.write(console, b"Installation complete")
-        time.sleep(5)
     sys.exit(0)
 
 if __name__ == '__main__':
