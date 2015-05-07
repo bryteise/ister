@@ -9,4 +9,4 @@ Ister aims to be pylint and pep8 clean. New code should verify both pass without
 exception before being submitted. If a new exception makes sense it can be added
 on a case by case basis.
 
-Testing is supported through the run-tests.sh script.
+Testing is supported through ister_test.py.

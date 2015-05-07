@@ -9,10 +9,9 @@ autom4te.cache/
 config.log
 config.status
 configure
-efi.bios
 install-sh
 installenv/
 missing
 repos/
-test-log
 test/
+test-log
