@@ -18,10 +18,10 @@
 # Boston, MA 02110-1301 USA
 #
 
-# If we see an exception, it is always fatal, so the broad exception
+# If we see an exception it is always fatal so the broad exception
 # warning isn't helpful.
 # pylint: disable=W0703
-# We aren't using classes for anything other than with handling, so
+# We aren't using classes for anything other than with handling so
 # a warning about too few methods being implemented isn't useful.
 # pylint: disable=R0903
 
@@ -35,7 +35,7 @@ import sys
 import tempfile
 import time
 import urllib.request as request
-from datetime import datetime
+
 
 def run_command(cmd, raise_exception=True):
     """Execute given command in a subprocess
@@ -241,20 +241,12 @@ def add_bundles(template, target_dir):
 def copy_os(template, target_dir):
     """Wrapper for running install command
     """
-    swupd_logs="/home/logs/swupd-logs"
-    t=datetime.today()
-    swupd_ts=(str(t.year)+str(t.month)+str(t.day)+str(t.hour)+str(t.minute))[2:]
-
     add_bundles(template, target_dir)
-    try:
-        run_command("swupd_verify -V --fix --path={0} --manifest={1}"
+    run_command("swupd_verify -V --fix --path={0} --manifest={1}"
                 .format(target_dir, template["Version"]))
-        run_command("cp -v /var/log/swupd/swupd-update.log "+swupd_logs+"/swupd-update.install_log."+str(template["Version"])+".ister."+swupd_ts)
-        run_command("kernel_updater.sh -p {0}".format(target_dir))
-        run_command("gummiboot_updaters.sh -p {0}".format(target_dir))
-    except Exception as exec:
-        print("**** swupd_verify failed at:"+ str(exec))
-        run_command("cp -v /var/log/swupd/swupd-update.log "+swupd_logs+"/swupd-update.install_log."+str(template["Version"])+".ister."+swupd_ts)
+    run_command("kernel_updater.sh -p {0}".format(target_dir))
+    run_command("gummiboot_updaters.sh -p {0}".format(target_dir))
+
 
 class ChrootOpen(object):
     """Class encapsulating chroot setup and teardown
