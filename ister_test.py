@@ -228,7 +228,7 @@ def add_user_key_wrapper(func):
 
 def run_command_good():
     """Good run_command test"""
-    ister.run_command("clear")
+    ister.run_command("true")
 
 
 def run_command_bad():
