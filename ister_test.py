@@ -1821,19 +1821,22 @@ def handle_options_good():
 
 def run_tests(tests):
     """Run ister test suite"""
+    failed = 0
     flog = open("test-log", "w")
 
-    for test in tests:
-        try:
-            test()
-        except Exception as exep:
-            print("Test: {0} FAIL: {1}.".format(test.__name__, exep))
-            flog.write("Test: {0} FAIL: {1}.\n".format(test.__name__, exep))
-        else:
-            print("Test: {0} PASS.".format(test.__name__))
-            flog.write("Test: {0} PASS.\n".format(test.__name__))
+    with open("test-log", "w") as flog:
+        for test in tests:
+            try:
+                test()
+            except Exception as exep:
+                print("Test: {0} FAIL: {1}.".format(test.__name__, exep))
+                flog.write("Test: {0} FAIL: {1}.\n".format(test.__name__, exep))
+                failed += 1
+            else:
+                print("Test: {0} PASS.".format(test.__name__))
+                flog.write("Test: {0} PASS.\n".format(test.__name__))
 
-    flog.close()
+    return failed
 
 if __name__ == '__main__':
     TESTS = [
@@ -1938,4 +1941,6 @@ if __name__ == '__main__':
         handle_options_good
     ]
 
-    run_tests(TESTS)
+    failed = run_tests(TESTS)
+    if failed > 0:
+        sys.exit(1)
