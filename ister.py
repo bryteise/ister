@@ -238,12 +238,18 @@ def add_bundles(template, target_dir):
         open(target_dir + bundles_dir + bundle, "w").close()
 
 
-def copy_os(template, target_dir):
+def copy_os(args, template, target_dir):
     """Wrapper for running install command
     """
     add_bundles(template, target_dir)
-    run_command("swupd_verify -V --fix --path={0} --manifest={1}"
-                .format(target_dir, template["Version"]))
+    swupd_command = "swupd_verify -V --fix --path={0} --manifest={1}"\
+                    .format(target_dir, template["Version"])
+    if args.url:
+        swupd_command += " --url={0}".format(args.url)
+    # FIXME: remove the format=staging once swupd_verify gets fixed
+    if args.format:
+        swupd_command += " --format={0}".format(args.format)
+    run_command(swupd_command)
     run_command("kernel_updater.sh -p {0}".format(target_dir))
     run_command("gummiboot_updaters.sh -p {0}".format(target_dir))
 
@@ -720,7 +726,7 @@ def install_os(args):
             map_loop_device(template)
         create_filesystems(template)
         target_dir = setup_mounts(template)
-        copy_os(template, target_dir)
+        copy_os(args, template, target_dir)
         add_users(template, target_dir)
         post_install_nonchroot(template, target_dir)
         if args.installer:
@@ -741,8 +747,13 @@ def handle_options():
     parser.add_argument("-t", "--template-file", action="store",
                         default=None,
                         help="Path to template file to use")
-    parser.add_argument("-i", "--installer", action="store_true", default=False,
+    parser.add_argument("-i", "--installer", action="store_true",
+                        default=False,
                         help="Setup image to be an installer")
+    parser.add_argument("-u", "--url", action="store", default=None,
+                        help="URL to use for looking for update content")
+    parser.add_argument("-f", "--format", action="store", default=None,
+                        help="format to use for looking for update content")
     args = parser.parse_args()
     return args
 

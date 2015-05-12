@@ -637,10 +637,29 @@ def copy_os_good():
     """Check installer command"""
     backup_add_bundles = ister.add_bundles
     ister.add_bundles = lambda x,y: None
+    args = lambda: None
+    args.url = None
+    args.format = None
     commands = ["swupd_verify -V --fix --path=/ --manifest=0",
                 "kernel_updater.sh -p /",
                 "gummiboot_updaters.sh -p /",]
-    ister.copy_os({"Version": 0}, "/")
+    ister.copy_os(args, {"Version": 0}, "/")
+    ister.add_bundles = backup_add_bundles
+    commands_compare_helper(commands)
+
+
+@run_command_wrapper
+def copy_os_url_good():
+    """Check installer command"""
+    backup_add_bundles = ister.add_bundles
+    ister.add_bundles = lambda x,y: None
+    args = lambda: None
+    args.url = "/"
+    args.format = None
+    commands = ["swupd_verify -V --fix --path=/ --manifest=0 --url=/",
+                "kernel_updater.sh -p /",
+                "gummiboot_updaters.sh -p /",]
+    ister.copy_os(args, {"Version": 0}, "/")
     ister.add_bundles = backup_add_bundles
     commands_compare_helper(commands)
 
@@ -1790,7 +1809,7 @@ def set_motd_notification_bad():
 def handle_options_good():
     """Test all values handle options supports"""
     # Test short options first
-    sys.argv = ["ister.py", "-c", "cfg", "-t", "tpt", "-i"]
+    sys.argv = ["ister.py", "-c", "cfg", "-t", "tpt", "-i", "-u", "/"]
     args = ister.handle_options()
     if not args.config_file == "cfg":
         raise Exception("Failed to correctly set short config file")
@@ -1798,9 +1817,11 @@ def handle_options_good():
         raise Exception("Failed to correctly set short template file")
     if not args.installer:
         raise Exception("Failed to correctly set short installer")
+    if not args.url:
+        raise Exception("Failed to correctly set short url")
     # Test long options next
     sys.argv = ["ister.py", "--config-file=cfg", "--template-file=tpt",
-            "--installer"]
+                "--installer", "--url=/"]
     args = ister.handle_options()
     if not args.config_file == "cfg":
         raise Exception("Failed to correctly set long config file")
@@ -1808,6 +1829,8 @@ def handle_options_good():
         raise Exception("Failed to correctly set long template file")
     if not args.installer:
         raise Exception("Failed to correctly set long installer")
+    if not args.url:
+        raise Exception("Failed to correctly set long url")
     # Test default options
     sys.argv = ["ister.py"]
     args = ister.handle_options()
@@ -1817,6 +1840,8 @@ def handle_options_good():
         raise Exception("Incorrect default template file set")
     if args.installer:
         raise Exception("Incorrect default installer set")
+    if args.url:
+        raise Exception("Incorrect default url set")
 
 
 def run_tests(tests):
@@ -1862,6 +1887,7 @@ if __name__ == '__main__':
         setup_mounts_bad,
         add_bundles_good,
         copy_os_good,
+        copy_os_url_good,
         chroot_open_class_good,
         chroot_open_class_bad_open,
         chroot_open_class_bad_chroot,
