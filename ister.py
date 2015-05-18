@@ -249,6 +249,11 @@ def copy_os(args, template, target_dir):
     # FIXME: remove the format=staging once swupd_verify gets fixed
     if args.format:
         swupd_command += " --format={0}".format(args.format)
+    if template["DestinationType"] == "physical":
+        os.makedirs("/var/lib/swupd", exist_ok=True)
+        os.makedirs("{0}/var/tmp".format(target_dir))
+        run_command("mount --bind /var/lib/swupd {0}/var/tmp"
+                    .format(target_dir))
     run_command(swupd_command)
     run_command("kernel_updater.sh -p {0}".format(target_dir))
     run_command("gummiboot_updaters.sh -p {0}".format(target_dir))
@@ -385,6 +390,11 @@ def cleanup(template, target_dir, raise_exception=True):
     """Unmount and remove temporary files
     """
     if target_dir:
+        if os.path.isdir("{0}/var/tmp".format(target_dir)):
+            run_command("umount /var/lib/swupd",
+                        raise_exception=raise_exception)
+            run_command("rm -fr {0}/var/tmp".format(target_dir),
+                        raise_exception=raise_exception)
         run_command("umount -R {}".format(target_dir),
                     raise_exception=raise_exception)
         run_command("rm -fr {}".format(target_dir))

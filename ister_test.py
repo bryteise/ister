@@ -89,6 +89,38 @@ def run_command_wrapper(func):
     return wrapper
 
 
+def makedirs_wrapper(test_type):
+    """Wrapper for makedirs mocking"""
+    def makedirs_type(func):
+        @functools.wraps(func)
+        def wrapper():
+            backup_makedirs = os.makedirs
+            def mock_makedirs_good(dname, mode=0, exist_ok=False):
+                global COMMAND_RESULTS
+                COMMAND_RESULTS.append(dname)
+                COMMAND_RESULTS.append(mode)
+                COMMAND_RESULTS.append(exist_ok)
+                return
+            def mock_makedirs_bad(dname, mode=0, exist_ok=False):
+                global COMMAND_RESULTS
+                COMMAND_RESULTS.append(dname)
+                COMMAND_RESULTS.append(mode)
+                COMMAND_RESULTS.append(exist_ok)
+                raise Exception("mock makedirs bad")
+            if test_type == "good":
+                os.makedirs = mock_makedirs_good
+            else:
+                os.makedirs = mock_makedirs_bad
+            try:
+                func()
+            except Exception as exep:
+                raise exep
+            finally:
+                os.makedirs = backup_makedirs
+        return wrapper
+    return makedirs_type
+
+
 def chroot_open_wrapper(test_type):
     """Wrapper for chroot mocking"""
     def chroot_type(func):
@@ -190,15 +222,14 @@ def open_wrapper(test_type):
         return wrapper
     return open_type
 
-
 def add_user_key_wrapper(func):
     """Wrapper for functions in add_user_key"""
     @functools.wraps(func)
+    @makedirs_wrapper("good")
     def wrapper():
         import pwd
         backup_chown = os.chown
         backup_getpwnam = pwd.getpwnam
-        backup_makedirs = os.makedirs
         def mock_chown(dest, uid, gid):
             global COMMAND_RESULTS
             COMMAND_RESULTS.append(dest)
@@ -208,13 +239,8 @@ def add_user_key_wrapper(func):
             global COMMAND_RESULTS
             COMMAND_RESULTS.append(dest)
             return [0, 0, 1000, 1000]
-        def mock_makedirs(dest, mode=0):
-            global COMMAND_RESULTS
-            COMMAND_RESULTS.append(dest)
-            COMMAND_RESULTS.append(mode)
         os.chown = mock_chown
         pwd.getpwnam = mock_getpwnam
-        os.makedirs = mock_makedirs
         try:
             func()
         except Exception as exep:
@@ -222,7 +248,6 @@ def add_user_key_wrapper(func):
         finally:
             os.chown = backup_chown
             pwd.getpwnam = backup_getpwnam
-            os.makedirs = backup_makedirs
     return wrapper
 
 
@@ -611,16 +636,14 @@ def setup_mounts_bad():
 
 
 @open_wrapper("good")
+@makedirs_wrapper("good")
 def add_bundles_good():
     """Ensure bundle outputs to correct file"""
     global COMMAND_RESULTS
     COMMAND_RESULTS = []
-    backup_makedirs = os.makedirs
-    def mock_makedirs(dir_name):
-        global COMMAND_RESULTS
-        COMMAND_RESULTS.append(dir_name)
-    os.makedirs = mock_makedirs
     commands = ["/dne/usr/share/clear/bundles/",
+                0,
+                False,
                 "/dne/usr/share/clear/bundles/a",
                 "w",
                 "close",
@@ -629,7 +652,6 @@ def add_bundles_good():
                 "close"]
     ister.add_bundles({"Bundles": ['a', 'b']}, "/dne")
     commands_compare_helper(commands)
-    os.makedirs = backup_makedirs
 
 
 @run_command_wrapper
@@ -642,15 +664,15 @@ def copy_os_good():
     args.format = None
     commands = ["swupd_verify -V --fix --path=/ --manifest=0",
                 "kernel_updater.sh -p /",
-                "gummiboot_updaters.sh -p /",]
-    ister.copy_os(args, {"Version": 0}, "/")
+                "gummiboot_updaters.sh -p /"]
+    ister.copy_os(args, {"Version": 0, "DestinationType": ""}, "/")
     ister.add_bundles = backup_add_bundles
     commands_compare_helper(commands)
 
 
 @run_command_wrapper
 def copy_os_url_good():
-    """Check installer command"""
+    """Check installer command with url string"""
     backup_add_bundles = ister.add_bundles
     ister.add_bundles = lambda x,y: None
     args = lambda: None
@@ -658,8 +680,32 @@ def copy_os_url_good():
     args.format = None
     commands = ["swupd_verify -V --fix --path=/ --manifest=0 --url=/",
                 "kernel_updater.sh -p /",
-                "gummiboot_updaters.sh -p /",]
-    ister.copy_os(args, {"Version": 0}, "/")
+                "gummiboot_updaters.sh -p /"]
+    ister.copy_os(args, {"Version": 0, "DestinationType": ""}, "/")
+    ister.add_bundles = backup_add_bundles
+    commands_compare_helper(commands)
+
+
+@run_command_wrapper
+@makedirs_wrapper("good")
+def copy_os_physical_good():
+    """Check installer command for physical install"""
+    backup_add_bundles = ister.add_bundles
+    ister.add_bundles = lambda x,y: None
+    args = lambda: None
+    args.url = "/"
+    args.format = None
+    commands = ["swupd_verify -V --fix --path=/ --manifest=0",
+                "kernel_updater.sh -p /",
+                "gummiboot_updaters.sh -p /",
+                "/var/lib/swupd",
+                0,
+                True,
+                "//var/tmp",
+                0,
+                False,
+                "mount --bind /var/lib/swupd //var/tmp"]
+    ister.copy_os(args, {"Version": 0, "DestinationType": "physical"}, "/")
     ister.add_bundles = backup_add_bundles
     commands_compare_helper(commands)
 
@@ -764,6 +810,7 @@ def add_user_key_good():
     commands = ["root",
                 "/home/user/.ssh",
                 448,
+                False,
                 "user",
                 "/home/user/.ssh",
                 1000,
@@ -803,6 +850,7 @@ def setup_sudo_good():
     template = {"username": "user"}
     commands = ["/tmp/etc/sudoers.d",
                 0,
+                False,
                 "/tmp/etc/sudoers.d/user",
                 "w",
                 "user ALL=(ALL) NOPASSWD: ALL\n",
@@ -894,20 +942,38 @@ def post_install_nonchroot_good():
 @run_command_wrapper
 def cleanup_physical_good():
     """Test cleanup of virtual device"""
-    commands = ["umount -R /tmp",
+    backup_isdir = os.path.isdir
+    def mock_isdir(path):
+        global COMMAND_RESULTS
+        COMMAND_RESULTS.append(path)
+        return True
+    os.path.isdir = mock_isdir
+    commands = ["/tmp/var/tmp",
+                "umount /var/lib/swupd",
+                "rm -fr /tmp/var/tmp",
+                "umount -R /tmp",
                 "rm -fr /tmp"]
     ister.cleanup({}, "/tmp")
+    os.path.isdir = backup_isdir
     commands_compare_helper(commands)
 
 
 @run_command_wrapper
 def cleanup_virtual_good():
     """Test cleanup of virtual device"""
+    backup_isdir = os.path.isdir
+    def mock_isdir(path):
+        global COMMAND_RESULTS
+        COMMAND_RESULTS.append(path)
+        return False
+    os.path.isdir = mock_isdir
     template = {"dev": "image"}
-    commands = ["umount -R /tmp",
+    commands = ["/tmp/var/tmp",
+                "umount -R /tmp",
                 "rm -fr /tmp",
                 "losetup --detach image"]
     ister.cleanup(template, "/tmp")
+    os.path.isdir = backup_isdir
     commands_compare_helper(commands)
 
 
