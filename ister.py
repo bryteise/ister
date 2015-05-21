@@ -255,8 +255,6 @@ def copy_os(args, template, target_dir):
         run_command("mount --bind /var/lib/swupd {0}/var/tmp"
                     .format(target_dir))
     run_command(swupd_command)
-    run_command("kernel_updater.sh -p {0}".format(target_dir))
-    run_command("gummiboot_updaters.sh -p {0}".format(target_dir))
 
 
 class ChrootOpen(object):
