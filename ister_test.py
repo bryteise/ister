@@ -661,7 +661,6 @@ def copy_os_good():
     ister.add_bundles = lambda x,y: None
     args = lambda: None
     args.url = None
-    args.format = None
     commands = ["swupd_verify -V --fix --path=/ --manifest=0"]
     ister.copy_os(args, {"Version": 0, "DestinationType": ""}, "/")
     ister.add_bundles = backup_add_bundles
@@ -675,7 +674,6 @@ def copy_os_url_good():
     ister.add_bundles = lambda x,y: None
     args = lambda: None
     args.url = "/"
-    args.format = None
     commands = ["swupd_verify -V --fix --path=/ --manifest=0 --url=/"]
     ister.copy_os(args, {"Version": 0, "DestinationType": ""}, "/")
     ister.add_bundles = backup_add_bundles
@@ -690,7 +688,6 @@ def copy_os_physical_good():
     ister.add_bundles = lambda x,y: None
     args = lambda: None
     args.url = "/"
-    args.format = None
     commands = ["swupd_verify -V --fix --path=/ --manifest=0",
                 "/var/lib/swupd",
                 0,
