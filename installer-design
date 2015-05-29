@@ -16,7 +16,7 @@
 	PartitionMountPoints : [ { disk : 'sda', partition : 1,
       mount : '/' }, ... ],
 	!Users : [ { username : 'uname', !key : URI, !uid : 1000,
-      !sudo : |password| }, ... ],
+      !sudo : |True, False| }, ... ],
         Version : version-number,
         Bundles : [ 'bundle1', ... ],
         !PostNonChroot : [ '/path/to/script', ... ],

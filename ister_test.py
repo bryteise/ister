@@ -1571,7 +1571,7 @@ def validate_user_template_bad_invalid_sudo():
 def validate_user_template_bad_missing_key():
     """Bad validate_user_template missing key file"""
     exception_flag = False
-    template = [{"username": "user", "uid": "1000", "sudo": "password",
+    template = [{"username": "user", "uid": "1000", "sudo": True,
                  "key": "/does/not/exist"}]
     try:
         ister.validate_user_template(template)
