@@ -246,7 +246,6 @@ def copy_os(args, template, target_dir):
                     .format(target_dir, template["Version"])
     if args.url:
         swupd_command += " --url={0}".format(args.url)
-    # FIXME: remove the format=staging once swupd_verify gets fixed
     if args.format:
         swupd_command += " --format={0}".format(args.format)
     if template["DestinationType"] == "physical":

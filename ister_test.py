@@ -683,6 +683,20 @@ def copy_os_url_good():
 
 
 @run_command_wrapper
+def copy_os_format_good():
+    """Check installer command with format string"""
+    backup_add_bundles = ister.add_bundles
+    ister.add_bundles = lambda x,y: None
+    args = lambda: None
+    args.url = None
+    args.format = "test"
+    commands = ["swupd_verify -V --fix --path=/ --manifest=0 --format=test"]
+    ister.copy_os(args, {"Version": 0, "DestinationType": ""}, "/")
+    ister.add_bundles = backup_add_bundles
+    commands_compare_helper(commands)
+
+
+@run_command_wrapper
 @makedirs_wrapper("good")
 def copy_os_physical_good():
     """Check installer command for physical install"""
@@ -1869,7 +1883,8 @@ def set_motd_notification_bad():
 def handle_options_good():
     """Test all values handle options supports"""
     # Test short options first
-    sys.argv = ["ister.py", "-c", "cfg", "-t", "tpt", "-i", "-u", "/"]
+    sys.argv = ["ister.py", "-c", "cfg", "-t", "tpt", "-i", "-u", "/", "-f",
+                "1"]
     args = ister.handle_options()
     if not args.config_file == "cfg":
         raise Exception("Failed to correctly set short config file")
@@ -1877,11 +1892,13 @@ def handle_options_good():
         raise Exception("Failed to correctly set short template file")
     if not args.installer:
         raise Exception("Failed to correctly set short installer")
-    if not args.url:
+    if not args.url == "/":
         raise Exception("Failed to correctly set short url")
+    if not args.format == "1":
+        raise Exception("Failed to correctly set short format")
     # Test long options next
     sys.argv = ["ister.py", "--config-file=cfg", "--template-file=tpt",
-                "--installer", "--url=/"]
+                "--installer", "--url=/", "--format=1"]
     args = ister.handle_options()
     if not args.config_file == "cfg":
         raise Exception("Failed to correctly set long config file")
@@ -1889,8 +1906,10 @@ def handle_options_good():
         raise Exception("Failed to correctly set long template file")
     if not args.installer:
         raise Exception("Failed to correctly set long installer")
-    if not args.url:
+    if not args.url == "/":
         raise Exception("Failed to correctly set long url")
+    if not args.format == "1":
+        raise Exception("Failed to correctly set long format")
     # Test default options
     sys.argv = ["ister.py"]
     args = ister.handle_options()
@@ -1902,6 +1921,8 @@ def handle_options_good():
         raise Exception("Incorrect default installer set")
     if args.url:
         raise Exception("Incorrect default url set")
+    if args.format:
+        raise Exception("Incorrect default format set")
 
 
 def run_tests(tests):
@@ -1948,6 +1969,7 @@ if __name__ == '__main__':
         add_bundles_good,
         copy_os_good,
         copy_os_url_good,
+        copy_os_format_good,
         chroot_open_class_good,
         chroot_open_class_bad_open,
         chroot_open_class_bad_chroot,
