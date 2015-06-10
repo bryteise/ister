@@ -1,6 +1,6 @@
 
 AC_PREREQ([2.68])
-AC_INIT([ister],[11],[william.douglas@intel.com],[ister],[https://github.com/bryteise/ister])
+AC_INIT([ister],[12],[william.douglas@intel.com],[ister],[https://github.com/bryteise/ister])
 AM_INIT_AUTOMAKE([foreign silent-rules color-tests no-dist-gzip dist-xz])
 AC_CONFIG_FILES([Makefile])
 AC_PREFIX_DEFAULT(/usr/local)
