@@ -246,6 +246,9 @@ def copy_os(args, template, target_dir):
                     .format(target_dir, template["Version"])
     if args.url:
         swupd_command += " --url={0}".format(args.url)
+    # FIXME: remove the format=staging once swupd_verify gets fixed
+    if args.format:
+        swupd_command += " --format={0}".format(args.format)
     if template["DestinationType"] == "physical":
         os.makedirs("/var/lib/swupd", exist_ok=True)
         os.makedirs("{0}/var/tmp".format(target_dir))
@@ -757,6 +760,8 @@ def handle_options():
                         help="Setup image to be an installer")
     parser.add_argument("-u", "--url", action="store", default=None,
                         help="URL to use for looking for update content")
+    parser.add_argument("-f", "--format", action="store", default=None,
+                        help="format to use for looking for update content")
     args = parser.parse_args()
     return args
 
