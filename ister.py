@@ -251,7 +251,7 @@ def copy_os(args, template, target_dir):
     if template["DestinationType"] == "physical":
         os.makedirs("/var/lib/swupd", exist_ok=True)
         os.makedirs("{0}/var/tmp".format(target_dir))
-        run_command("mount --bind /var/lib/swupd {0}/var/tmp"
+        run_command("mount --bind {0}/var/tmp /var/lib/swupd"
                     .format(target_dir))
     run_command(swupd_command)
 

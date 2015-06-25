@@ -703,16 +703,16 @@ def copy_os_physical_good():
     backup_add_bundles = ister.add_bundles
     ister.add_bundles = lambda x,y: None
     args = lambda: None
-    args.url = "/"
+    args.url = None
     args.format = None
-    commands = ["swupd_verify -V --fix --path=/ --manifest=0",
-                "/var/lib/swupd",
+    commands = ["/var/lib/swupd",
                 0,
                 True,
                 "//var/tmp",
                 0,
                 False,
-                "mount --bind /var/lib/swupd //var/tmp"]
+                "mount --bind //var/tmp /var/lib/swupd",
+                "swupd_verify -V --fix --path=/ --manifest=0"]
     ister.copy_os(args, {"Version": 0, "DestinationType": "physical"}, "/")
     ister.add_bundles = backup_add_bundles
     commands_compare_helper(commands)
@@ -1970,6 +1970,7 @@ if __name__ == '__main__':
         copy_os_good,
         copy_os_url_good,
         copy_os_format_good,
+        copy_os_physical_good,
         chroot_open_class_good,
         chroot_open_class_bad_open,
         chroot_open_class_bad_chroot,
