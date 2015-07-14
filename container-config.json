@@ -1,0 +1,13 @@
+{
+    "DestinationType" : "virtual",
+    "PartitionLayout" : [ { "disk" : "container.img", "partition" : 1, "size" : "32M", "type" : "EFI" },
+                          { "disk" : "container.img", "partition" : 2, "size" : "16M", "type" : "swap" },
+                          { "disk" : "container.img", "partition" : 3, "size" : "4G", "type" : "linux" } ],
+    "FilesystemTypes" : [ { "disk" : "container.img", "partition" : 1, "type" : "vfat" },
+                          { "disk" : "container.img", "partition" : 2, "type" : "swap" },
+                          { "disk" : "container.img", "partition" : 3, "type" : "ext4" } ],
+    "PartitionMountPoints" : [ { "disk" : "container.img", "partition" : 1, "mount" : "/boot" },
+			       { "disk" : "container.img", "partition" : 3, "mount" : "/" } ],
+    "Version": 2120,
+    "Bundles": ["containers-basic"]
+}
