@@ -574,6 +574,7 @@ def setup_mounts_good():
                                          {"mount": "/boot", "disk": "sda",
                                           "partition": 2}]}
     commands = ["sgdisk /dev/sda --typecode=1:4f68bce3-e8cd-4db1-96e7-fbcaf984b709",
+                "sgdisk /dev/sda --partition-guid=1:4f68bce3-e8cd-4db1-96e7-fbcaf984b709",
                 "mount /dev/sda1 /tmp/",
                 "sgdisk /dev/sda --typecode=2:c12a7328-f81f-11d2-ba4b-00a0c93ec93b",
                 "mkdir /tmp/boot",
