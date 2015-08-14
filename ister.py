@@ -478,7 +478,7 @@ in PartitionLayout".format(disk, part))
     if template["DestinationType"] == "virtual" and len(disk_to_parts) != 1:
         raise Exception("Mulitple files for virtual disk \
 destination is unsupported")
-    if not has_efi:
+    if not has_efi and template["DestinationType"] != "virtual":
         raise Exception("No EFI partition defined")
 
     for key in disk_to_parts:
@@ -561,7 +561,7 @@ PartitionMountPoints not found in FilesystemTypes"
 
     if not has_rootfs:
         raise Exception("Missing rootfs mount")
-    if not has_boot:
+    if not has_boot and template["DestinationType"] != "virtual":
         raise Exception("Missing boot mount")
 
 
