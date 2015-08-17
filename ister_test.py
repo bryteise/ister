@@ -2017,6 +2017,7 @@ if __name__ == '__main__':
         get_template_location_bad_malformed,
         get_template_good,
         validate_layout_good,
+        validate_layout_good_missing_efi_virtual,
         validate_layout_bad_missing_disk,
         validate_layout_bad_missing_part,
         validate_layout_bad_missing_size,
