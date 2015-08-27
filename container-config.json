@@ -1,8 +1,8 @@
 {
     "DestinationType" : "virtual",
-    "PartitionLayout" : [ { "disk" : "container.img", "partition" : 1, "size" : "2G", "type" : "linux" } ],
+    "PartitionLayout" : [ { "disk" : "container.img", "partition" : 1, "size" : "224M", "type" : "linux" } ],
     "FilesystemTypes" : [ { "disk" : "container.img", "partition" : 1, "type" : "ext4", "options" : "-b 4096" } ],
     "PartitionMountPoints" : [ { "disk" : "container.img", "partition" : 1, "mount" : "/" } ],
-    "Version": 2120,
+    "Version": 2580,
     "Bundles": ["os-core"]
 }

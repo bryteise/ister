@@ -3,7 +3,7 @@
 import os
 import sys
 
-INSTALLER_VERSION = "2250"
+INSTALLER_VERSION = "2570"
 
 def create_installer_config(path):
     """Create a basicl installation configuration file"""
@@ -21,7 +21,7 @@ def create_installer_config(path):
     [{"disk" : "sda", "partition" : 1, "mount" : "/boot"}, \
     {"disk" : "sda", "partition" : 3, "mount" : "/"}], \
     "Version" : 0, "Bundles" : ["kernel-native", "os-core", "os-core-update", \
-    "telemetrics"]}\n'
+    "telemetrics", "os-utils-gui", "containers-basic"]}\n'
     if not os.path.isdir("{}/etc".format(path)):
         os.mkdir("{}/etc".format(path))
     with open("{}/etc/ister.conf".format(path), "w") as cfile:
