@@ -1877,11 +1877,12 @@ def set_motd_notification_good():
     """Verify motd is written correctly"""
     global COMMAND_RESULTS
     COMMAND_RESULTS = []
-    message = """Clear Linux for Intel Architecture installation in progress.
+    message = """Clear Linux for Intel Architecture installation image
 
-You can login to the installer image and check installation status with:
+!!!!RUNNING THE INSTALLATION COMMAND WILL WIPE YOUR DISK!!!!
+You can login to the installer image as root and start an installation with:
 
-    systemctl status ister
+    python3 /usr/bin/ister.py
 
 Your computer will power off once installation completes successfully.
 """
