@@ -8,6 +8,6 @@
                           { "disk" : "release.img", "partition" : 3, "type" : "ext4" } ],
     "PartitionMountPoints" : [ { "disk" : "release.img", "partition" : 1, "mount" : "/boot" },
 			       { "disk" : "release.img", "partition" : 3, "mount" : "/" } ],
-    "Version": 2610,
-    "Bundles": ["kernel-native", "os-core", "os-core-update", "telemetrics", "os-utils-gui", "containers-basic"]
+    "Version": 2580,
+    "Bundles": ["kernel-native", "os-core", "os-core-update", "telemetrics"]
 }
