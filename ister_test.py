@@ -1872,78 +1872,48 @@ def parse_config_bad():
         raise Exception("Failed to detect missing configuration file")
 
 
-@open_wrapper("good")
-def set_motd_notification_good():
-    """Verify motd is written correctly"""
-    global COMMAND_RESULTS
-    COMMAND_RESULTS = []
-    message = """Clear Linux for Intel Architecture installation image
-
-!!!!RUNNING THE INSTALLATION COMMAND WILL WIPE YOUR DISK!!!!
-You can login to the installer image as root and start an installation with:
-
-    python3 /usr/bin/ister.py
-
-Your computer will power off once installation completes successfully.
-"""
-    commands = ["/tmp/etc/issue",
-                "w",
-                message]
-    ister.set_motd_notification("/tmp")
-    commands_compare_helper(commands)
-
-
-@open_wrapper("bad")
-def set_motd_notification_bad():
-    """Verify motd setting exceptions are handled as expected"""
-    exception_flag = False
-    try:
-        ister.set_motd_notification("/tmp")
-    except:
-        exception_flag = True
-    if not exception_flag:
-        raise Exception("Failed to detect setting motd failure")
-
-
 def handle_options_good():
     """Test all values handle options supports"""
     # Test short options first
-    sys.argv = ["ister.py", "-c", "cfg", "-t", "tpt", "-i", "-u", "/", "-f",
+    sys.argv = ["ister.py", "-c", "cfg", "-t", "tpt", "-u", "/", "-f",
                 "1"]
-    args = ister.handle_options()
+    try:
+        args = ister.handle_options()
+    except:
+        raise Exception("Unable to parse short arguments")
     if not args.config_file == "cfg":
         raise Exception("Failed to correctly set short config file")
     if not args.template_file == "tpt":
         raise Exception("Failed to correctly set short template file")
-    if not args.installer:
-        raise Exception("Failed to correctly set short installer")
     if not args.url == "/":
         raise Exception("Failed to correctly set short url")
     if not args.format == "1":
         raise Exception("Failed to correctly set short format")
     # Test long options next
     sys.argv = ["ister.py", "--config-file=cfg", "--template-file=tpt",
-                "--installer", "--url=/", "--format=1"]
-    args = ister.handle_options()
+                "--url=/", "--format=1"]
+    try:
+        args = ister.handle_options()
+    except:
+        raise Exception("Unable to parse long arguments")
     if not args.config_file == "cfg":
         raise Exception("Failed to correctly set long config file")
     if not args.template_file == "tpt":
         raise Exception("Failed to correctly set long template file")
-    if not args.installer:
-        raise Exception("Failed to correctly set long installer")
     if not args.url == "/":
         raise Exception("Failed to correctly set long url")
     if not args.format == "1":
         raise Exception("Failed to correctly set long format")
     # Test default options
     sys.argv = ["ister.py"]
-    args = ister.handle_options()
+    try:
+        args = ister.handle_options()
+    except:
+        raise Exception("Unable to parse default arguments")
     if args.config_file:
         raise Exception("Incorrect default config file set")
     if args.template_file:
         raise Exception("Incorrect default template file set")
-    if args.installer:
-        raise Exception("Incorrect default installer set")
     if args.url:
         raise Exception("Incorrect default url set")
     if args.format:
@@ -2072,9 +2042,7 @@ if __name__ == '__main__':
         validate_template_bad_version,
         parse_config_good,
         parse_config_bad,
-        set_motd_notification_good,
-        set_motd_notification_bad,
-        handle_options_good
+        handle_options_good,
     ]
 
     failed = run_tests(TESTS)

@@ -691,27 +691,6 @@ def parse_config(args):
     return config
 
 
-def set_motd_notification(target_dir):
-    """Create a motd file for to display to users of installer images
-
-    This function will raise an Exception on finding an error.
-    """
-    message = """Clear Linux for Intel Architecture installation image
-
-!!!!RUNNING THE INSTALLATION COMMAND WILL WIPE YOUR DISK!!!!
-You can login to the installer image as root and start an installation with:
-
-    python3 /usr/bin/ister.py
-
-Your computer will power off once installation completes successfully.
-"""
-    try:
-        with open(target_dir + "/etc/issue", "w") as mfile:
-            mfile.write(message)
-    except:
-        raise Exception("Unable to set installer image message")
-
-
 def install_os(args):
     """Install the OS
 
@@ -736,8 +715,6 @@ def install_os(args):
         copy_os(args, template, target_dir)
         add_users(template, target_dir)
         post_install_nonchroot(template, target_dir)
-        if args.installer:
-            set_motd_notification(target_dir)
     except Exception as excep:
         raise excep
     finally:
@@ -754,9 +731,6 @@ def handle_options():
     parser.add_argument("-t", "--template-file", action="store",
                         default=None,
                         help="Path to template file to use")
-    parser.add_argument("-i", "--installer", action="store_true",
-                        default=False,
-                        help="Setup image to be an installer")
     parser.add_argument("-u", "--url", action="store", default=None,
                         help="URL to use for looking for update content")
     parser.add_argument("-f", "--format", action="store", default=None,

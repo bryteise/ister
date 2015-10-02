@@ -6,7 +6,7 @@
                           { "disk" : "test.img", "partition" : 2, "type" : "ext4" } ],
     "PartitionMountPoints" : [ { "disk" : "test.img", "partition" : 1, "mount" : "/boot" },
 			       { "disk" : "test.img", "partition" : 2, "mount" : "/" } ],
-    "Version": 2570,
-    "Bundles": ["kernel-native", "os-core", "os-installer", "telemetrics"],
+    "Version": 4340,
+    "Bundles": ["kernel-native", "os-core", "os-installer", "telemetrics", "oc-core-update"],
     "PostNonChroot": ["./installation-image-post-update-version.py"]
 }
