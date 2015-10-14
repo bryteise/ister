@@ -238,7 +238,7 @@ def copy_os(args, template, target_dir):
     """Wrapper for running install command
     """
     add_bundles(template, target_dir)
-    swupd_command = "swupd_verify -V --fix --path={0} --manifest={1}"\
+    swupd_command = "swupd_basic_verify -V --install --path={0} --manifest={1}"\
                     .format(target_dir, template["Version"])
     if args.url:
         swupd_command += " --url={0}".format(args.url)
