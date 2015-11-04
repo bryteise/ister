@@ -53,19 +53,10 @@ def append_installer_rootdelay(path):
         entry.writelines(entry_content)
 
 
-def set_motd_notification(path):
-    """Create a motd file for to display to users of installer images"""
-    message = """Clear Linux for Intel Architecture installation image
-
-!!!!RUNNING THE INSTALLATION COMMAND WILL WIPE YOUR DISK!!!!
-You can login to the installer image as root and start an installation with:
-
-    python3 /usr/bin/ister.py
-
-Your computer will power off once installation completes successfully.
-"""
-    with open(path + "/etc/issue", "w") as mfile:
-        mfile.write(message)
+def disable_tty1_getty(path):
+    """Add a symlink masking the systemd tty1 generator"""
+    os.makedirs(path + "/etc/systemd/system/getty.target.wants")
+    os.symlink("/dev/null", path + "/etc/systemd/system/getty.target.wants/getty@tty1.service")
 
 
 if __name__ == '__main__':
@@ -75,7 +66,7 @@ if __name__ == '__main__':
     try:
         create_installer_config(sys.argv[1])
         append_installer_rootdelay(sys.argv[1])
-        set_motd_notification(sys.argv[1])
+        disable_tty1_getty(sys.argv[1])
     except Exception as exep:
         print(exep)
         sys.exit(-1)

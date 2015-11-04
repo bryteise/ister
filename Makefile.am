@@ -4,4 +4,4 @@ dist_systemdsystemunit_DATA = ister.service
 statelessdir = $(datarootdir)/defaults/$(PACKAGE)
 stateless_DATA = ister.conf ister.json
 
-dist_bin_SCRIPTS = ister.py
+dist_bin_SCRIPTS = ister.py ister_gui.py
