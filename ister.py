@@ -365,6 +365,22 @@ def add_users(template, target_dir):
             setup_sudo(user, target_dir)
 
 
+def set_hostname(template, target_dir):
+    """Writes the hostname to /etc/hostname
+    """
+
+    hostname = template.get("Hostname")
+    if not hostname:
+        return
+
+    path = '{0}/etc/'.format(target_dir)
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+    with open(path + "hostname", "w") as fd:
+        fd.write(hostname)
+
+
 def post_install_nonchroot(template, target_dir):
     """Run non chroot post install scripts
 
@@ -621,6 +637,18 @@ def validate_user_template(users):
                 user["key"] = key_file.read()
 
 
+def validate_hostname_template(hostname):
+    """Attemp to verify if the hostname has an accepted value
+
+    This function will raise an Exception on finding an error.
+    """
+
+    # Max length obtained from
+    # http://pubs.opengroup.org/onlinepubs/007908799/xns/gethostname.html
+    if not(0 < len(hostname) <= 255):
+        raise Exception("Hostname length out of bounds [1-255]")
+
+
 def validate_postnonchroot_template(scripts):
     """Attempt to verify all post scripts exist
 
@@ -655,6 +683,8 @@ def validate_template(template):
         raise Exception("Invalid version number")
     if template.get("Users"):
         validate_user_template(template["Users"])
+    if template.get("Hostname") is not None:
+        validate_hostname_template(template["Hostname"])
     if template.get("PostNonChroot"):
         validate_postnonchroot_template(template["PostNonChroot"])
 
@@ -711,6 +741,7 @@ def install_os(args):
         target_dir = setup_mounts(template)
         copy_os(args, template, target_dir)
         add_users(template, target_dir)
+        set_hostname(template, target_dir)
         post_install_nonchroot(template, target_dir)
     except Exception as excep:
         raise excep

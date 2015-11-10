@@ -653,6 +653,22 @@ def add_bundles_good():
     commands_compare_helper(commands)
 
 
+@open_wrapper("good")
+@makedirs_wrapper("good")
+def set_hostname_good():
+    """Ensure /etc/hostname has the proper hostname"""
+    global COMMAND_RESULTS
+    COMMAND_RESULTS = []
+    commands = ["/dne/etc/",
+                0,
+                False,
+                "/dne/etc/hostname",
+                "w",
+                "clr0"]
+    ister.set_hostname({"Hostname": "clr0"}, "/dne")
+    commands_compare_helper(commands)
+
+
 @run_command_wrapper
 def copy_os_good():
     """Check installer command"""
@@ -1368,6 +1384,16 @@ def validate_fstypes_bad_not_partition():
         raise Exception("fs not in partition map not detected")
 
 
+def validate_hostname_good():
+    """Good hostname value"""
+    template = {"Hostname": "a" * 255}
+    template.update(json.loads(good_virtual_disk_template()))
+    try:
+        ister.validate_template(template)
+    except:
+        raise Exception("Valid hostname failed to parse")
+
+
 def validate_partition_mounts_good():
     """Good validate_partition_mounts"""
     template = {"PartitionMountPoints": [{"disk": "sda", "partition": 1,
@@ -1664,6 +1690,19 @@ def validate_template_good():
     ister.validate_template(template)
 
 
+def validate_template_bad_long_hostname():
+    """Bad validate_template long hostname (Length > 255)"""
+    exception_flag = False
+    template = {"Hostname": ("a" * 256)}
+    template.update(json.loads(good_virtual_disk_template()))
+    try:
+        ister.validate_template(template)
+    except:
+        exception_flag = True
+    if not exception_flag:
+        raise Exception("Failed to validate hostname max length")
+
+
 def validate_template_bad_missing_destination_type():
     """Bad validate_template missing DestinationType"""
     exception_flag = False
@@ -1758,6 +1797,19 @@ def validate_template_bad_missing_bundles():
         exception_flag = True
     if not exception_flag:
         raise Exception("Failed to detect missing Version")
+
+
+def validate_template_bad_short_hostname():
+    """Bad validate_template short hostname (length = 0)"""
+    exception_flag = False
+    template = {"Hostname": ""}
+    template.update(json.loads(good_virtual_disk_template()))
+    try:
+        ister.validate_template(template)
+    except:
+        exception_flag = True
+    if not exception_flag:
+        raise Exception("Failed to validate hostname minimum length")
 
 
 def validate_template_bad_version():
@@ -1962,6 +2014,7 @@ if __name__ == '__main__':
         setup_mounts_virtual_good,
         setup_mounts_bad,
         add_bundles_good,
+        set_hostname_good,
         copy_os_good,
         copy_os_url_good,
         copy_os_format_good,
@@ -2009,6 +2062,7 @@ if __name__ == '__main__':
         validate_fstypes_bad_type,
         validate_fstypes_bad_duplicate,
         validate_fstypes_bad_not_partition,
+        validate_hostname_good,
         validate_partition_mounts_good,
         validate_partition_mounts_good_missing_boot_virtual,
         validate_partition_mounts_bad_missing_disk,
@@ -2033,12 +2087,14 @@ if __name__ == '__main__':
         validate_postnonchroot_template_good,
         validate_postnonchroot_template_bad,
         validate_template_good,
+        validate_template_bad_long_hostname,
         validate_template_bad_missing_destination_type,
         validate_template_bad_missing_partition_layout,
         validate_template_bad_missing_filesystem_types,
         validate_template_bad_missing_partition_mount_points,
         validate_template_bad_missing_version,
         validate_template_bad_missing_bundles,
+        validate_template_bad_short_hostname,
         validate_template_bad_version,
         parse_config_good,
         parse_config_bad,

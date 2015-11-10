@@ -170,6 +170,122 @@ class Confirm(Widget):
         raise urwid.ExitMainLoop()
 
 
+class Edit(Widget):
+    """Class for an editable field"""
+    def __init__(self, question, *args, **kwargs):
+        super(Edit, self).__init__(*args, **kwargs)
+        self.questions = question
+        self.answers = dict()
+        self.has_answer = False
+        self.init_widget()
+
+    def init_widget(self):
+        ask_l = list()
+        # ask = urwid.Edit(('I say', self.question))
+        for question in self.questions:
+            mask = question.get('mask', None)
+            ask_l.append(urwid.Edit(('I say', question['text']), mask=mask))
+            urwid.connect_signal(ask_l[-1],
+                                 'change',
+                                 self.on_edit_change,
+                                 question['key'])
+            ask_l.append(urwid.Divider())
+        btn_exit = urwid.Button(u'Exit')
+        btn_next = urwid.Button(u'Next')
+        buttons = [(8, btn) for btn in [btn_exit, btn_next]]
+        buttons = urwid.Columns(buttons, dividechars=5)
+        ask_l.append(buttons)
+        pile = urwid.Pile(ask_l)
+        frame = urwid.Filler(pile, valign='middle')
+        frame = urwid.Padding(frame, left=2, right=2)
+        self.widget = urwid.AttrMap(frame, 'banner')
+        # urwid.connect_signal(ask, 'change', self.on_ask_change)
+        urwid.connect_signal(btn_exit, 'click', self.on_exit_clicked)
+        urwid.connect_signal(btn_next, 'click', self.on_next_clicked)
+        super(Edit, self).init_widget()
+
+    def on_edit_change(self, edit, new_edit_text, _id):
+        """Refresh edit widget's display text"""
+        # edit unused for now
+        del edit
+        self.answers[_id] = new_edit_text
+
+    def on_exit_clicked(self, button):
+        """edit widget exit button handler"""
+        # button unused for now
+        del button
+        raise urwid.ExitMainLoop()
+
+    def on_next_clicked(self, button):
+        """edit widget next button handler"""
+        # button unused for now
+        del button
+        self.has_answer = True
+        raise urwid.ExitMainLoop()
+
+
+class Menu(Widget):
+    """Class for a menu item list"""
+    def __init__(self, menu_choices, *args, **kwargs):
+        super(Menu, self).__init__(*args, **kwargs)
+        self.choices = menu_choices
+        self.checkbox_type = kwargs.get('checkbox', False)
+        self.required_choices = kwargs.get('required_choices', None)
+        if self.checkbox_type:
+            self.response = self.required_choices
+        else:
+            self.reponse = None
+        self.init_widget()
+
+    def init_widget(self):
+        body = [urwid.Divider()]
+        item_class = urwid.CheckBox if self.checkbox_type else urwid.Button
+        for choice in self.choices:
+            button = item_class(choice)
+            if self.checkbox_type:
+                if choice in self.required_choices:
+                    text = '[X] {0}'.format(choice)
+                    body.append(urwid.AttrMap(urwid.Text(text),
+                                              None,
+                                              focus_map='reversed'))
+                    continue
+                urwid.connect_signal(button, 'change', self.check_chosen, choice)
+            else:
+                urwid.connect_signal(button, 'click', self.item_chosen, choice)
+            body.append(urwid.AttrMap(button, None, focus_map='reversed'))
+        if self.checkbox_type:
+            body.append(urwid.Divider())
+            exit_btn = urwid.Button('Done')
+            urwid.connect_signal(exit_btn, 'click', self.exit_chosen)
+            body.append(exit_btn)
+        listbox = urwid.ListBox(urwid.SimpleFocusListWalker(body))
+        frame = urwid.Padding(listbox, left=2, right=2)
+        self.widget = urwid.AttrMap(frame, 'banner')
+        super(Menu, self).init_widget()
+
+    def item_chosen(self, button, choice):
+        """Implement item selection"""
+        self.response = choice
+        self.exit_chosen(button, choice)
+
+    def exit_chosen(self, button, choice):
+        """menu item exit handler"""
+        # button unused for now
+        del button
+        # choice unused for now
+        del choice
+        self.exit_program()
+
+    def check_chosen(self, checkbox, new_state, choice):
+        """menu item selection handler"""
+        # checkbox unused for now
+        del checkbox
+        if new_state:
+            self.response.append(choice)
+        else:
+            self.response.remove(choice)
+
+
 class Messagebox(Widget):
     """Message UI element"""
     def __init__(self, body, *args, **kwargs):
@@ -208,6 +324,9 @@ class Installation(object):
         self.logger.addHandler(_fh)
         self.logger.setLevel(logging.DEBUG)
         self.args = kwargs
+        self.process = [
+            self._configure_hostname,
+        ]
         try:
             with open('/etc/ister.json') as file:
                 json_string = file.read()
@@ -229,17 +348,25 @@ class Installation(object):
 
     def run(self):
         """Starts up the installer ui"""
-        self.current_w = Confirm('Do you want to execute the installation?')
-        self.current_w.main_loop()
-        if not self.current_w.has_answer:
-            return
 
-        self.automatic_install()
+        self._select_auto_or_manual()
+        if 'Auto' in self.current_w.response:
+            self.automatic_install()
+        elif 'Manual' in self.current_w.response:
+            self.manual_install()
+        else:
+            return
 
         self.current_w = Confirm('The installation has been completed '
                                  'successfully. The system will be rebooted.',
                                  title='Success',
                                  only_ok=True)
+        self.current_w.main_loop()
+
+    def _select_auto_or_manual(self):
+        choices = u'Auto-install Manual(Advanced) Exit'.split()
+        self.current_w = Menu(choices,
+                              title=u'Which type of installation do you want?')
         self.current_w.main_loop()
 
     def automatic_install(self):
@@ -309,6 +436,26 @@ class Installation(object):
                 self._exit(-1, 'Ister failed..., please check the log file')
 
         self.current_w.main_loop(handle)
+
+    def manual_install(self):
+        """front end to run all the manual installation processes"""
+        for func in self.process:
+            if not func():
+                exit(0)
+
+        self.automatic_install()
+
+    def _configure_hostname(self):
+        questions = [{'text': 'Enter the hostname:\n', 'key': 'hostname'}]
+        self.current_w = Edit(questions, title='Configuring hostname')
+        self.current_w.main_loop()
+
+        if self.current_w.has_answer:
+            self.installation_d['Hostname'] = \
+                self.current_w.answers.get('hostname', '')
+            return True
+
+        return False
 
 
 def handle_options():
