@@ -21,12 +21,23 @@
 # If we see an exception it is always fatal so the broad exception
 # warning isn't helpful.
 # pylint: disable=W0703
+# Using global is fine for us
+# pylint: disable=W0603
+# Warning for too many lines in the file isn't an issue
+# pylint: disable=C0302
+# We often don't use self when mocking so this warning isn't helpful
+# pylint: disable=R0201
+# Length of function names aren't particularly important for tests
+# pylint: disable=C0103
+# We do some useless seeming things to test now and then
+# pylint: disable=W0104
+# Using lots of branches for a single test is fine
+# pylint: disable=R0912
 
-import imp
+
 import ister
 import functools
 import json
-import time
 import os
 import sys
 
@@ -71,42 +82,48 @@ def run_command_wrapper(func):
     """Wrapper for tests whose functions use run_command"""
     @functools.wraps(func)
     def wrapper():
+        """run_command_wrapper"""
         def mock_run_command(cmd, _=None, raise_exception=True):
-            global COMMAND_RESULTS
+            """mock_run_command wrapper"""
             COMMAND_RESULTS.append(cmd)
             if not raise_exception:
                 COMMAND_RESULTS.append(False)
         global COMMAND_RESULTS
         COMMAND_RESULTS = []
-        rc = ister.run_command
+        run_command = ister.run_command
         ister.run_command = mock_run_command
         try:
             func()
         except Exception as exep:
             raise exep
         finally:
-            ister.run_command = rc
+            ister.run_command = run_command
     return wrapper
 
 
 def makedirs_wrapper(test_type):
     """Wrapper for makedirs mocking"""
     def makedirs_type(func):
+        """makedirs_type wrapper"""
         @functools.wraps(func)
         def wrapper():
+            """makedirs_wrapper"""
             backup_makedirs = os.makedirs
+
             def mock_makedirs_good(dname, mode=0, exist_ok=False):
-                global COMMAND_RESULTS
+                """mock_makedirs_good wrapper"""
                 COMMAND_RESULTS.append(dname)
                 COMMAND_RESULTS.append(mode)
                 COMMAND_RESULTS.append(exist_ok)
                 return
+
             def mock_makedirs_bad(dname, mode=0, exist_ok=False):
-                global COMMAND_RESULTS
+                """mock_makedirs_bad wrapper"""
                 COMMAND_RESULTS.append(dname)
                 COMMAND_RESULTS.append(mode)
                 COMMAND_RESULTS.append(exist_ok)
                 raise Exception("mock makedirs bad")
+
             if test_type == "good":
                 os.makedirs = mock_makedirs_good
             else:
@@ -124,32 +141,56 @@ def makedirs_wrapper(test_type):
 def chroot_open_wrapper(test_type):
     """Wrapper for chroot mocking"""
     def chroot_type(func):
+        """chroot_type wrapper"""
         @functools.wraps(func)
         def wrapper():
+            """chroot_open_wrapper"""
             backup_open = os.open
             backup_chroot = os.chroot
             backup_chdir = os.chdir
             backup_close = os.close
+
             def mock_open_good(dest, perm):
-                global COMMAND_RESULTS
+                """mock_open_good wrapper"""
                 COMMAND_RESULTS.append(dest)
                 COMMAND_RESULTS.append(perm)
                 return dest
+
             def mock_open_bad(dest, perm):
+                """mock_open_bad wrapper"""
+                del dest
+                del perm
                 raise Exception("open")
+
             def mock_open_silent(dest, perm):
+                """mock_open_silent wrapper"""
+                del perm
                 return dest
+
             def mock_chroot_chdir_close_good(dest):
-                global COMMAND_RESULTS
+                """mock_chroot_chrdir_close_good wrapper"""
                 COMMAND_RESULTS.append(dest)
+
             def mock_chroot_bad(dest):
+                """mock_chroot_bad wrapper"""
+                del dest
                 raise Exception("chroot")
+
             def mock_chdir_bad(dest):
+                """mock_chdir_bad wrapper"""
+                del dest
                 raise Exception("chdir")
+
             def mock_close_bad(dest):
+                """mock_close_bad wrapper"""
+                del dest
                 raise Exception("close")
+
             def mock_chroot_chdir_close_silent(dest):
+                """mock_chroot_chdir_close_silent wrapper"""
+                del dest
                 return
+
             os.open = mock_open_silent
             os.chroot = mock_chroot_chdir_close_silent
             os.chdir = mock_chroot_chdir_close_silent
@@ -183,32 +224,47 @@ def chroot_open_wrapper(test_type):
 def open_wrapper(test_type):
     """Wrapper for open"""
     def open_type(func):
+        """open_type wrapper"""
         @functools.wraps(func)
         def wrapper():
+            """open_wrapper"""
             backup_open = __builtins__.open
+
             class MockOpen():
+                """MockOpen wrapper class"""
                 def write(self, data):
-                    global COMMAND_RESULTS
+                    """write wrapper"""
                     COMMAND_RESULTS.append(data)
+
                 def close(self):
-                    global COMMAND_RESULTS
+                    """close wrapper"""
                     COMMAND_RESULTS.append("close")
                     return
+
                 def writelines(self, data):
+                    """writelines wrapper"""
                     global COMMAND_RESULTS
                     COMMAND_RESULTS += data
                     return
+
                 def __exit__(self, *args):
                     return
+
                 def __enter__(self, *args):
                     return self
+
             def mock_open_good(dest, perm):
-                global COMMAND_RESULTS
+                """mock_open_good wrapper"""
                 COMMAND_RESULTS.append(dest)
                 COMMAND_RESULTS.append(perm)
                 return MockOpen()
+
             def mock_open_bad(dest, perm):
+                """mock_open_bad wrapper"""
+                del dest
+                del perm
                 raise Exception("open")
+
             if test_type == "good":
                 __builtins__.open = mock_open_good
             elif test_type == "bad":
@@ -222,21 +278,25 @@ def open_wrapper(test_type):
         return wrapper
     return open_type
 
+
 def add_user_key_wrapper(func):
     """Wrapper for functions in add_user_key"""
     @functools.wraps(func)
     @makedirs_wrapper("good")
     def wrapper():
+        """add_user_key_wrapper"""
         import pwd
         backup_chown = os.chown
         backup_getpwnam = pwd.getpwnam
+
         def mock_chown(dest, uid, gid):
-            global COMMAND_RESULTS
+            """mock_chown wrapper"""
             COMMAND_RESULTS.append(dest)
             COMMAND_RESULTS.append(uid)
             COMMAND_RESULTS.append(gid)
+
         def mock_getpwnam(dest):
-            global COMMAND_RESULTS
+            """mock_getpwnam wrapper"""
             COMMAND_RESULTS.append(dest)
             return [0, 0, 1000, 1000]
         os.chown = mock_chown
@@ -265,7 +325,7 @@ def run_command_bad():
         raise Exception("Command raised exception with surpression enabled")
     try:
         ister.run_command("not-a-binary")
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Bad command did not fail")
@@ -413,13 +473,16 @@ def map_loop_device_good():
     """Create loop device for virtual image"""
     import subprocess
     check_output_backup = subprocess.check_output
+
     def mock_check_output(cmd):
+        """mock_check_output wrapper"""
         global COMMAND_RESULTS
         COMMAND_RESULTS = cmd
         return b"/dev/loop0"
     subprocess.check_output = mock_check_output
     template = {"PartitionLayout": [{"disk": "image"}]}
-    commands = ["losetup", "--partscan", "--find", "--show", "image", "partprobe /dev/loop0"]
+    commands = ["losetup", "--partscan", "--find", "--show",
+                "image", "partprobe /dev/loop0"]
     try:
         ister.map_loop_device(template, 0)
     finally:
@@ -436,14 +499,17 @@ def map_loop_device_bad_check_output():
     """Handle losetup check_output Exception"""
     import subprocess
     check_output_backup = subprocess.check_output
+
     def mock_check_output(cmd):
+        """mock_check_output wrapper"""
+        del cmd
         raise Exception("bad")
     subprocess.check_output = mock_check_output
     exception_flag = False
     template = {"PartitionLayout": [{"disk": "image"}]}
     try:
         ister.map_loop_device(template, 0)
-    except:
+    except Exception:
         exception_flag = True
     finally:
         subprocess.check_output = check_output_backup
@@ -455,14 +521,17 @@ def map_loop_device_bad_losetup():
     """Handle losetup failure"""
     import subprocess
     check_output_backup = subprocess.check_output
+
     def mock_check_output(cmd):
+        """mock_check_output wrapper"""
+        del cmd
         return b""
     subprocess.check_output = mock_check_output
     exception_flag = False
     template = {"PartitionLayout": [{"disk": "image"}]}
     try:
         ister.map_loop_device(template, 0)
-    except:
+    except Exception:
         exception_flag = True
     finally:
         subprocess.check_output = check_output_backup
@@ -507,7 +576,8 @@ def create_filesystems_good():
                 "mkfs.ext4 /dev/sda3",
                 "mkfs.btrfs /dev/sda4",
                 "mkfs.vfat /dev/sdb1",
-                "sgdisk /dev/sdb --typecode=2:0657fd6d-a4ab-43c4-84e5-0933c84b4f4f",
+                "sgdisk /dev/sdb "
+                "--typecode=2:0657fd6d-a4ab-43c4-84e5-0933c84b4f4f",
                 "mkswap /dev/sdb2",
                 "mkfs.xfs /dev/sdb3"]
     ister.create_filesystems(template)
@@ -525,7 +595,8 @@ def create_filesystems_virtual_good():
                                      "partition": 3}],
                 "dev": "/dev/loop0"}
     commands = ["mkfs.vfat /dev/loop0p1",
-                "sgdisk /dev/loop0 --typecode=2:0657fd6d-a4ab-43c4-84e5-0933c84b4f4f",
+                "sgdisk /dev/loop0 "
+                "--typecode=2:0657fd6d-a4ab-43c4-84e5-0933c84b4f4f",
                 "mkswap /dev/loop0p2",
                 "mkfs.ext4 /dev/loop0p3"]
     ister.create_filesystems(template)
@@ -554,7 +625,8 @@ def create_filesystems_good_options():
                 "mkfs.ext4 opt /dev/sda3",
                 "mkfs.btrfs opt /dev/sda4",
                 "mkfs.vfat opt /dev/sdb1",
-                "sgdisk /dev/sdb --typecode=2:0657fd6d-a4ab-43c4-84e5-0933c84b4f4f",
+                "sgdisk /dev/sdb "
+                "--typecode=2:0657fd6d-a4ab-43c4-84e5-0933c84b4f4f",
                 "mkswap opt /dev/sdb2",
                 "mkfs.xfs opt /dev/sdb3"]
     ister.create_filesystems(template)
@@ -566,16 +638,20 @@ def setup_mounts_good():
     """Setup mount points for install"""
     import tempfile
     backup_mkdtemp = tempfile.mkdtemp
+
     def mock_mkdtemp():
+        """mock_mkdtemp wrapper"""
         return "/tmp"
     tempfile.mkdtemp = mock_mkdtemp
     template = {"PartitionMountPoints": [{"mount": "/", "disk": "sda",
                                           "partition": 1},
                                          {"mount": "/boot", "disk": "sda",
                                           "partition": 2}]}
-    commands = ["sgdisk /dev/sda --typecode=1:4f68bce3-e8cd-4db1-96e7-fbcaf984b709",
+    commands = ["sgdisk /dev/sda "
+                "--typecode=1:4f68bce3-e8cd-4db1-96e7-fbcaf984b709",
                 "mount /dev/sda1 /tmp/",
-                "sgdisk /dev/sda --typecode=2:c12a7328-f81f-11d2-ba4b-00a0c93ec93b",
+                "sgdisk /dev/sda "
+                "--typecode=2:c12a7328-f81f-11d2-ba4b-00a0c93ec93b",
                 "mkdir /tmp/boot",
                 "mount /dev/sda2 /tmp/boot"]
     try:
@@ -593,7 +669,9 @@ def setup_mounts_virtual_good():
     """Setup virtual mount points for install"""
     import tempfile
     backup_mkdtemp = tempfile.mkdtemp
+
     def mock_mkdtemp():
+        """mock_mkdtemp wrapper"""
         return "/tmp"
     tempfile.mkdtemp = mock_mkdtemp
     template = {"PartitionMountPoints": [{"mount": "/", "disk": "test",
@@ -601,9 +679,11 @@ def setup_mounts_virtual_good():
                                          {"mount": "/boot", "disk": "test",
                                           "partition": 2}],
                 "dev": "/dev/loop0"}
-    commands = ["sgdisk /dev/loop0 --typecode=1:4f68bce3-e8cd-4db1-96e7-fbcaf984b709",
+    commands = ["sgdisk /dev/loop0 "
+                "--typecode=1:4f68bce3-e8cd-4db1-96e7-fbcaf984b709",
                 "mount /dev/loop0p1 /tmp/",
-                "sgdisk /dev/loop0 --typecode=2:c12a7328-f81f-11d2-ba4b-00a0c93ec93b",
+                "sgdisk /dev/loop0 "
+                "--typecode=2:c12a7328-f81f-11d2-ba4b-00a0c93ec93b",
                 "mkdir /tmp/boot",
                 "mount /dev/loop0p2 /tmp/boot"]
     try:
@@ -620,13 +700,15 @@ def setup_mounts_bad():
     """Setup mount points mkdtemp failure"""
     import tempfile
     backup_mkdtemp = tempfile.mkdtemp
+
     def mock_mkdtemp():
+        """mock_mkdtemp wrapper"""
         raise Exception("mkdtemp")
     tempfile.mkdtemp = mock_mkdtemp
     exception_flag = False
     try:
-        target_dir = ister.setup_mounts(template)
-    except:
+        _ = ister.setup_mounts(template)
+    except Exception:
         exception_flag = True
     finally:
         tempfile.mkdtemp = backup_mkdtemp
@@ -673,8 +755,11 @@ def set_hostname_good():
 def copy_os_good():
     """Check installer command"""
     backup_add_bundles = ister.add_bundles
-    ister.add_bundles = lambda x,y: None
-    args = lambda: None
+    ister.add_bundles = lambda x, y: None
+
+    def args():
+        """args empty object"""
+        None
     args.url = None
     args.format = None
     commands = ["swupd verify -V --install --path=/ --manifest=0"]
@@ -687,8 +772,11 @@ def copy_os_good():
 def copy_os_url_good():
     """Check installer command with url string"""
     backup_add_bundles = ister.add_bundles
-    ister.add_bundles = lambda x,y: None
-    args = lambda: None
+    ister.add_bundles = lambda x, y: None
+
+    def args():
+        """args empty object"""
+        None
     args.url = "/"
     args.format = None
     commands = ["swupd verify -V --install --path=/ --manifest=0 "
@@ -702,8 +790,11 @@ def copy_os_url_good():
 def copy_os_format_good():
     """Check installer command with format string"""
     backup_add_bundles = ister.add_bundles
-    ister.add_bundles = lambda x,y: None
-    args = lambda: None
+    ister.add_bundles = lambda x, y: None
+
+    def args():
+        """args empty object"""
+        None
     args.url = None
     args.format = "test"
     commands = ["swupd verify -V --install --path=/ --manifest=0 "
@@ -718,8 +809,11 @@ def copy_os_format_good():
 def copy_os_physical_good():
     """Check installer command for physical install"""
     backup_add_bundles = ister.add_bundles
-    ister.add_bundles = lambda x,y: None
-    args = lambda: None
+    ister.add_bundles = lambda x, y: None
+
+    def args():
+        """args empty object"""
+        None
     args.url = None
     args.format = None
     commands = ["/var/lib/swupd",
@@ -757,9 +851,9 @@ def chroot_open_class_bad_open():
     """Ensure open failures handled in ChrootOpen"""
     exception_flag = False
     try:
-        with ister.ChrootOpen("/tmp") as dest:
+        with ister.ChrootOpen("/tmp"):
             pass
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Failed to detect open failure")
@@ -770,9 +864,9 @@ def chroot_open_class_bad_chroot():
     """Ensure chroot failures handled in ChrootOpen"""
     exception_flag = False
     try:
-        with ister.ChrootOpen("/tmp") as dest:
+        with ister.ChrootOpen("/tmp"):
             pass
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Failed to detect chroot failure")
@@ -783,9 +877,9 @@ def chroot_open_class_bad_chdir():
     """Ensure chdir failures handled in ChrootOpen"""
     exception_flag = False
     try:
-        with ister.ChrootOpen("/tmp") as dest:
+        with ister.ChrootOpen("/tmp"):
             pass
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Failed to detect chdir failure")
@@ -796,9 +890,9 @@ def chroot_open_class_bad_close():
     """Ensure close failures handled in ChrootOpen"""
     exception_flag = False
     try:
-        with ister.ChrootOpen("/tmp") as dest:
+        with ister.ChrootOpen("/tmp"):
             pass
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Failed to detect close failure")
@@ -860,7 +954,7 @@ def add_user_key_bad():
     exception_flag = False
     try:
         ister.add_user_key(template, "/tmp")
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Didn't handle failure during key add")
@@ -892,7 +986,7 @@ def setup_sudo_bad():
     exception_flag = False
     try:
         ister.setup_sudo(template, "/tmp")
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Didn't handle failure during setup sudo")
@@ -903,15 +997,20 @@ def add_users_good():
     backup_create_account = ister.create_account
     backup_add_user_key = ister.add_user_key
     backup_setup_sudo = ister.setup_sudo
+
     def mock_create_account(user, target_dir):
-        global COMMAND_RESULTS
+        """mock_create_account wrapper"""
         COMMAND_RESULTS.append(user["n"])
         COMMAND_RESULTS.append(target_dir)
+
     def mock_add_user_key(_, __):
-        global COMMAND_RESULTS
+        """mock_add_user_key wrapper"""
+        del __
         COMMAND_RESULTS.append("key")
+
     def mock_setup_sudo(_, __):
-        global COMMAND_RESULTS
+        """mock_setup_sudo wrapper"""
+        del __
         COMMAND_RESULTS.append("sudo")
     ister.create_account = mock_create_account
     ister.add_user_key = mock_add_user_key
@@ -945,7 +1044,10 @@ def add_users_good():
 def add_users_none():
     """Verify that nothing happens without users to add"""
     backup_create_account = ister.create_account
+
     def mock_create_account(_, __):
+        """mock_create_account wrapper"""
+        del __
         raise Exception("Account creation attempted with no users")
     ister.create_account = mock_create_account
     try:
@@ -968,8 +1070,9 @@ def post_install_nonchroot_good():
 def cleanup_physical_good():
     """Test cleanup of virtual device"""
     backup_isdir = os.path.isdir
+
     def mock_isdir(path):
-        global COMMAND_RESULTS
+        """mock_isdir wrapper"""
         COMMAND_RESULTS.append(path)
         return True
     os.path.isdir = mock_isdir
@@ -987,8 +1090,9 @@ def cleanup_physical_good():
 def cleanup_virtual_good():
     """Test cleanup of virtual device"""
     backup_isdir = os.path.isdir
+
     def mock_isdir(path):
-        global COMMAND_RESULTS
+        """mock_isdir wrapper"""
         COMMAND_RESULTS.append(path)
         return False
     os.path.isdir = mock_isdir
@@ -1014,8 +1118,8 @@ def get_template_location_bad_missing():
     """Bad get_template_location test (file not found)"""
     exception_flag = False
     try:
-        template_file = ister.get_template_location("no-template.conf")
-    except:
+        _ = ister.get_template_location("no-template.conf")
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("No error when reading from a nonexistant file")
@@ -1025,8 +1129,8 @@ def get_template_location_bad_no_equal():
     """Bad get_template_location test '=' content missing"""
     exception_flag = False
     try:
-        template_file = ister.get_template_location("bad-ister1.conf")
-    except:
+        _ = ister.get_template_location("bad-ister1.conf")
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("No error from loading no '=' template file")
@@ -1036,8 +1140,8 @@ def get_template_location_bad_malformed():
     """Bad get_template_location test (template variable missing)"""
     exception_flag = False
     try:
-        template_file = ister.get_template_location("bad-ister2.conf")
-    except:
+        _ = ister.get_template_location("bad-ister2.conf")
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("No error from loading malformed template file")
@@ -1058,10 +1162,10 @@ def validate_layout_good():
     """Good validate_layout full run"""
     template = {"PartitionLayout": [{"disk": "sda", "partition": 1,
                                      "size": "512M", "type": "EFI"},
-                                    {"disk": "sda", "partition": 2, "size": "4G",
-                                     "type": "swap"},
-                                    {"disk": "sda", "partition": 3, "size": "rest",
-                                     "type": "linux"}],
+                                    {"disk": "sda", "partition": 2,
+                                     "size": "4G", "type": "swap"},
+                                    {"disk": "sda", "partition": 3,
+                                     "size": "rest", "type": "linux"}],
                 "DestinationType": "disk"}
     try:
         parts_to_size = ister.validate_layout(template)
@@ -1095,10 +1199,11 @@ def validate_layout_bad_missing_disk():
                                      "type": "EFI"}]}
     try:
         ister.validate_layout(template)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Failed to detect missing disk")
+
 
 def validate_layout_bad_missing_part():
     """Bad validate_layout no part on partition"""
@@ -1107,7 +1212,7 @@ def validate_layout_bad_missing_part():
                                      "type": "EFI"}]}
     try:
         ister.validate_layout(template)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Failed to detect missing part")
@@ -1120,7 +1225,7 @@ def validate_layout_bad_missing_size():
                                      "type": "EFI"}]}
     try:
         ister.validate_layout(template)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Failed to detect missing size")
@@ -1133,7 +1238,7 @@ def validate_layout_bad_missing_ptype():
                                      "size": "512M"}]}
     try:
         ister.validate_layout(template)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Failed to detect missing ptype")
@@ -1146,7 +1251,7 @@ def validate_layout_bad_size_type():
                                      "size": "1Z", "ptype": "EFI"}]}
     try:
         ister.validate_layout(template)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Failed to detect invalid size type")
@@ -1159,7 +1264,7 @@ def validate_layout_negative_size():
                                      "size": "-32M", "ptype": "EFI"}]}
     try:
         ister.validate_layout(template)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Failed to detect negative partition size")
@@ -1172,7 +1277,7 @@ def validate_layout_bad_ptype():
                                      "size": "1G", "ptype": "notaptype"}]}
     try:
         ister.validate_layout(template)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Failed to detect invalid ptype")
@@ -1187,7 +1292,7 @@ def validate_layout_bad_multiple_efis():
                                      "size": "1G", "ptype": "EFI"}]}
     try:
         ister.validate_layout(template)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Failed to detect two EFI partitions")
@@ -1202,7 +1307,7 @@ def validate_layout_bad_duplicate_parts():
                                      "size": "1G", "ptype": "swap"}]}
     try:
         ister.validate_layout(template)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Failed to detect duplicate partitions")
@@ -1213,12 +1318,12 @@ def validate_layout_bad_too_many_parts():
     exception_flag = False
     template = {"PartitionLayout": [{"disk": "sda", "partition": 1,
                                      "size": "1G", "ptype": "EFI"}]}
-    for i in range(1,129):
+    for i in range(1, 129):
         template["PartitionLayout"].append({"disk": "sda", "partition": i,
                                             "size": "1G", "ptype": "linux"})
     try:
         ister.validate_layout(template)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Failed to detect over 128 partitions")
@@ -1236,7 +1341,7 @@ def validate_layout_bad_virtual_multi_disk():
                 "DestinationType": "virtual"}
     try:
         ister.validate_layout(template)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Failed to detect multiple disks when using virtual \
@@ -1251,7 +1356,7 @@ def validate_layout_bad_missing_efi():
                 "DestinationType": "physical"}
     try:
         ister.validate_layout(template)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Failed to detect missing EFI partition")
@@ -1269,7 +1374,7 @@ def validate_layout_bad_too_greedy():
                 "DestinationType": "virtual"}
     try:
         ister.validate_layout(template)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Failed to detect same disk rest partitions")
@@ -1296,12 +1401,12 @@ def validate_fstypes_good():
                      "sda7": "10G"}
     try:
         partition_fstypes = ister.validate_fstypes(template, parts_to_size)
-    except:
+    except Exception:
         raise Exception("Valid template failed to parse")
     if len(partition_fstypes) != 7:
         raise Exception("Returned incorrect number of partition fstypes")
     for part in ["sda1", "sda2", "sda3", "sda4", "sda5", "sda6", "sda7"]:
-        if not part in partition_fstypes:
+        if part not in partition_fstypes:
             raise Exception("Missing {} from partition_fstypes".format(part))
 
 
@@ -1311,7 +1416,7 @@ def validate_fstypes_bad_missing_disk():
     template = {"FilesystemTypes": [{"partition": 1, "type": "ext2"}]}
     try:
         ister.validate_fstypes(template, None)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Missing disk not detected")
@@ -1323,7 +1428,7 @@ def validate_fstypes_bad_missing_partition():
     template = {"FilesystemTypes": [{"disk": "sda", "type": "ext2"}]}
     try:
         ister.validate_fstypes(template, None)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Missing partition not detected")
@@ -1335,7 +1440,7 @@ def validate_fstypes_bad_missing_type():
     template = {"FilesystemTypes": [{"partition": 1, "disk": "sda"}]}
     try:
         ister.validate_fstypes(template, None)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Missing type not detected")
@@ -1348,7 +1453,7 @@ def validate_fstypes_bad_type():
                                      "disk": "sda"}]}
     try:
         ister.validate_fstypes(template, None)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Bad fs type not detected")
@@ -1364,7 +1469,7 @@ def validate_fstypes_bad_duplicate():
     parts_to_size = {"sda1": "10G"}
     try:
         ister.validate_fstypes(template, parts_to_size)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("duplicate fs not detected")
@@ -1378,7 +1483,7 @@ def validate_fstypes_bad_not_partition():
     parts_to_size = {}
     try:
         ister.validate_fstypes(template, parts_to_size)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("fs not in partition map not detected")
@@ -1390,7 +1495,7 @@ def validate_hostname_good():
     template.update(json.loads(good_virtual_disk_template()))
     try:
         ister.validate_template(template)
-    except:
+    except Exception:
         raise Exception("Valid hostname failed to parse")
 
 
@@ -1403,7 +1508,7 @@ def validate_partition_mounts_good():
     partition_fstypes = set(["sda1", "sda2"])
     try:
         ister.validate_partition_mounts(template, partition_fstypes)
-    except:
+    except Exception:
         raise Exception("Valid template failed to parse")
 
 
@@ -1415,7 +1520,7 @@ def validate_partition_mounts_good_missing_boot_virtual():
     partition_fstypes = set(["sda1"])
     try:
         ister.validate_partition_mounts(template, partition_fstypes)
-    except Exception as e:
+    except Exception:
         raise Exception("Valid template failed to parse")
 
 
@@ -1425,7 +1530,7 @@ def validate_partition_mounts_bad_missing_disk():
     template = {"PartitionMountPoints": [{"partition": 1, "mount": "/boot"}]}
     try:
         ister.validate_partition_mounts(template, None)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("missing disk not detected")
@@ -1437,7 +1542,7 @@ def validate_partition_mounts_bad_missing_partition():
     template = {"PartitionMountPoints": [{"disk": "sda", "mount": "/boot"}]}
     try:
         ister.validate_partition_mounts(template, None)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("missing partition not detected")
@@ -1449,7 +1554,7 @@ def validate_partition_mounts_bad_missing_mount():
     template = {"PartitionMountPoints": [{"partition": 1, "disk": "sda"}]}
     try:
         ister.validate_partition_mounts(template, None)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("missing mount not detected")
@@ -1465,7 +1570,7 @@ def validate_partition_mounts_bad_duplicate_mount():
     partition_fstypes = set(["sda1", "sda2"])
     try:
         ister.validate_partition_mounts(template, partition_fstypes)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Failed to detect duplicate mount points")
@@ -1481,7 +1586,7 @@ def validate_partition_mounts_bad_duplicate_disk_partitions():
     partition_fstypes = set(["sda1"])
     try:
         ister.validate_partition_mounts(template, partition_fstypes)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Failed to detect duplicate disk partitions")
@@ -1496,7 +1601,7 @@ def validate_partition_mounts_bad_not_partition():
     partition_fstypes = set()
     try:
         ister.validate_partition_mounts(template, partition_fstypes)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Failed to detect invalid partition usage")
@@ -1510,7 +1615,7 @@ def validate_partition_mounts_bad_missing_boot():
     partition_fstypes = set(["sda1"])
     try:
         ister.validate_partition_mounts(template, partition_fstypes)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Failed to detect missing boot partition")
@@ -1524,7 +1629,7 @@ def validate_partition_mounts_bad_missing_root():
     partition_fstypes = set(["sda1"])
     try:
         ister.validate_partition_mounts(template, partition_fstypes)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Failed to detect missing '/' partition")
@@ -1548,7 +1653,7 @@ def validate_type_template_bad():
     template = {"DestinationType": "bad"}
     try:
         ister.validate_type_template(template)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Failed to detect invalid template type")
@@ -1567,7 +1672,7 @@ def validate_user_template_bad_missing_name():
     template = [{"uid": "1000", "sudo": True}]
     try:
         ister.validate_user_template(template)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Failed to detect missing username")
@@ -1580,7 +1685,7 @@ def validate_user_template_bad_duplicate_name():
                 {"username": "user", "uid": "1001", "sudo": True}]
     try:
         ister.validate_user_template(template)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Failed to detect duplicate username")
@@ -1593,7 +1698,7 @@ def validate_user_template_bad_duplicate_uid():
                 {"username": "usertwo", "uid": "1000", "sudo": True}]
     try:
         ister.validate_user_template(template)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Failed to detect duplicate uid")
@@ -1605,7 +1710,7 @@ def validate_user_template_bad_invalid_uid_low():
     template = [{"username": "user", "uid": "0", "sudo": True}]
     try:
         ister.validate_user_template(template)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Failed to detect invalid uid (0)")
@@ -1617,7 +1722,7 @@ def validate_user_template_bad_invalid_uid_high():
     template = [{"username": "user", "uid": "4294967296", "sudo": True}]
     try:
         ister.validate_user_template(template)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Failed to detect invalid uid (> uint32 max)")
@@ -1629,7 +1734,7 @@ def validate_user_template_bad_invalid_sudo():
     template = [{"username": "user", "uid": "1000", "sudo": "bad"}]
     try:
         ister.validate_user_template(template)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Failed to detect invalid sudo option")
@@ -1642,18 +1747,20 @@ def validate_user_template_bad_missing_key():
                  "key": "/does/not/exist"}]
     try:
         ister.validate_user_template(template)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Failed to detect missing key file")
 
 
 def validate_postnonchroot_template_good():
+    """Good validate postnonchroot template"""
     global COMMAND_RESULTS
     COMMAND_RESULTS = []
     backup_isfile = os.path.isfile
+
     def mock_isfile(path):
-        global COMMAND_RESULTS
+        """mock_isfile wrapper"""
         COMMAND_RESULTS.append(path)
         return True
     os.path.isfile = mock_isfile
@@ -1665,19 +1772,21 @@ def validate_postnonchroot_template_good():
 
 
 def validate_postnonchroot_template_bad():
+    """Bad validate postnonchroot template"""
     global COMMAND_RESULTS
     COMMAND_RESULTS = []
     backup_isfile = os.path.isfile
     exception_flag = False
+
     def mock_isfile(path):
-        global COMMAND_RESULTS
+        """mock_isfile wrapper"""
         COMMAND_RESULTS.append(path)
         return False
     os.path.isfile = mock_isfile
     commands = ["file1"]
     try:
         ister.validate_postnonchroot_template(commands)
-    except:
+    except Exception:
         exception_flag = True
     os.path.isfile = backup_isfile
     if not exception_flag:
@@ -1697,7 +1806,7 @@ def validate_template_bad_long_hostname():
     template.update(json.loads(good_virtual_disk_template()))
     try:
         ister.validate_template(template)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Failed to validate hostname max length")
@@ -1713,7 +1822,7 @@ def validate_template_bad_missing_destination_type():
                 "Bundles": []}
     try:
         ister.validate_template(template)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Failed to detect missing DestinationType")
@@ -1729,7 +1838,7 @@ def validate_template_bad_missing_partition_layout():
                 "Bundles": []}
     try:
         ister.validate_template(template)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Failed to detect missing PartitionLayout")
@@ -1745,7 +1854,7 @@ def validate_template_bad_missing_filesystem_types():
                 "Bundles": []}
     try:
         ister.validate_template(template)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Failed to detect missing FilesystemTypes")
@@ -1761,7 +1870,7 @@ def validate_template_bad_missing_partition_mount_points():
                 "Bundles": []}
     try:
         ister.validate_template(template)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Failed to detect missing PartitionMountPoints")
@@ -1777,7 +1886,7 @@ def validate_template_bad_missing_version():
                 "Bundles": []}
     try:
         ister.validate_template(template)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Failed to detect missing Version")
@@ -1793,7 +1902,7 @@ def validate_template_bad_missing_bundles():
                 "Version": 10}
     try:
         ister.validate_template(template)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Failed to detect missing Version")
@@ -1806,7 +1915,7 @@ def validate_template_bad_short_hostname():
     template.update(json.loads(good_virtual_disk_template()))
     try:
         ister.validate_template(template)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Failed to validate hostname minimum length")
@@ -1822,7 +1931,7 @@ def validate_template_bad_version():
                 "Version": 0}
     try:
         ister.validate_template(template)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Failed to detect bad Version")
@@ -1834,38 +1943,47 @@ def parse_config_good():
     COMMAND_RESULTS = []
     backup_isfile = os.path.isfile
     backup_get_template_location = ister.get_template_location
+
     def mock_isfile_true_etc(path):
-        global COMMAND_RESULTS
+        """mock_isfile_true_etc wrapper"""
         COMMAND_RESULTS.append(path)
         if path.startswith("/etc"):
             return True
         else:
             return False
+
     def mock_isfile_true_usr(path):
-        global COMMAND_RESULTS
+        """mock_isfile_true_usr wrapper"""
         COMMAND_RESULTS.append(path)
         if path.startswith("/usr"):
             return True
         else:
             return False
+
     def mock_isfile_false(path):
-        global COMMAND_RESULTS
+        """mock_isfile_false wrapper"""
         COMMAND_RESULTS.append(path)
         return False
+
     def mock_get_template_location_etc(path):
-        global COMMAND_RESULTS
+        """mock_get_template_location_etc wrapper"""
         COMMAND_RESULTS.append(path)
         return "file:///etc.json"
+
     def mock_get_template_location_usr(path):
-        global COMMAND_RESULTS
+        """mock_get_template_location_usr wrapper"""
         COMMAND_RESULTS.append(path)
         return "file:///usr.json"
+
     def mock_get_template_location_cmd(path):
-        global COMMAND_RESULTS
+        """mock_get_template_location_cmd wrapper"""
         COMMAND_RESULTS.append(path)
         return "file:///cmd.json"
     try:
-        args = lambda: None
+
+        def args():
+            """args empty object"""
+            None
         args.config_file = None
         args.template_file = None
         os.path.isfile = mock_isfile_true_etc
@@ -1914,11 +2032,14 @@ def parse_config_bad():
     """Negative tests for configuration parsing"""
     exception_flag = False
     try:
-        args = lambda: None
+
+        def args():
+            """args empty object"""
+            None
         args.config_file = None
         args.template_file = None
         ister.parse_config(args)
-    except:
+    except Exception:
         exception_flag = True
     if not exception_flag:
         raise Exception("Failed to detect missing configuration file")
@@ -1931,7 +2052,7 @@ def handle_options_good():
                 "1"]
     try:
         args = ister.handle_options()
-    except:
+    except Exception:
         raise Exception("Unable to parse short arguments")
     if not args.config_file == "cfg":
         raise Exception("Failed to correctly set short config file")
@@ -1946,7 +2067,7 @@ def handle_options_good():
                 "--url=/", "--format=1"]
     try:
         args = ister.handle_options()
-    except:
+    except Exception:
         raise Exception("Unable to parse long arguments")
     if not args.config_file == "cfg":
         raise Exception("Failed to correctly set long config file")
@@ -1960,7 +2081,7 @@ def handle_options_good():
     sys.argv = ["ister.py"]
     try:
         args = ister.handle_options()
-    except:
+    except Exception:
         raise Exception("Unable to parse default arguments")
     if args.config_file:
         raise Exception("Incorrect default config file set")
@@ -1974,7 +2095,7 @@ def handle_options_good():
 
 def run_tests(tests):
     """Run ister test suite"""
-    failed = 0
+    fail = 0
     flog = open("test-log", "w")
 
     with open("test-log", "w") as flog:
@@ -1983,13 +2104,14 @@ def run_tests(tests):
                 test()
             except Exception as exep:
                 print("Test: {0} FAIL: {1}.".format(test.__name__, exep))
-                flog.write("Test: {0} FAIL: {1}.\n".format(test.__name__, exep))
-                failed += 1
+                flog.write("Test: {0} FAIL: {1}.\n".format(test.__name__,
+                                                           exep))
+                fail += 1
             else:
                 print("Test: {0} PASS.".format(test.__name__))
                 flog.write("Test: {0} PASS.\n".format(test.__name__))
 
-    return failed
+    return fail
 
 if __name__ == '__main__':
     TESTS = [
