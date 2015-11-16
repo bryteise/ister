@@ -1,5 +1,5 @@
 systemdsystemunitdir = @SYSTEMD_SYSTEMUNITDIR@
-dist_systemdsystemunit_DATA = ister.service
+dist_systemdsystemunit_DATA = ister.service ister-provision.service
 
 statelessdir = $(datarootdir)/defaults/$(PACKAGE)
 stateless_DATA = ister.conf ister.json
