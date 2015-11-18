@@ -377,8 +377,8 @@ def set_hostname(template, target_dir):
     if not os.path.exists(path):
         os.makedirs(path)
 
-    with open(path + "hostname", "w") as fd:
-        fd.write(hostname)
+    with open(path + "hostname", "w") as file:
+        file.write(hostname)
 
 
 def post_install_nonchroot(template, target_dir):
@@ -645,7 +645,7 @@ def validate_hostname_template(hostname):
 
     # Max length obtained from
     # http://pubs.opengroup.org/onlinepubs/007908799/xns/gethostname.html
-    if not(0 < len(hostname) <= 255):
+    if not 0 < len(hostname) <= 255:
         raise Exception("Hostname length out of bounds [1-255]")
 
 
