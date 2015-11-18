@@ -2031,6 +2031,15 @@ def parse_config_good():
 def parse_config_bad():
     """Negative tests for configuration parsing"""
     exception_flag = False
+
+    def mock_isfile_false(path):
+        """mock_isfile_false wrapper"""
+        COMMAND_RESULTS.append(path)
+        return False
+
+    backup_isfile = os.path.isfile
+    os.path.isfile = mock_isfile_false
+
     try:
 
         def args():
@@ -2041,6 +2050,8 @@ def parse_config_bad():
         ister.parse_config(args)
     except Exception:
         exception_flag = True
+    finally:
+        os.path.isfile = backup_isfile
     if not exception_flag:
         raise Exception("Failed to detect missing configuration file")
 
