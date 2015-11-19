@@ -26,6 +26,7 @@
 # pylint: disable=W1202
 
 import argparse
+import ister
 import json
 import logging
 import os
@@ -66,6 +67,15 @@ def setup():
         PERCENTAGE_W = 100
     LINES = int(rows * PERCENTAGE_H / 100)
     COLUMNS = int(columns * PERCENTAGE_W / 100)
+
+
+def ister_wrapper(fn_name, *args):
+    """Wrapper to dynamically call ister validations"""
+    try:
+        ister.__getattribute__(fn_name)(*args)
+    except Exception as exc:
+        return str(exc)
+    return None
 
 
 class Widget(object):
@@ -249,7 +259,10 @@ class Menu(Widget):
                                               None,
                                               focus_map='reversed'))
                     continue
-                urwid.connect_signal(button, 'change', self.check_chosen, choice)
+                urwid.connect_signal(button,
+                                     'change',
+                                     self.check_chosen,
+                                     choice)
             else:
                 urwid.connect_signal(button, 'click', self.item_chosen, choice)
             body.append(urwid.AttrMap(button, None, focus_map='reversed'))
@@ -337,6 +350,7 @@ class Installation(object):
             self._exit(-1, 'Template file does not exist')
 
     def _exit(self, int_code, error_message=None):
+        """UI to display error messages"""
         if error_message is None:
             error_message = 'An error ocurred during the installation, ' \
                             'please check the log file'
@@ -364,6 +378,7 @@ class Installation(object):
         self.current_w.main_loop()
 
     def _select_auto_or_manual(self):
+        """UI to select the installation type"""
         choices = u'Auto-install Manual(Advanced) Exit'.split()
         self.current_w = Menu(choices,
                               title=u'Which type of installation do you want?')
@@ -446,16 +461,23 @@ class Installation(object):
         self.automatic_install()
 
     def _configure_hostname(self):
+        """UI to fill the hostname on the template"""
         questions = [{'text': 'Enter the hostname:\n', 'key': 'hostname'}]
-        self.current_w = Edit(questions, title='Configuring hostname')
-        self.current_w.main_loop()
+        while True:
+            self.current_w = Edit(questions, title='Configuring hostname')
+            self.current_w.main_loop()
 
-        if self.current_w.has_answer:
-            self.installation_d['Hostname'] = \
-                self.current_w.answers.get('hostname', '')
-            return True
-
-        return False
+            if self.current_w.has_answer:
+                self.installation_d['Hostname'] = \
+                    self.current_w.answers.get('hostname', '')
+                error = ister_wrapper('validate_hostname_template',
+                                      self.installation_d['Hostname'])
+                if error is None:
+                    return True
+                self.current_w = Confirm(error, only_ok=True)
+                self.current_w.main_loop()
+            else:
+                return False
 
 
 def handle_options():
