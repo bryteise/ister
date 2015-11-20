@@ -700,6 +700,7 @@ def setup_mounts_bad():
     """Setup mount points mkdtemp failure"""
     import tempfile
     backup_mkdtemp = tempfile.mkdtemp
+    template = None
 
     def mock_mkdtemp():
         """mock_mkdtemp wrapper"""
@@ -903,7 +904,7 @@ def chroot_open_class_bad_close():
 def create_account_good():
     """Create account no uid"""
     template = {"username": "user"}
-    commands = ["useradd -U -m -p '' user"]
+    commands = ["useradd -U -m user -p ''"]
     ister.create_account(template, "/tmp")
     commands_compare_helper(commands)
 
@@ -913,7 +914,7 @@ def create_account_good():
 def create_account_good_uid():
     """Create account with uid"""
     template = {"username": "user", "uid": "1000"}
-    commands = ["useradd -U -m -p '' -u 1000 user"]
+    commands = ["useradd -U -m -u 1000 user -p ''"]
     ister.create_account(template, "/tmp")
     commands_compare_helper(commands)
 
@@ -997,6 +998,7 @@ def add_users_good():
     backup_create_account = ister.create_account
     backup_add_user_key = ister.add_user_key
     backup_setup_sudo = ister.setup_sudo
+    backup_disable_root_login = ister.disable_root_login
 
     def mock_create_account(user, target_dir):
         """mock_create_account wrapper"""
@@ -1012,9 +1014,15 @@ def add_users_good():
         """mock_setup_sudo wrapper"""
         del __
         COMMAND_RESULTS.append("sudo")
+
+    def mock_disable_root_login(_):
+        """mock_disable_root_login wrapper"""
+        COMMAND_RESULTS.append("password")
+
     ister.create_account = mock_create_account
     ister.add_user_key = mock_add_user_key
     ister.setup_sudo = mock_setup_sudo
+    ister.disable_root_login = mock_disable_root_login
     global COMMAND_RESULTS
     COMMAND_RESULTS = []
     target_dir = "/tmp"
@@ -1022,12 +1030,14 @@ def add_users_good():
                 target_dir,
                 "key",
                 "sudo",
+                "password",
                 "two",
                 target_dir,
                 "key",
                 "three",
                 target_dir,
                 "sudo",
+                "password",
                 "four",
                 target_dir]
     template = {"Users": [{"n": "one", "key": "akey", "sudo": True},
@@ -1038,6 +1048,7 @@ def add_users_good():
     ister.create_account = backup_create_account
     ister.add_user_key = backup_add_user_key
     ister.setup_sudo = backup_setup_sudo
+    ister.disable_root_login = backup_disable_root_login
     commands_compare_helper(commands)
 
 
@@ -1660,7 +1671,22 @@ def validate_type_template_bad():
 
 
 def validate_user_template_good():
-    """Good validate_user_template"""
+    """Good validate_user_template with sudo active"""
+    template = [{"username": "user", "uid": "1000", "sudo": True,
+                 "key": "{}/key.pub".format(os.getcwd()),
+                 "password": "test"}]
+    ister.validate_user_template(template)
+
+
+def validate_user_template_good_no_sudo():
+    """Good validate_user_template with sudo inactive"""
+    template = [{"username": "user", "uid": "1000", "sudo": False,
+                 "key": "{}/key.pub".format(os.getcwd())}]
+    ister.validate_user_template(template)
+
+
+def validate_user_template_good_key_missing_password():
+    """Good validate_user_template with key and missing password"""
     template = [{"username": "user", "uid": "1000", "sudo": True,
                  "key": "{}/key.pub".format(os.getcwd())}]
     ister.validate_user_template(template)
@@ -1689,6 +1715,18 @@ def validate_user_template_bad_duplicate_name():
         exception_flag = True
     if not exception_flag:
         raise Exception("Failed to detect duplicate username")
+
+
+def validate_user_template_bad_missing_password():
+    """Bad validate_user_template missing password"""
+    exception_flag = False
+    template = [{"username": "user", "uid": "1000", "sudo": True}]
+    try:
+        ister.validate_user_template(template)
+    except Exception:
+        exception_flag = True
+    if not exception_flag:
+        raise Exception('Failed to detect missing password')
 
 
 def validate_user_template_bad_duplicate_uid():
@@ -2210,8 +2248,11 @@ if __name__ == '__main__':
         validate_type_template_good_virtual,
         validate_type_template_bad,
         validate_user_template_good,
+        validate_user_template_good_no_sudo,
+        validate_user_template_good_key_missing_password,
         validate_user_template_bad_missing_name,
         validate_user_template_bad_duplicate_name,
+        validate_user_template_bad_missing_password,
         validate_user_template_bad_duplicate_uid,
         validate_user_template_bad_invalid_uid_low,
         validate_user_template_bad_invalid_uid_high,

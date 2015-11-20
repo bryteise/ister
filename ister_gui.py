@@ -26,6 +26,7 @@
 # pylint: disable=W1202
 
 import argparse
+import crypt
 import ister
 import json
 import logging
@@ -187,6 +188,9 @@ class Edit(Widget):
         self.questions = question
         self.answers = dict()
         self.has_answer = False
+        self.edits = dict()
+        self.maps = dict()
+        self.maps_out = dict()
         self.init_widget()
 
     def init_widget(self):
@@ -194,11 +198,21 @@ class Edit(Widget):
         # ask = urwid.Edit(('I say', self.question))
         for question in self.questions:
             mask = question.get('mask', None)
-            ask_l.append(urwid.Edit(('I say', question['text']), mask=mask))
-            urwid.connect_signal(ask_l[-1],
-                                 'change',
-                                 self.on_edit_change,
-                                 question['key'])
+            edit = urwid.Edit(('I say', question['text']), mask=mask)
+            if 'map_output' in question:
+                if question['key'] not in self.maps:
+                    self.maps[question['key']] = question['map_output']
+                if question['map_output'] not in self.maps_out:
+                    self.maps_out[question['map_output']] = list()
+                self.maps_out[question['map_output']]\
+                    .append({'key': question['key'],
+                             'ln': question['map_ln']})
+                urwid.connect_signal(edit,
+                                     'change',
+                                     self.on_edit_change,
+                                     question['key'])
+            self.edits[question['key']] = edit
+            ask_l.append(edit)
             ask_l.append(urwid.Divider())
         btn_exit = urwid.Button(u'Exit')
         btn_next = urwid.Button(u'Next')
@@ -209,7 +223,6 @@ class Edit(Widget):
         frame = urwid.Filler(pile, valign='middle')
         frame = urwid.Padding(frame, left=2, right=2)
         self.widget = urwid.AttrMap(frame, 'banner')
-        # urwid.connect_signal(ask, 'change', self.on_ask_change)
         urwid.connect_signal(btn_exit, 'click', self.on_exit_clicked)
         urwid.connect_signal(btn_next, 'click', self.on_next_clicked)
         super(Edit, self).init_widget()
@@ -218,7 +231,13 @@ class Edit(Widget):
         """Refresh edit widget's display text"""
         # edit unused for now
         del edit
-        self.answers[_id] = new_edit_text
+        if _id not in self.maps:
+            return
+        text = ''.join([(self.edits[item['key']].get_edit_text()
+                         if item['key'] != _id
+                         else new_edit_text)[:item['ln']]
+                        for item in self.maps_out[self.maps[_id]]])
+        self.edits[self.maps[_id]].set_edit_text(text.lower())
 
     def on_exit_clicked(self, button):
         """edit widget exit button handler"""
@@ -231,6 +250,8 @@ class Edit(Widget):
         # button unused for now
         del button
         self.has_answer = True
+        for key in self.edits:
+            self.answers[key] = self.edits[key].get_edit_text()
         raise urwid.ExitMainLoop()
 
 
@@ -339,6 +360,7 @@ class Installation(object):
         self.args = kwargs
         self.process = [
             self._configure_hostname,
+            self._configure_username,
         ]
         try:
             with open('/etc/ister.json') as file:
@@ -478,6 +500,51 @@ class Installation(object):
                 self.current_w.main_loop()
             else:
                 return False
+
+    def _configure_username(self):
+        """UI to add a user to the template
+
+        First it asks if the user wants to configure a new user.
+        """
+        self.current_w = Confirm('Do you want to configure a new user?')
+        self.current_w.main_loop()
+        if not self.current_w.has_answer:
+            return True
+        questions = [
+            {'text': 'Enter your first name:\n',
+             'key': 'first_name',
+             'map_output': 'username',
+             'map_ln': 1},
+            {'text': 'Enter your last name:\n',
+             'key': 'last_name',
+             'map_output': 'username',
+             'map_ln': 8},
+            {'text': 'Enter the username:\n',
+             'key': 'username'},
+            {'text': 'Enter the password:\n',
+             'key': 'password',
+             'mask': '*'}
+            ]
+        self.current_w = Edit(questions, title='Configuring user')
+        self.current_w.main_loop()
+        if not self.current_w.has_answer \
+            and 'username' in self.current_w.answers \
+                and 'password' in self.current_w.answers:
+            self.logger.error('A user configuration is needed')
+            self._exit(-1)
+        self.logger.debug(self.current_w.answers)
+        self.installation_d['Users'] = list()
+        user = dict()
+        user['username'] = self.current_w.answers.get('username', '')
+        user['password'] = crypt.crypt(self.current_w.answers
+                                       .get('password', ''), 'aa')
+        self.current_w = Confirm('Do you want to add the user to the sudoers '
+                                 'file?')
+        self.current_w.main_loop()
+        user['sudo'] = self.current_w.has_answer
+        self.logger.debug(user)
+        self.installation_d['Users'].append(user)
+        return True
 
 
 def handle_options():

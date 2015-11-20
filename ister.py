@@ -296,10 +296,13 @@ def create_account(user, target_dir):
 
     os.makedirs(target_dir + "/home", exist_ok=True)
     if user.get("uid"):
-        command = "useradd -U -m -p '' -u {0} {1}"\
+        command = "useradd -U -m -u {0} {1}"\
             .format(user["uid"], user["username"])
     else:
-        command = "useradd -U -m -p '' {}".format(user["username"])
+        command = "useradd -U -m {}".format(user["username"])
+
+    command += (" -p {0}".format(user["password"])
+                if user.get("password") else " -p ''")
 
     with ChrootOpen(target_dir) as _:
         run_command(command)
@@ -329,6 +332,24 @@ def add_user_key(user, target_dir):
         except Exception as exep:
             raise Exception("Unable to add {0}'s ssh key to authorized "
                             "keys: {1}".format(user["username"], exep))
+
+
+def disable_root_login(target_dir):
+    """Disables the login for root if there is a user with sudo active
+
+    It reads the line of /etc/shadow for the user previously created and
+    then it changes the username to root and the password to !. Finally, it
+    writes the result at the end.
+    """
+    line = ''
+    with open("{0}/etc/shadow".format(target_dir)) as file:
+        line = file.read().split('\n')[0]
+    line = line.split(':')
+    line[0] = 'root'
+    line[1] = '!'
+    line = ':'.join(line)
+    with open("{0}/etc/shadow".format(target_dir), "a") as file:
+        file.write(line)
 
 
 def setup_sudo(user, target_dir):
@@ -363,6 +384,7 @@ def add_users(template, target_dir):
             add_user_key(user, target_dir)
         if user.get("sudo") and user["sudo"]:
             setup_sudo(user, target_dir)
+            disable_root_login(target_dir)
 
 
 def set_hostname(template, target_dir):
@@ -612,6 +634,7 @@ def validate_user_template(users):
         uid = user.get("uid")
         sudo = user.get("sudo")
         key = user.get("key")
+        password = user.get("password")
 
         if not name:
             raise Exception("Missing username for user entry: {}".format(user))
@@ -631,6 +654,9 @@ def validate_user_template(users):
         if sudo is not None:
             if sudo is not True and sudo is not False:
                 raise Exception("Invalid sudo option")
+            if sudo and not key and (password is None or password == ""):
+                raise Exception("Missing password for user entry: {0}"
+                                .format(user))
 
         if key:
             with open(user["key"], "r") as key_file:
