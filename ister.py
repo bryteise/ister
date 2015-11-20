@@ -165,9 +165,9 @@ def get_device_name(template, disk):
 def create_filesystems(template):
     """Create filesystems according to template configuration
     """
-    fs_util = {"ext2": "mkfs.ext2", "ext3": "mkfs.ext3", "ext4": "mkfs.ext4",
-               "btrfs": "mkfs.btrfs", "vfat": "mkfs.vfat", "swap": "mkswap",
-               "xfs": "mkfs.xfs"}
+    fs_util = {"ext2": "mkfs.ext2 -F", "ext3": "mkfs.ext3 -F",
+               "ext4": "mkfs.ext4 -F", "btrfs": "mkfs.btrfs -f",
+               "vfat": "mkfs.vfat", "swap": "mkswap", "xfs": "mkfs.xfs -f"}
     for fst in template["FilesystemTypes"]:
         dev = get_device_name(template, fst["disk"])
         if fst.get("options"):

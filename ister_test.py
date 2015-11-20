@@ -571,15 +571,15 @@ def create_filesystems_good():
                                      "partition": 2},
                                     {"disk": "sdb", "type": "xfs",
                                      "partition": 3}]}
-    commands = ["mkfs.ext2 /dev/sda1",
-                "mkfs.ext3 /dev/sda2",
-                "mkfs.ext4 /dev/sda3",
-                "mkfs.btrfs /dev/sda4",
+    commands = ["mkfs.ext2 -F /dev/sda1",
+                "mkfs.ext3 -F /dev/sda2",
+                "mkfs.ext4 -F /dev/sda3",
+                "mkfs.btrfs -f /dev/sda4",
                 "mkfs.vfat /dev/sdb1",
                 "sgdisk /dev/sdb "
                 "--typecode=2:0657fd6d-a4ab-43c4-84e5-0933c84b4f4f",
                 "mkswap /dev/sdb2",
-                "mkfs.xfs /dev/sdb3"]
+                "mkfs.xfs -f /dev/sdb3"]
     ister.create_filesystems(template)
     commands_compare_helper(commands)
 
@@ -598,7 +598,7 @@ def create_filesystems_virtual_good():
                 "sgdisk /dev/loop0 "
                 "--typecode=2:0657fd6d-a4ab-43c4-84e5-0933c84b4f4f",
                 "mkswap /dev/loop0p2",
-                "mkfs.ext4 /dev/loop0p3"]
+                "mkfs.ext4 -F /dev/loop0p3"]
     ister.create_filesystems(template)
     commands_compare_helper(commands)
 
@@ -620,15 +620,15 @@ def create_filesystems_good_options():
                                      "partition": 2, "options": "opt"},
                                     {"disk": "sdb", "type": "xfs",
                                      "partition": 3, "options": "opt"}]}
-    commands = ["mkfs.ext2 opt /dev/sda1",
-                "mkfs.ext3 opt /dev/sda2",
-                "mkfs.ext4 opt /dev/sda3",
-                "mkfs.btrfs opt /dev/sda4",
+    commands = ["mkfs.ext2 -F opt /dev/sda1",
+                "mkfs.ext3 -F opt /dev/sda2",
+                "mkfs.ext4 -F opt /dev/sda3",
+                "mkfs.btrfs -f opt /dev/sda4",
                 "mkfs.vfat opt /dev/sdb1",
                 "sgdisk /dev/sdb "
                 "--typecode=2:0657fd6d-a4ab-43c4-84e5-0933c84b4f4f",
                 "mkswap opt /dev/sdb2",
-                "mkfs.xfs opt /dev/sdb3"]
+                "mkfs.xfs -f opt /dev/sdb3"]
     ister.create_filesystems(template)
     commands_compare_helper(commands)
 
