@@ -194,8 +194,8 @@ class Edit(Widget):
         self.init_widget()
 
     def init_widget(self):
+        """Initialize the ui objects"""
         ask_l = list()
-        # ask = urwid.Edit(('I say', self.question))
         for question in self.questions:
             mask = question.get('mask', None)
             edit = urwid.Edit(('I say', question['text']), mask=mask)
@@ -259,16 +259,15 @@ class Menu(Widget):
     """Class for a menu item list"""
     def __init__(self, menu_choices, *args, **kwargs):
         super(Menu, self).__init__(*args, **kwargs)
-        self.choices = menu_choices
+        self.choices = menu_choices[:]
         self.checkbox_type = kwargs.get('checkbox', False)
-        self.required_choices = kwargs.get('required_choices', None)
-        if self.checkbox_type:
-            self.response = self.required_choices
-        else:
-            self.reponse = None
+        self.required_choices = kwargs.get('required_choices', list())[:]
+        self.choices.extend(self.required_choices)
+        self.response = self.required_choices
         self.init_widget()
 
     def init_widget(self):
+        """Initialize the ui objects"""
         body = [urwid.Divider()]
         item_class = urwid.CheckBox if self.checkbox_type else urwid.Button
         for choice in self.choices:
@@ -290,7 +289,7 @@ class Menu(Widget):
         if self.checkbox_type:
             body.append(urwid.Divider())
             exit_btn = urwid.Button('Done')
-            urwid.connect_signal(exit_btn, 'click', self.exit_chosen)
+            urwid.connect_signal(exit_btn, 'click', self.exit_chosen, exit_btn)
             body.append(exit_btn)
         listbox = urwid.ListBox(urwid.SimpleFocusListWalker(body))
         frame = urwid.Padding(listbox, left=2, right=2)
@@ -361,6 +360,7 @@ class Installation(object):
         self.process = [
             self._configure_hostname,
             self._configure_username,
+            self._bundle_selector,
         ]
         try:
             with open('/etc/ister.json') as file:
@@ -544,6 +544,50 @@ class Installation(object):
         user['sudo'] = self.current_w.has_answer
         self.logger.debug(user)
         self.installation_d['Users'].append(user)
+        return True
+
+    def _bundle_selector(self):
+        """UI to let the user select the bundles to fill the template"""
+        bundles = ['os-utils -> A core set of OS utilities',
+                   'editors -> Popular text editors (terminal-based)',
+                   'os-clr-on-clr -> Fills out dev tools for os development',
+                   'devtools-basic -> gcc and minimal R, go, hpc, perl, '
+                   'python, ruby',
+                   'sysadmin -> Tools sys-admins commonly use',
+                   'net-utils -> Core network config and debug',
+                   'network-proxy-client -> Auto proxy detection for aware '
+                   'tools like swupd']
+        required_bundles = \
+            ['os-core -> Minimal packages to have clear fully functional',
+             'kernel-native -> Required to run clear on baremetal',
+             'os-core-update -> Required to update the system',
+             'telemetry -> Quality feedback for the OS']
+        selection = None
+        backup = None
+        while True:
+            self.current_w = (Menu(bundles,
+                                   title='Which bundles do you want to '
+                                         'install?',
+                                   checkbox=True,
+                                   required_choices=required_bundles)
+                              if backup is None else backup)
+            self.current_w.main_loop()
+            backup = self.current_w
+            selection = self.current_w.response
+            del self.current_w
+            message = ('Do you want to continue the installation with the '
+                       'bundles listed below?\n\n- {0}'
+                       .format('\n- '.join(selection)))
+            self.current_w = Confirm(message)
+            self.current_w.main_loop()
+            if self.current_w.has_answer:
+                break
+            del self.current_w
+        selected = list()
+        for item in selection:
+            selected.append(item.split('->')[0].strip())
+        self.logger.info(selected)
+        self.installation_d['Bundles'] = selected
         return True
 
 
