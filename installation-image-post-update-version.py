@@ -1,9 +1,9 @@
-#!/usr/bin/python3
+#!/usr/local/bin/python3.3
 
 import os
 import sys
 
-INSTALLER_VERSION = "4340"
+INSTALLER_VERSION = "5210"
 
 def create_installer_config(path):
     """Create a basicl installation configuration file"""
@@ -20,8 +20,7 @@ def create_installer_config(path):
     "PartitionMountPoints" : \
     [{"disk" : "sda", "partition" : 1, "mount" : "/boot"}, \
     {"disk" : "sda", "partition" : 3, "mount" : "/"}], \
-    "Version" : 0, "Bundles" : ["kernel-native", "os-core", "os-core-update", \
-    "telemetrics"]}\n'
+    "Version" : 0, "Bundles" : ["kernel-native", "telemetrics", "os-core", "os-core-update"]}\n'
     if not os.path.isdir("{}/etc".format(path)):
         os.mkdir("{}/etc".format(path))
     with open("{}/etc/ister.conf".format(path), "w") as cfile:
@@ -59,6 +58,11 @@ def disable_tty1_getty(path):
     os.symlink("/dev/null", path + "/etc/systemd/system/getty.target.wants/getty@tty1.service")
 
 
+def remove_provision_service(path):
+    os.unlink("{}/usr/lib/systemd/system/multi-user.target.wants/ister-provision.service"
+              .format(path))
+
+
 if __name__ == '__main__':
     if len(sys.argv) != 2:
         sys.exit(-1)
@@ -67,6 +71,7 @@ if __name__ == '__main__':
         create_installer_config(sys.argv[1])
         append_installer_rootdelay(sys.argv[1])
         disable_tty1_getty(sys.argv[1])
+        remove_provision_service(sys.argv[1])
     except Exception as exep:
         print(exep)
         sys.exit(-1)
