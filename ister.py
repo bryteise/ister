@@ -475,7 +475,7 @@ def validate_layout(template):
         ptype = layout.get("type")
 
         if not disk or not part or not size or not ptype:
-            raise Exception("Invalid PartitonLayout section: {}"
+            raise Exception("Invalid PartitionLayout section: {}"
                             .format(layout))
 
         if size[-1] not in accepted_sizes and size != "rest":
