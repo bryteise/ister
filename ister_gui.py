@@ -188,7 +188,7 @@ class Edit(Widget):
         self.questions = question
         self.answers = dict()
         self.has_answer = False
-        self.edits = dict()
+        self.widgets = dict()
         self.maps = dict()
         self.maps_out = dict()
         self.init_widget()
@@ -198,7 +198,10 @@ class Edit(Widget):
         ask_l = list()
         for question in self.questions:
             mask = question.get('mask', None)
-            edit = urwid.Edit(('I say', question['text']), mask=mask)
+            if 'type' not in question:
+                edit = urwid.Edit(('I say', question['text']), mask=mask)
+            else:
+                edit = question['type'](('I say', question['text']))
             if 'map_output' in question:
                 if question['key'] not in self.maps:
                     self.maps[question['key']] = question['map_output']
@@ -211,7 +214,7 @@ class Edit(Widget):
                                      'change',
                                      self.on_edit_change,
                                      question['key'])
-            self.edits[question['key']] = edit
+            self.widgets[question['key']] = edit
             ask_l.append(edit)
             ask_l.append(urwid.Divider())
         btn_exit = urwid.Button(u'Exit')
@@ -233,11 +236,11 @@ class Edit(Widget):
         del edit
         if _id not in self.maps:
             return
-        text = ''.join([(self.edits[item['key']].get_edit_text()
+        text = ''.join([(self.widgets[item['key']].get_edit_text()
                          if item['key'] != _id
                          else new_edit_text)[:item['ln']]
                         for item in self.maps_out[self.maps[_id]]])
-        self.edits[self.maps[_id]].set_edit_text(text.lower())
+        self.widgets[self.maps[_id]].set_edit_text(text.lower())
 
     def on_exit_clicked(self, button):
         """edit widget exit button handler"""
@@ -250,8 +253,10 @@ class Edit(Widget):
         # button unused for now
         del button
         self.has_answer = True
-        for key in self.edits:
-            self.answers[key] = self.edits[key].get_edit_text()
+        for key, widget in self.widgets.items():
+            self.answers[key] = (widget.get_edit_text()
+                                 if isinstance(widget, urwid.Edit)
+                                 else widget.get_state())
         raise urwid.ExitMainLoop()
 
 
@@ -341,8 +346,46 @@ class Messagebox(Widget):
         self.redraw()
 
 
+class Terminal(object):
+    """UI object that enables the installer to run external commands"""
+    def __init__(self, cmd):
+        self.term = urwid.Terminal(cmd)
+        self.init_widget()
+
+    def init_widget(self):
+        """Initializes the minimal widgets to run"""
+        mainframe = urwid.LineBox(
+            urwid.Pile([('weight', 70, self.term)]))
+
+        urwid.connect_signal(self.term, 'closed', self.quit)
+
+        loop = urwid.MainLoop(
+            mainframe,
+            handle_mouse=False,
+            unhandled_input=self.handle_key)
+
+        self.term.main_loop = loop
+        self.term.keygrab = True
+
+    def quit(self, *args, **kwargs):
+        """Breaks the loop to continue"""
+        del args, kwargs
+        raise urwid.ExitMainLoop()
+
+    def handle_key(self, key):
+        """It connects the signal, but does not do anything"""
+        pass
+
+    def main_loop(self):
+        """Enters the loop to grab focus on the terminal UI"""
+        self.term.main_loop.run()
+
+
 class Installation(object):
     """Main object for installer ui"""
+
+    # pylint: disable=too-many-instance-attributes
+
     def __init__(self, *args, **kwargs):
         # args unused for now
         del args
@@ -358,10 +401,13 @@ class Installation(object):
         self.logger.setLevel(logging.DEBUG)
         self.args = kwargs
         self.process = [
+            self._configure_installation,
             self._configure_hostname,
             self._configure_username,
             self._bundle_selector,
         ]
+        self.device = None
+        self.mount_points = dict()
         try:
             with open('/etc/ister.json') as file:
                 json_string = file.read()
@@ -481,6 +527,204 @@ class Installation(object):
                 exit(0)
 
         self.automatic_install()
+
+    def _get_list_of_disks(self):
+        """"Queries for the available disks discarding the inst. source"""
+        dir_path = '/sys/block'
+        disks = [device for device in os.listdir(dir_path)
+                 if 'pci' in os.readlink('{0}/{1}'.format(dir_path, device))]
+        unmounted = list()
+        content = ''
+        with open('/proc/cmdline') as file:
+            content = file.read()
+        part_uuid = ''
+        for split in content.split('\n')[0].split():
+            value = 'root=PARTUUID='
+            if value in split:
+                part_uuid = split[len(value):]
+        root_disk = os.readlink('/dev/disk/by-partuuid/{0}'.format(part_uuid))
+        for disk in disks:
+            if disk not in root_disk:
+                unmounted.append(disk)
+        return unmounted
+
+    def _select_device(self):
+        """UI to ask the user the device where ister will install"""
+        # It queries all the disks available on the system
+        choices = self._get_list_of_disks()
+        self.current_w = Menu(choices, title='Select the destination disk')
+        self.current_w.main_loop()
+        self.device = self.current_w.response
+
+    def _manage_partitions(self):
+        """UI to ask the user if he wants to partition the device manually
+        If he answers yes, the installer opens cgdisk /dev/{device}
+        """
+        self.current_w = Confirm('Do you want to open cgdisk to configure '
+                                 'the partitions manually?')
+        self.current_w.main_loop()
+        loop = self.current_w.has_answer
+        while loop:
+            self.current_w = Terminal(['cgdisk', ('/dev/{0}'
+                                                  .format(self.device))])
+            self.current_w.main_loop()
+
+            choices = ['Go back', 'Continue']
+            self.current_w = Menu(choices, title='Are you okay with the '
+                                                 'current partitions?')
+            self.current_w.main_loop()
+            loop = True if 'back' in self.current_w.response else False
+
+    def _get_partition_list(self):
+        """Queries the partitions on self.device and returns them as a list"""
+        cmd = 'lsblk /dev/{0} -o name -n | grep -oE [0-9]+'.format(self.device)
+        proc = subprocess.Popen(['bash', '-c', cmd],
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE)
+        partitions = ['/dev/{0}{1}'.format(self.device, number)
+                      for number in (proc.communicate()[0].decode('utf-8')
+                                     .split('\n'))
+                      if number != '']
+        for i in range(0, len(partitions)):
+            proc = subprocess.Popen(['lsblk',
+                                     partitions[i],
+                                     '-n',
+                                     '-o',
+                                     'size'],
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE)
+            size = proc.communicate()[0].decode('utf-8').replace('\n', '')
+            partitions[i] = '{0}         {1}'.format(partitions[i], size)
+        return partitions
+
+    def _fill_template_disk_info(self):
+        """Handler to fill template when the user is done  mount points
+        * Size does not matters because ister partitioning won't be activated
+        """
+        # Cleans the previous values
+        self.installation_d['PartitionLayout'] = list()
+        self.installation_d['FilesystemTypes'] = list()
+        self.installation_d['PartitionMountPoints'] = list()
+
+        _pl = list()
+        fst = list()
+        pmp = list()
+
+        _ister_types = {'/boot': 'EFI'}
+        _linux_types = {'/boot': 'vfat'}
+        for key in self.mount_points:
+            part = self.mount_points[key]['part']
+            _format = self.mount_points[key]['format']
+            index = 0
+            for char in part:
+                if char.isnumeric():
+                    break
+                index += 1
+            part_num = part[index:]
+            _type = _ister_types[key] if key in _ister_types else 'linux'
+            _pl.append({'disk': self.device,
+                        'partition': part_num,
+                        'size': '1M',
+                        'type': _type})
+            _type = _linux_types[key] if key in _linux_types else 'ext4'
+            fst.append({'disk': self.device,
+                        'partition': part_num,
+                        'type': _type})
+            if key != '/' and not _format:
+                fst[-1]['disable_format'] = True
+            pmp.append({'disk': self.device,
+                        'partition': part_num,
+                        'mount': key})
+
+        self.installation_d['PartitionLayout'].extend(_pl)
+        self.installation_d['FilesystemTypes'].extend(fst)
+        self.installation_d['PartitionMountPoints'].extend(pmp)
+
+    def _set_partition_mount_point(self, partitions):
+        """UI to set the mount point and if the partition needs format"""
+        str_fmt = '{0}          {1}          {2}          {3}'
+        choice = self.current_w.response
+        index = partitions.index(choice)
+        splitted = [item for item in choice.split() if item != '']
+        part, size = splitted[0], splitted[1]
+        m_point = splitted[2] if len(splitted) == 3 else ''
+        questions = [{'text': 'Enter the mount point for "{0}"\n'
+                              .format(part),
+                      'key': 'm_point'},
+                     {'text': 'Format',
+                      'key': 'format',
+                      'type': urwid.CheckBox}]
+        self.current_w = Edit(questions,
+                              title=('Configuring mount point for "{0}"'
+                                     .format(part)))
+        self.current_w.main_loop()
+        if not self.current_w.has_answer:
+            return
+        answer = self.current_w.answers['m_point']
+        _format = self.current_w.answers['format']
+        # If empty it means the user wants to unset the mount point
+        if answer == '':
+            partitions[index] = str_fmt.format(part, size, answer, '')
+            if m_point in self.mount_points:
+                del self.mount_points[m_point]
+            return
+        # Checks if another partitions has the same mount point,
+        # if yes it erases
+        for ite, item in enumerate(partitions[:]):
+            splitted = item.split()
+            if len(splitted) == 3 and splitted[2] == answer:
+                partitions[ite] = str_fmt.format(splitted[0],
+                                                 splitted[1],
+                                                 '',
+                                                 '')
+        self.mount_points[answer] = {'part': part, 'format': _format}
+        msg_fmt = 'Format' if _format or answer == '/' else ''
+        partitions[index] = str_fmt.format(part, size, answer, msg_fmt)
+
+    def _set_mount_points(self):
+        """UI with the available partitions
+        When a user selects a partition the installer will prompt for its
+        mount point
+        """
+        partitions = self._get_partition_list()
+        partitions.append('Done')
+
+        while True:
+            self.current_w = Menu(partitions, title='Configuring mount points')
+            self.current_w.main_loop()
+
+            if self.current_w.response == 'Done':
+                self._fill_template_disk_info()
+                exc = ister_wrapper('validate_disk_template',
+                                    self.installation_d)
+                self.logger.debug(exc)
+                if exc is None:
+                    break
+                else:
+                    # Displays a warning message obtained from ister validation
+                    message = exc
+                    self.current_w = Confirm(message,
+                                             title='Error',
+                                             only_ok=True)
+                    self.current_w.main_loop()
+                    continue
+            self._set_partition_mount_point(partitions)
+
+    def _configure_installation(self):
+        """Scheduler that calls the handlers to conf the installation dest"""
+        self.current_w = Confirm('Do you want to handle the partitions '
+                                 'and mount points manually? (If not the '
+                                 'device will be repatitioned and all '
+                                 'existing data lost)')
+        self.current_w.main_loop()
+        if not self.current_w.has_answer:
+            self.logger.debug(self.installation_d)
+            return True
+        self._select_device()
+        self._manage_partitions()
+        self._set_mount_points()
+        self.installation_d['DisabledNewPartitions'] = True
+        return True
 
     def _configure_hostname(self):
         """UI to fill the hostname on the template"""

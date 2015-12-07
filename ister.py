@@ -185,7 +185,8 @@ def create_filesystems(template):
             run_command("sgdisk {0} --typecode={1}:\
 0657fd6d-a4ab-43c4-84e5-0933c84b4f4f"
                         .format(base_dev, fst["partition"]))
-        run_command(command)
+        if "disable_format" not in fst:
+            run_command(command)
 
 
 def setup_mounts(template):
@@ -479,10 +480,10 @@ def validate_layout(template):
                             .format(layout))
 
         if size[-1] not in accepted_sizes and size != "rest":
-            raise Exception("Invalid size specified in section {1}"
+            raise Exception("Invalid size specified in section {0}"
                             .format(layout))
         if size != "rest" and int(size[:-1]) <= 0:
-            raise Exception("Invalid size specified in section {1}"
+            raise Exception("Invalid size specified in section {0}"
                             .format(layout))
 
         if ptype not in accepted_ptypes:
@@ -535,10 +536,13 @@ def validate_fstypes(template, parts_to_size):
     """
     partition_fstypes = set()
     accepted_fstypes = ["ext2", "ext3", "ext4", "vfat", "btrfs", "xfs", "swap"]
-
+    force_fmt = [(item.get("disk"), item.get("partition"))
+                 for item in template.get("PartitionMountPoints", list())
+                 if item.get("mount", "") == "/"]
     for fstype in template["FilesystemTypes"]:
         disk = fstype.get("disk")
         part = fstype.get("partition")
+        disable_fmt = fstype.get("disable_format")
         fstype = fstype.get("type")
         if not disk or not part or not fstype:
             raise Exception("Invalid FilesystemTypes section: {}"
@@ -555,6 +559,9 @@ FilesystemTypes".format(disk, part))
         if disk_part not in parts_to_size:
             raise Exception("disk {0} partition {1} used in FilesystemTypes \
 not found in PartitionLayout".format(disk, part))
+        if len(force_fmt) > 0 and force_fmt[0][0] == disk \
+                and force_fmt[0][1] == part and disable_fmt is not None:
+            raise Exception("/ does not apply to disable_format")
         partition_fstypes.add(disk_part)
 
     return partition_fstypes
@@ -760,7 +767,8 @@ def install_os(args):
     try:
         if template["DestinationType"] == "virtual":
             create_virtual_disk(template)
-        create_partitions(template)
+        if "DisabledNewPartitions" not in template:
+            create_partitions(template)
         if template["DestinationType"] == "virtual":
             map_loop_device(template)
         create_filesystems(template)

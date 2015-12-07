@@ -1412,6 +1412,37 @@ def validate_fstypes_good():
                      "sda7": "10G"}
     try:
         partition_fstypes = ister.validate_fstypes(template, parts_to_size)
+    except Exception as e:
+        print(e)
+        raise Exception("Valid template failed to parse")
+    if len(partition_fstypes) != 7:
+        raise Exception("Returned incorrect number of partition fstypes")
+    for part in ["sda1", "sda2", "sda3", "sda4", "sda5", "sda6", "sda7"]:
+        if part not in partition_fstypes:
+            raise Exception("Missing {} from partition_fstypes".format(part))
+
+
+def validate_fstypes_good_without_format():
+    """Good validate_fstypes"""
+    template = {"FilesystemTypes": [{"disk": "sda", "partition": 1,
+                                     "type": "ext2", "disable_format": True},
+                                    {"disk": "sda", "partition": 2,
+                                     "type": "ext3", "disable_format": True},
+                                    {"disk": "sda", "partition": 3,
+                                     "type": "ext4"},
+                                    {"disk": "sda", "partition": 4,
+                                     "type": "vfat", "disable_format": True},
+                                    {"disk": "sda", "partition": 5,
+                                     "type": "btrfs"},
+                                    {"disk": "sda", "partition": 6,
+                                     "type": "xfs"},
+                                    {"disk": "sda", "partition": 7,
+                                     "type": "swap"}]}
+    parts_to_size = {"sda1": "10G", "sda2": "10G", "sda3": "10G",
+                     "sda4": "10G", "sda5": "10G", "sda6": "10G",
+                     "sda7": "10G"}
+    try:
+        partition_fstypes = ister.validate_fstypes(template, parts_to_size)
     except Exception:
         raise Exception("Valid template failed to parse")
     if len(partition_fstypes) != 7:
@@ -1419,6 +1450,26 @@ def validate_fstypes_good():
     for part in ["sda1", "sda2", "sda3", "sda4", "sda5", "sda6", "sda7"]:
         if part not in partition_fstypes:
             raise Exception("Missing {} from partition_fstypes".format(part))
+
+
+def validate_fstypes_bad_format():
+    """Bad validate_fstypes because root(/) can't have 'disable_format'"""
+    exception_flag = False
+    template = {"FilesystemTypes": [{"disk": "sda", "partition": 1,
+                                     "type": "ext2", "disable_format": True},
+                                    {"disk": "sda", "partition": 2,
+                                     "type": "ext3", "disable_format": True},
+                                    {"disk": "sda", "partition": 3,
+                                     "type": "swap"}]}
+    template["PartitionMountPoints"] = {"disk": "sda", "partition": 1,
+                                        "mount": "/"}
+    parts_to_size = {"sda1": "10G", "sda2": "10G", "sda3": "10G"}
+    try:
+        ister.validate_fstypes(template, parts_to_size)
+    except Exception:
+        exception_flag = True
+    if not exception_flag:
+        raise Exception("Root (/) partition can not have the format disabled")
 
 
 def validate_fstypes_bad_missing_disk():
@@ -1837,6 +1888,13 @@ def validate_template_good():
     ister.validate_template(template)
 
 
+def validate_template_good_disable_partitioning():
+    """Good validate tamplate without creating new partitions"""
+    template = json.loads(good_virtual_disk_template())
+    template['DisabledNewPartitions'] = True
+    ister.validate_template(template)
+
+
 def validate_template_bad_long_hostname():
     """Bad validate_template long hostname (Length > 255)"""
     exception_flag = False
@@ -2227,6 +2285,8 @@ if __name__ == '__main__':
         validate_layout_bad_missing_efi,
         validate_layout_bad_too_greedy,
         validate_fstypes_good,
+        validate_fstypes_good_without_format,
+        validate_fstypes_bad_format,
         validate_fstypes_bad_missing_disk,
         validate_fstypes_bad_missing_partition,
         validate_fstypes_bad_missing_type,
@@ -2261,6 +2321,7 @@ if __name__ == '__main__':
         validate_postnonchroot_template_good,
         validate_postnonchroot_template_bad,
         validate_template_good,
+        validate_template_good_disable_partitioning,
         validate_template_bad_long_hostname,
         validate_template_bad_missing_destination_type,
         validate_template_bad_missing_partition_layout,
