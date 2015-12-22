@@ -3,7 +3,7 @@ Description=ister graphical installer
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/expect /usr/bin/autoinstall-first-gen.expect
+ExecStart=/usr/bin/expect /usr/bin/autoinstall.expect
 ExecStartPost=/usr/sbin/poweroff
 StandardInput=tty
 StandardOutput=tty

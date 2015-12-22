@@ -31,15 +31,22 @@
 # pylint: disable=C0103
 # We do some useless seeming things to test now and then
 # pylint: disable=W0104
+# Classes are generally for mocking, don't need public methods
+# pylint: disable=R0903
 # Using lots of branches for a single test is fine
 # pylint: disable=R0912
+# Using lots of statements for a single test is fine
+# pylint: disable=R0915
 
 
-import ister
 import functools
 import json
 import os
 import sys
+import shutil
+import urllib.request as request
+
+import ister
 
 COMMAND_RESULTS = []
 
@@ -83,10 +90,13 @@ def run_command_wrapper(func):
     @functools.wraps(func)
     def wrapper():
         """run_command_wrapper"""
-        def mock_run_command(cmd, _=None, raise_exception=True):
+        def mock_run_command(cmd, _=None, raise_exception=True,
+                             log_output=True):
             """mock_run_command wrapper"""
             COMMAND_RESULTS.append(cmd)
             if not raise_exception:
+                COMMAND_RESULTS.append(False)
+            if not log_output:
                 COMMAND_RESULTS.append(False)
         global COMMAND_RESULTS
         COMMAND_RESULTS = []
@@ -371,7 +381,8 @@ def commands_compare_helper(commands):
     if len(commands) != len(COMMAND_RESULTS):
         raise Exception("results {0} don't match expectations: {1}"
                         .format(COMMAND_RESULTS, commands))
-    for idx in range(len(commands)):
+    for idx, item in enumerate(commands):
+        del item
         if commands[idx] != COMMAND_RESULTS[idx]:
             raise Exception("command at position {0} doesn't match expected "
                             "result: \n{1}\n{2}".format(idx, commands[idx],
@@ -639,9 +650,8 @@ def setup_mounts_good():
     import tempfile
     backup_mkdtemp = tempfile.mkdtemp
 
-    def mock_mkdtemp(*args, **kwargs):
+    def mock_mkdtemp(*_, **kwargs):
         """mock_mkdtemp wrapper"""
-        global COMMAND_RESULTS
         if not kwargs.get("prefix"):
             raise Exception("Missing prefix argument to mkdtemp")
         COMMAND_RESULTS.append(kwargs["prefix"])
@@ -651,6 +661,10 @@ def setup_mounts_good():
                                           "partition": 1},
                                          {"mount": "/boot", "disk": "sda",
                                           "partition": 2}],
+                "FilesystemTypes": [{"disk": "sda", "partition": 1,
+                                     "type": "vfat"},
+                                    {"disk": "sda", "partition": 2,
+                                     "type": "ext4"}],
                 "Version": 10}
     commands = ["ister-10-",
                 "sgdisk /dev/sda "
@@ -658,7 +672,7 @@ def setup_mounts_good():
                 "mount /dev/sda1 /tmp/",
                 "sgdisk /dev/sda "
                 "--typecode=2:c12a7328-f81f-11d2-ba4b-00a0c93ec93b",
-                "mkdir /tmp/boot",
+                "mkdir -p /tmp/boot",
                 "mount /dev/sda2 /tmp/boot"]
     try:
         target_dir = ister.setup_mounts(template)
@@ -671,14 +685,78 @@ def setup_mounts_good():
 
 
 @run_command_wrapper
+def setup_mounts_good_units():
+    """Setup mount points for install"""
+    backup_mkdtemp = ister.tempfile.mkdtemp
+    backup_run_command = ister.run_command
+
+    def mock_mkdtemp(*_, **__):
+        """mock_mkdtemp wrapper"""
+        del __
+        return "/tmp"
+    ister.tempfile.mkdtemp = mock_mkdtemp
+
+    def mock_run_command(cmd, *_):
+        """mock run for setup mounts test"""
+        COMMAND_RESULTS.append(cmd)
+        return (["", "X"],)
+    ister.run_command = mock_run_command
+    template = {"PartitionMountPoints": [{"mount": "/", "disk": "sda",
+                                          "partition": 1},
+                                         {"mount": "/boot", "disk": "sda",
+                                          "partition": 2},
+                                         {"mount": "/home", "disk": "sda",
+                                          "partition": 3},
+                                         {"mount": "/home/data", "disk": "sda",
+                                          "partition": 4},
+                                         {"mount": "/root", "disk": "sda",
+                                          "partition": 5}],
+                "FilesystemTypes": [{"disk": "sda", "partition": 1,
+                                     "type": "vfat"},
+                                    {"disk": "sda", "partition": 2,
+                                     "type": "ext4"},
+                                    {"disk": "sda", "partition": 3,
+                                     "type": "ext4"},
+                                    {"disk": "sda", "partition": 4,
+                                     "type": "ext4"},
+                                    {"disk": "sda", "partition": 5,
+                                     "type": "ext4"}],
+                "Version": 10}
+    commands = ["sgdisk /dev/sda "
+                "--typecode=1:4f68bce3-e8cd-4db1-96e7-fbcaf984b709",
+                "mount /dev/sda1 /tmp/",
+                "sgdisk /dev/sda "
+                "--typecode=2:c12a7328-f81f-11d2-ba4b-00a0c93ec93b",
+                "mkdir -p /tmp/boot",
+                "mount /dev/sda2 /tmp/boot",
+                'sgdisk /dev/sda '
+                '--typecode=3:933AC7E1-2EB4-4F13-B844-0E14E2AEF915',
+                'mkdir -p /tmp/home',
+                'mount /dev/sda3 /tmp/home',
+                'sgdisk /dev/sda '
+                '--typecode=4:933AC7E1-2EB4-4F13-B844-0E14E2AEF915',
+                'mkdir -p /tmp/home/data',
+                'mount /dev/sda4 /tmp/home/data',
+                'sgdisk --info=4 /dev/sda',
+                'mkdir -p /tmp/root',
+                'mount /dev/sda5 /tmp/root',
+                'sgdisk --info=5 /dev/sda']
+    try:
+        _ = ister.setup_mounts(template)
+    finally:
+        ister.tempfile.mkdtemp = backup_mkdtemp
+        ister.run_command = backup_run_command
+    commands_compare_helper(commands)
+
+
+@run_command_wrapper
 def setup_mounts_virtual_good():
     """Setup virtual mount points for install"""
     import tempfile
     backup_mkdtemp = tempfile.mkdtemp
 
-    def mock_mkdtemp(*args, **kwargs):
+    def mock_mkdtemp(*_, **kwargs):
         """mock_mkdtemp wrapper"""
-        global COMMAND_RESULTS
         if not kwargs.get("prefix"):
             raise Exception("Missing prefix argument to mkdtemp")
         COMMAND_RESULTS.append(kwargs["prefix"])
@@ -688,6 +766,10 @@ def setup_mounts_virtual_good():
                                           "partition": 1},
                                          {"mount": "/boot", "disk": "test",
                                           "partition": 2}],
+                "FilesystemTypes": [{"disk": "test", "partition": 1,
+                                     "type": "vfat"},
+                                    {"disk": "test", "partition": 2,
+                                     "type": "ext4"}],
                 "dev": "/dev/loop0",
                 "Version": 10}
     commands = ["ister-10-",
@@ -696,7 +778,7 @@ def setup_mounts_virtual_good():
                 "mount /dev/loop0p1 /tmp/",
                 "sgdisk /dev/loop0 "
                 "--typecode=2:c12a7328-f81f-11d2-ba4b-00a0c93ec93b",
-                "mkdir /tmp/boot",
+                "mkdir -p /tmp/boot",
                 "mount /dev/loop0p2 /tmp/boot"]
     try:
         target_dir = ister.setup_mounts(template)
@@ -714,7 +796,7 @@ def setup_mounts_bad():
     backup_mkdtemp = tempfile.mkdtemp
     template = None
 
-    def mock_mkdtemp(*args, **kwargs):
+    def mock_mkdtemp(*_, **kwargs):
         """mock_mkdtemp wrapper"""
         if not kwargs.get("prefix"):
             # Lack of Exception causes test failure
@@ -778,7 +860,10 @@ def copy_os_good():
         None
     args.url = None
     args.format = None
-    commands = ["swupd verify --install --path=/ --manifest=0"]
+    swupd_cmd = "swupd verify --install --path=/ --manifest=0"
+    if shutil.which("stdbuf"):
+        swupd_cmd = "stdbuf -o 0 {0}".format(swupd_cmd)
+    commands = [swupd_cmd]
     ister.copy_os(args, {"Version": 0, "DestinationType": ""}, "/")
     ister.add_bundles = backup_add_bundles
     commands_compare_helper(commands)
@@ -795,8 +880,10 @@ def copy_os_url_good():
         None
     args.url = "/"
     args.format = None
-    commands = ["swupd verify --install --path=/ --manifest=0 "
-                "--url=/"]
+    swupd_cmd = "swupd verify --install --path=/ --manifest=0 --url=/"
+    if shutil.which("stdbuf"):
+        swupd_cmd = "stdbuf -o 0 {0}".format(swupd_cmd)
+    commands = [swupd_cmd]
     ister.copy_os(args, {"Version": 0, "DestinationType": ""}, "/")
     ister.add_bundles = backup_add_bundles
     commands_compare_helper(commands)
@@ -813,8 +900,10 @@ def copy_os_format_good():
         None
     args.url = None
     args.format = "test"
-    commands = ["swupd verify --install --path=/ --manifest=0 "
-                "--format=test"]
+    swupd_cmd = "swupd verify --install --path=/ --manifest=0 --format=test"
+    if shutil.which("stdbuf"):
+        swupd_cmd = "stdbuf -o 0 {0}".format(swupd_cmd)
+    commands = [swupd_cmd]
     ister.copy_os(args, {"Version": 0, "DestinationType": ""}, "/")
     ister.add_bundles = backup_add_bundles
     commands_compare_helper(commands)
@@ -832,6 +921,9 @@ def copy_os_physical_good():
         None
     args.url = None
     args.format = None
+    swupd_cmd = "swupd verify --install --path=/ --manifest=0"
+    if shutil.which("stdbuf"):
+        swupd_cmd = "stdbuf -o 0 {0}".format(swupd_cmd)
     commands = ["/var/lib/swupd",
                 0,
                 True,
@@ -839,7 +931,7 @@ def copy_os_physical_good():
                 0,
                 False,
                 "mount --bind //var/tmp /var/lib/swupd",
-                "swupd verify --install --path=/ --manifest=0"]
+                swupd_cmd]
     ister.copy_os(args, {"Version": 0, "DestinationType": "physical"}, "/")
     ister.add_bundles = backup_add_bundles
     commands_compare_helper(commands)
@@ -1568,12 +1660,178 @@ def validate_fstypes_bad_not_partition():
 
 def validate_hostname_good():
     """Good hostname value"""
-    template = {"Hostname": "a" * 255}
+    template = {"Hostname": "a" * 64}
     template.update(json.loads(good_virtual_disk_template()))
     try:
         ister.validate_template(template)
     except Exception:
         raise Exception("Valid hostname failed to parse")
+
+
+def validate_hostname_bad():
+    """Bad hostname value"""
+    exception_flag = False
+    template = {"Hostname": "a" * 256}
+    template.update(json.loads(good_virtual_disk_template()))
+    try:
+        ister.validate_template(template)
+    except Exception:
+        exception_flag = True
+    if not exception_flag:
+        raise Exception("Invalid hostname parsed")
+
+
+def validate_static_ip_good():
+    """Good static configuration"""
+    template = {"Static_IP": {"address": "10.0.2.17/24",
+                              "gateway": "10.0.2.2"}}
+    template.update(json.loads(good_virtual_disk_template()))
+    try:
+        ister.validate_template(template)
+    except Exception:
+        raise Exception("Valid static ip configuration failed to parse")
+
+
+def validate_static_ip_good_with_dns():
+    """Good static configuration with dns"""
+    template = {"Static_IP": {"address": "10.0.2.17/24",
+                              "gateway": "10.0.2.2",
+                              "dns": "10.0.2.3"}}
+    template.update(json.loads(good_virtual_disk_template()))
+    try:
+        ister.validate_template(template)
+    except Exception:
+        raise Exception("Valid static ip configuration (+DNS) "
+                        "failed to parse")
+
+
+def validate_static_ip_good_with_dns_equals_to_address():
+    """Good static configuration with dns equals to address"""
+    template = {"Static_IP": {"address": "10.0.2.17/24",
+                              "gateway": "10.0.2.2",
+                              "dns": "10.0.2.17"}}
+    template.update(json.loads(good_virtual_disk_template()))
+    try:
+        ister.validate_template(template)
+    except Exception:
+        raise Exception("Valid static ip configuration (+DNS=address) "
+                        "failed to parse")
+
+
+def validate_static_ip_good_with_dns_equals_to_gateway():
+    """Good static configuration with dns equals to gateway"""
+    template = {"Static_IP": {"address": "10.0.2.17/24",
+                              "gateway": "10.0.2.2",
+                              "dns": "10.0.2.2"}}
+    template.update(json.loads(good_virtual_disk_template()))
+    try:
+        ister.validate_template(template)
+    except Exception:
+        raise Exception("Valid static ip configuration (+DNS=gateway) "
+                        "failed to parse")
+
+
+def validate_static_ip_bad_missing_address():
+    """Bad static configuration, missing address"""
+    exception_flag = False
+    template = {"Static_IP": {"gateway": "10.0.2.17",
+                              "dns": "10.0.2.3"}}
+    template.update(json.loads(good_virtual_disk_template()))
+    try:
+        ister.validate_template(template)
+    except Exception:
+        exception_flag = True
+    if not exception_flag:
+        raise Exception("Missing address in static configuration")
+
+
+def validate_static_ip_bad_missing_gateway():
+    """Bad static configuration, missing gateway"""
+    exception_flag = False
+    template = {"Static_IP": {"address": "10.0.2.17/24",
+                              "dns": "10.0.2.3"}}
+    template.update(json.loads(good_virtual_disk_template()))
+    try:
+        ister.validate_template(template)
+    except Exception:
+        exception_flag = True
+    if not exception_flag:
+        raise Exception("Missing gateway in static configuration")
+
+
+def validate_static_ip_bad_missing_mask():
+    """Bad static configuration, missing mask"""
+    exception_flag = False
+    template = {"Static_IP": {"address": "10.0.2.17",
+                              "gateway": "10.0.2.1",
+                              "dns": "10.0.2.3"}}
+    template.update(json.loads(good_virtual_disk_template()))
+    try:
+        ister.validate_template(template)
+    except Exception:
+        exception_flag = True
+    if not exception_flag:
+        raise Exception("Missing mask in static configuration")
+
+
+def validate_static_ip_bad_invalid_format_address():
+    """Bad static configuration, invalid format address"""
+    exception_flag = False
+    template = {"Static_IP": {"address": "10.0.1000.17/24",
+                              "gateway": "10.0.2.1",
+                              "dns": "10.0.2.3"}}
+    template.update(json.loads(good_virtual_disk_template()))
+    try:
+        ister.validate_template(template)
+    except Exception:
+        exception_flag = True
+    if not exception_flag:
+        raise Exception("Invalid format address in static configuration")
+
+
+def validate_static_ip_bad_invalid_format_gateway():
+    """Bad static configuration, invalid format gateway"""
+    exception_flag = False
+    template = {"Static_IP": {"address": "10.0.1000.17/24",
+                              "gateway": "10.0.a.1",
+                              "dns": "10.0.2.3"}}
+    template.update(json.loads(good_virtual_disk_template()))
+    try:
+        ister.validate_template(template)
+    except Exception:
+        exception_flag = True
+    if not exception_flag:
+        raise Exception("Invalid format gateway in static configuration")
+
+
+def validate_static_ip_bad_invalid_format_dns():
+    """Bad static configuration, invalid format address"""
+    exception_flag = False
+    template = {"Static_IP": {"address": "10.0.1000.17/24",
+                              "gateway": "10.0.2.1",
+                              "dns": "10.0.3"}}
+    template.update(json.loads(good_virtual_disk_template()))
+    try:
+        ister.validate_template(template)
+    except Exception:
+        exception_flag = True
+    if not exception_flag:
+        raise Exception("Invalid format dns in static configuration")
+
+
+def validate_static_ip_bad_repeated_values():
+    """Bad static configuration with repeated values"""
+    exception_flag = False
+    template = {"Static_IP": {"address": "10.0.2.17/24",
+                              "gateway": "10.0.2.17",
+                              "dns": "10.0.2.3"}}
+    template.update(json.loads(good_virtual_disk_template()))
+    try:
+        ister.validate_template(template)
+    except Exception:
+        exception_flag = True
+    if not exception_flag:
+        raise Exception("Repeated values in static configuration")
 
 
 def validate_partition_mounts_good():
@@ -2060,16 +2318,14 @@ def parse_config_good():
         COMMAND_RESULTS.append(path)
         if path.startswith("/etc"):
             return True
-        else:
-            return False
+        return False
 
     def mock_isfile_true_usr(path):
         """mock_isfile_true_usr wrapper"""
         COMMAND_RESULTS.append(path)
         if path.startswith("/usr"):
             return True
-        else:
-            return False
+        return False
 
     def mock_isfile_false(path):
         """mock_isfile_false wrapper"""
@@ -2171,34 +2427,47 @@ def handle_options_good():
     """Test all values handle options supports"""
     # Test short options first
     sys.argv = ["ister.py", "-c", "cfg", "-t", "tpt", "-u", "/", "-f",
-                "1"]
+                "1", "-v", "-l", "log", "-L", "debug"]
     try:
         args = ister.handle_options()
     except Exception:
         raise Exception("Unable to parse short arguments")
-    if not args.config_file == "cfg":
+    if args.config_file != "cfg":
         raise Exception("Failed to correctly set short config file")
-    if not args.template_file == "tpt":
+    if args.template_file != "tpt":
         raise Exception("Failed to correctly set short template file")
-    if not args.url == "/":
+    if args.url != "/":
         raise Exception("Failed to correctly set short url")
-    if not args.format == "1":
+    if args.format != "1":
         raise Exception("Failed to correctly set short format")
+    if args.verbose is not True:
+        raise Exception("Failed to correctly set short verbose")
+    if args.logfile != "log":
+        raise Exception("Failed to correctly set short logfile")
+    if args.loglevel != "debug":
+        raise Exception("Failed to correctly set short loglevel")
     # Test long options next
     sys.argv = ["ister.py", "--config-file=cfg", "--template-file=tpt",
-                "--url=/", "--format=1"]
+                "--url=/", "--format=1", "--verbose",
+                "--logfile=log", "--loglevel=debug"]
     try:
         args = ister.handle_options()
     except Exception:
         raise Exception("Unable to parse long arguments")
-    if not args.config_file == "cfg":
+    if args.config_file != "cfg":
         raise Exception("Failed to correctly set long config file")
-    if not args.template_file == "tpt":
+    if args.template_file != "tpt":
         raise Exception("Failed to correctly set long template file")
-    if not args.url == "/":
+    if args.url != "/":
         raise Exception("Failed to correctly set long url")
-    if not args.format == "1":
+    if args.format != "1":
         raise Exception("Failed to correctly set long format")
+    if args.verbose is not True:
+        raise Exception("Failed to correctly set long verbose")
+    if args.logfile != "log":
+        raise Exception("Failed to correctly set long logfile")
+    if args.loglevel != "debug":
+        raise Exception("Failed to correctly set long loglevel")
     # Test default options
     sys.argv = ["ister.py"]
     try:
@@ -2213,6 +2482,103 @@ def handle_options_good():
         raise Exception("Incorrect default url set")
     if args.format:
         raise Exception("Incorrect default format set")
+    if args.verbose:
+        raise Exception("Incorrect default verbose set")
+    if args.logfile != "/var/log/ister.log":
+        raise Exception("Incorrect default logfile set")
+    if args.loglevel != "info":
+        raise Exception("Incorrect default loglevel set")
+
+
+def handle_logging_good():
+    """Test handle_logging"""
+
+    class MockOpen():
+        """Simple handling of open for logging"""
+        def __init__(self, file, *_, **__):
+            """set name for testing"""
+            del __
+            self.name = file
+
+        def close(self):
+            """mock close operation"""
+            pass
+
+    backup_open = __builtins__.open
+    __builtins__.open = MockOpen
+    backup_log = ister.LOG
+    ister.LOG = ister.logging.getLogger("test")
+    try:
+        # Test for info level and logfile
+        ister.handle_logging("info", "log")
+        if len(ister.LOG.handlers) != 2:
+            raise Exception("Incorrect handler numbers")
+        if ister.LOG.handlers[1].stream.name.split('/')[-1] != "log":
+            raise Exception("Incorrect logfile name")
+        if ister.LOG.handlers[0].level != ister.logging.INFO:
+            raise Exception("Incorrect logging level for info level")
+        # Test for debug level
+        ister.LOG.handlers = []
+        ister.handle_logging("debug", "log")
+        if ister.LOG.handlers[0].level != ister.logging.DEBUG:
+            raise Exception("Incorrect logging level for debug level")
+        # Test for error level
+        ister.LOG.handlers = []
+        ister.handle_logging("error", "log")
+        if ister.LOG.handlers[0].level != ister.logging.ERROR:
+            raise Exception("Incorrect logging level for error level")
+    except Exception as exep:
+        raise exep
+    finally:
+        __builtins__.open = backup_open
+        ister.LOG = backup_log
+
+
+@run_command_wrapper
+def validate_network_good():
+    """Test validate_network"""
+
+    def mock_request_urlopen(url, **_):
+        """mock handling urlopen"""
+        COMMAND_RESULTS.append(url)
+
+    urlopen_orig = request.urlopen
+    request.urlopen = mock_request_urlopen
+
+    url = "https://update.clearlinux.org"
+    commands = [url]
+    try:
+        ister.validate_network(url)
+    except Exception as exep:
+        raise exep
+    finally:
+        request.urlopen = urlopen_orig
+    commands_compare_helper(commands)
+
+
+def validate_network_bad():
+    """Test validate_network with bad URL"""
+    exception_flag = False
+
+    def mock_request_urlopen(_, **__):
+        """mock urlopen with an error code"""
+        del __
+        exep = ister.URLError("Could not reach host")
+        exep.code = 1
+        raise exep
+
+    urlopen_orig = request.urlopen
+    request.urlopen = mock_request_urlopen
+
+    url = "https://bad.url"
+    try:
+        ister.validate_network(url)
+    except Exception as _:
+        exception_flag = True
+    finally:
+        request.urlopen = urlopen_orig
+    if not exception_flag:
+        raise Exception("Failed to fail getting bad url")
 
 
 def run_tests(tests):
@@ -2236,6 +2602,22 @@ def run_tests(tests):
     return fail
 
 if __name__ == '__main__':
+    class log_wrapper():
+        """ Trivial dummy log object that suffices for most tests."""
+        def debug(self, _):
+            """dummy debug"""
+            pass
+
+        def info(self, _):
+            """dummy info"""
+            pass
+
+        def error(self, _):
+            """dummy error"""
+            pass
+
+    ister.LOG = log_wrapper()
+
     TESTS = [
         run_command_good,
         run_command_bad,
@@ -2257,6 +2639,7 @@ if __name__ == '__main__':
         setup_mounts_good,
         setup_mounts_virtual_good,
         setup_mounts_bad,
+        setup_mounts_good_units,
         add_bundles_good,
         set_hostname_good,
         copy_os_good,
@@ -2309,6 +2692,18 @@ if __name__ == '__main__':
         validate_fstypes_bad_duplicate,
         validate_fstypes_bad_not_partition,
         validate_hostname_good,
+        validate_hostname_bad,
+        validate_static_ip_good,
+        validate_static_ip_good_with_dns,
+        validate_static_ip_good_with_dns_equals_to_address,
+        validate_static_ip_good_with_dns_equals_to_gateway,
+        validate_static_ip_bad_missing_address,
+        validate_static_ip_bad_missing_gateway,
+        validate_static_ip_bad_missing_mask,
+        validate_static_ip_bad_invalid_format_address,
+        validate_static_ip_bad_invalid_format_gateway,
+        validate_static_ip_bad_invalid_format_dns,
+        validate_static_ip_bad_repeated_values,
         validate_partition_mounts_good,
         validate_partition_mounts_good_missing_boot_virtual,
         validate_partition_mounts_bad_missing_disk,
@@ -2346,9 +2741,12 @@ if __name__ == '__main__':
         validate_template_bad_missing_bundles,
         validate_template_bad_short_hostname,
         validate_template_bad_version,
+        validate_network_good,
+        validate_network_bad,
         parse_config_good,
         parse_config_bad,
         handle_options_good,
+        handle_logging_good,
     ]
 
     failed = run_tests(TESTS)

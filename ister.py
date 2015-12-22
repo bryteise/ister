@@ -18,42 +18,95 @@
 # Boston, MA 02110-1301 USA
 #
 
+# We aren't splitting ister up just yet so ignore too many lines error
+# pylint: disable=C0302
+# As much as it pains us, global for the LOG handler is reasonable here
+# pylint: disable=W0603
 # If we see an exception it is always fatal so the broad exception
 # warning isn't helpful.
 # pylint: disable=W0703
 # We aren't using classes for anything other than with handling so
 # a warning about too few methods being implemented isn't useful.
 # pylint: disable=R0903
+# Too many branches is probably something we'd have hoped to avoid but this
+# logic for partition creation was born to be ugly, good spot for cleanup though
+# for the adventurous sort
+# pylint: disable=R0912
+
 
 import argparse
 import ctypes
 import json
 import os
 import pwd
+import re
 import subprocess
+import traceback
 import sys
+import shutil
 import tempfile
 import time
+import logging
 import urllib.request as request
+from urllib.error import URLError, HTTPError
+
+LOG = None
+
+DEBUG = False
 
 
-def run_command(cmd, raise_exception=True):
+def run_command(cmd, raise_exception=True, log_output=True):
     """Execute given command in a subprocess
 
     This function will raise an Exception if the command fails unless
     raise_exception is False.
     """
     try:
-        if subprocess.call(cmd.split(" ")) != 0 and raise_exception:
+        LOG.debug("Running command {0}".format(cmd))
+        sys.stdout.flush()
+        proc = subprocess.Popen(cmd.split(" "),
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE)
+        lines = proc.stdout
+        output = []
+        for line in lines:
+            decoded_line = line.decode('ascii', 'ignore').rstrip()
+            output.append(decoded_line)
+            if log_output:
+                LOG.debug(decoded_line)
+        if proc.wait() != 0 and raise_exception:
+            decoded_line = proc.stderr.read().decode().rstrip()
+            output.append(decoded_line)
+            LOG.debug("Error {0}".format(decoded_line))
             raise Exception("{0} failed".format(cmd))
+        return output, proc.returncode
     except Exception as exep:
         if raise_exception:
             raise Exception("{0} failed: {1}".format(cmd, exep))
 
 
+def validate_network(url):
+    """Validate there is network connection to swupd
+    """
+    LOG.info("Verifying network connection")
+    url = url if url else "https://update.clearlinux.org"
+    try:
+        _ = request.urlopen(url, timeout=3)
+    except HTTPError as exep:
+        if hasattr(exep, 'code'):
+            LOG.info("SWUPD server error: {0}".format(exep.code))
+            raise exep
+    except URLError as exep:
+        if hasattr(exep, 'reason'):
+            LOG.info("Network error: Cannot reach swupd server: {0}"
+                     .format(exep.reason))
+            raise exep
+
+
 def create_virtual_disk(template):
     """Create virtual disk file for install target
     """
+    LOG.info("Creating virtual disk")
     image_size = 0
     match = {"M": 1, "G": 1024, "T": 1024 * 1024}
     for part in template["PartitionLayout"]:
@@ -69,6 +122,7 @@ def create_virtual_disk(template):
 def create_partitions(template, sleep_time=1):
     """Create partitions according to template configuration
     """
+    LOG.info("Creating partitions")
     match = {"M": 1, "G": 1024, "T": 1024 * 1024}
     parted = "parted -sa"
     alignment = "optimal"
@@ -79,6 +133,7 @@ def create_partitions(template, sleep_time=1):
         disks.add(disk["disk"])
     # Setup GPT tables on disks
     for disk in sorted(disks):
+        LOG.debug("Creating GPT label in {0}".format(disk))
         if template.get("DestinationType") == "physical":
             command = "{0} {1} /dev/{2} {3} mklabel gpt".\
                       format(parted, alignment, disk, units)
@@ -90,6 +145,7 @@ def create_partitions(template, sleep_time=1):
     # Create partitions
     for part in sorted(template["PartitionLayout"], key=lambda v: v["disk"] +
                        str(v["partition"])):
+        # pylint: disable=R0204
         if part["disk"] != cdisk:
             start = 0
         if part["size"] == "rest":
@@ -107,6 +163,7 @@ def create_partitions(template, sleep_time=1):
             # Using 0% on the first partition to get the first 1MB
             # border that is correctly aligned
             start = "0%"
+        LOG.debug("Creating partition {0} in {1}".format(ptype, part["disk"]))
         if template.get("DestinationType") == "physical":
             command = "{0} {1} -- /dev/{2} {3} mkpart primary {4} {5} {6}"\
                 .format(parted, alignment, part["disk"], units, ptype,
@@ -135,6 +192,7 @@ def map_loop_device(template, sleep_time=1):
 
     This function will raise an Exception if the command fails.
     """
+    LOG.info("Mapping loop device")
     disk_image = template["PartitionLayout"][0]["disk"]
     command = "losetup --partscan --find --show {0}".format(disk_image)
     try:
@@ -165,11 +223,14 @@ def get_device_name(template, disk):
 def create_filesystems(template):
     """Create filesystems according to template configuration
     """
+    LOG.info("Creating file systems")
     fs_util = {"ext2": "mkfs.ext2 -F", "ext3": "mkfs.ext3 -F",
                "ext4": "mkfs.ext4 -F", "btrfs": "mkfs.btrfs -f",
                "vfat": "mkfs.vfat", "swap": "mkswap", "xfs": "mkfs.xfs -f"}
     for fst in template["FilesystemTypes"]:
         dev = get_device_name(template, fst["disk"])
+        LOG.debug("Creating file system {0} in {1}{2}"
+                  .format(fst["type"], dev, fst["partition"]))
         if fst.get("options"):
             command = "{0} {1} {2}{3}".format(fs_util[fst["type"]],
                                               fst["options"], dev,
@@ -196,11 +257,33 @@ def setup_mounts(template):
 
     This function will raise an Exception on finding an error.
     """
+    LOG.info("Setting up mount points")
     try:
         prefix = "ister-" + str(template["Version"]) + "-"
         target_dir = tempfile.mkdtemp(prefix=prefix)
+        LOG.debug("Using temporary directory: {0}".format(target_dir))
     except:
         raise Exception("Failed to setup mounts for install")
+
+    units_dir = os.path.join(target_dir, "etc", "systemd", "system",
+                             "local-fs.target.wants")
+
+    def get_uuid(part_num, dev):
+        """Get the uuid for a partition on a device"""
+        result = run_command("sgdisk --info={0} {1}".format(part_num, dev))
+        return result[0][1].split()[-1]
+
+    def create_mount_unit(filename, uuid, mount, fs_type):
+        """Create mount unit file for systemd
+        """
+        LOG.debug("Creating mount unit for UUID: {0}".format(uuid))
+        unit = "[Unit]\nDescription = Mount for %s\n\n" % mount
+        unit += "[Mount]\nWhat = PARTUUID={0}\n\
+Where = {1}\nType = {2}\n\n".format(uuid, mount, fs_type)
+        unit += "[Install]\nWantedBy = multi-user.target\n"
+        unit_file = open(filename, 'w')
+        unit_file.write(unit)
+        unit_file.close()
 
     for part in sorted(template["PartitionMountPoints"], key=lambda v:
                        v["mount"]):
@@ -209,6 +292,12 @@ def setup_mounts(template):
             base_dev = dev[:-1]
         else:
             base_dev = dev
+        LOG.debug("Mounting {0}{1} in {2}".format(dev,
+                                                  part['partition'],
+                                                  part["mount"]))
+        fs_type = [x["type"] for x in template["FilesystemTypes"]
+                   if x['disk'] == part['disk']
+                   and x['partition'] == part['partition']][-1]
         if part["mount"] == "/":
             run_command("sgdisk {0} --typecode={1}:\
 4f68bce3-e8cd-4db1-96e7-fbcaf984b709"
@@ -217,13 +306,28 @@ def setup_mounts(template):
             run_command("sgdisk {0} --typecode={1}:\
 c12a7328-f81f-11d2-ba4b-00a0c93ec93b"
                         .format(base_dev, part["partition"]))
+        if part["mount"] == "/srv":
+            run_command("sgdisk {0} --typecode={1}:\
+3B8F8425-20E0-4F3B-907F-1A25A76F98E8"
+                        .format(base_dev, part["partition"]))
+        if part["mount"] == "/home" or part["mount"].startswith('/home/'):
+            run_command("sgdisk {0} --typecode={1}:\
+933AC7E1-2EB4-4F13-B844-0E14E2AEF915"
+                        .format(base_dev, part["partition"]))
         if part["mount"] != "/":
-            run_command("mkdir {0}{1}".format(target_dir, part["mount"]))
+            run_command("mkdir -p {0}{1}".format(target_dir, part["mount"]))
         run_command("mount {0}{1} {2}{3}".format(dev,
                                                  part["partition"],
                                                  target_dir,
                                                  part["mount"]))
-
+        if part["mount"] not in ["/", "/boot", "/srv", "/home"]:
+            if not part["mount"].startswith("/usr"):
+                filename = part["mount"][1:].replace("/", "-") + ".mount"
+                if not os.path.exists(units_dir):
+                    os.makedirs(units_dir)
+                create_mount_unit(os.path.join(units_dir, filename),
+                                  get_uuid(part["partition"], base_dev),
+                                  part["mount"], fs_type)
     return target_dir
 
 
@@ -239,9 +343,12 @@ def add_bundles(template, target_dir):
 def copy_os(args, template, target_dir):
     """Wrapper for running install command
     """
+    LOG.info("Starting swupd. May take several minutes")
     add_bundles(template, target_dir)
     swupd_command = "swupd verify --install --path={0} " \
                     "--manifest={1}".format(target_dir, template["Version"])
+    if shutil.which("stdbuf"):
+        swupd_command = "stdbuf -o 0 {0}".format(swupd_command)
     if args.url:
         swupd_command += " --url={0}".format(args.url)
     if args.format:
@@ -380,6 +487,7 @@ def add_users(template, target_dir):
     if not users:
         return
 
+    LOG.info("Adding new user")
     for user in users:
         create_account(user, target_dir)
         if user.get("key"):
@@ -396,13 +504,35 @@ def set_hostname(template, target_dir):
     hostname = template.get("Hostname")
     if not hostname:
         return
-
+    LOG.info("Setting up hostname")
     path = '{0}/etc/'.format(target_dir)
     if not os.path.exists(path):
         os.makedirs(path)
 
     with open(path + "hostname", "w") as file:
         file.write(hostname)
+
+
+def set_static_configuration(template, target_dir):
+    """Writes the configuration on /etc/systemd/network/10-en-static.network
+    """
+
+    static_conf = template.get("Static_IP")
+    if not static_conf:
+        return
+
+    path = '{0}/etc/systemd/network/'.format(target_dir)
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+    with open(path + "10-en-static.network", "w") as file:
+        file.write("[Match]\n")
+        file.write("Name=en*\n\n")
+        file.write("[Network]\n")
+        file.write("Address={0}\n".format(static_conf["address"]))
+        file.write("Gateway={0}\n".format(static_conf["gateway"]))
+        if "dns" in static_conf:
+            file.write("DNS={0}\n".format(static_conf["dns"]))
 
 
 def post_install_nonchroot(template, target_dir):
@@ -414,7 +544,7 @@ def post_install_nonchroot(template, target_dir):
     """
     if not template.get("PostNonChroot"):
         return
-
+    LOG.info("Running post scripts")
     for script in template["PostNonChroot"]:
         run_command(script + " {}".format(target_dir))
 
@@ -422,6 +552,7 @@ def post_install_nonchroot(template, target_dir):
 def cleanup(template, target_dir, raise_exception=True):
     """Unmount and remove temporary files
     """
+    LOG.info("Cleaning up")
     if target_dir:
         if os.path.isdir("{0}/var/tmp".format(target_dir)):
             run_command("umount /var/lib/swupd",
@@ -681,11 +812,45 @@ def validate_hostname_template(hostname):
 
     This function will raise an Exception on finding an error.
     """
+    pattern = re.compile("^[a-zA-Z0-9][a-zA-Z0-9-]{0,63}$")
+    if not pattern.match(hostname):
+        raise Exception("Hostname can only contain letters, digits and dashes")
 
-    # Max length obtained from
-    # http://pubs.opengroup.org/onlinepubs/007908799/xns/gethostname.html
-    if not 0 < len(hostname) <= 255:
-        raise Exception("Hostname length out of bounds [1-255]")
+
+def validate_static_ip_template(static_conf):
+    """Attemp to verify if the static ip configuration is good
+    This function will raise an Exception on finding an error.
+    """
+    # pylint: disable=W1401
+    # http://stackoverflow.com/questions/10006459/
+    # regular-expression-for-ip-address-validation
+    pattern = re.compile("^(?:(?:2[0-4]\d|25[0-5]|1\d{2}|[1-9]?\d)\.){3}"
+                         "(?:2[0-4]\d|25[0-5]|1\d{2}|[1-9]?\d)"
+                         "(?:\:(?:\d|[1-9]\d{1,3}|[1-5]\d{4}|6[0-4]\d{3}"
+                         "|65[0-4]\d{2}|655[0-2]\d|6553[0-5]))?$")
+    if "address" not in static_conf:
+        raise Exception("Missing address in {0}".format(static_conf))
+    if "gateway" not in static_conf:
+        raise Exception("Missing gateway in {0}".format(static_conf))
+    # tmp contains mask <address>/<mask>
+    tmp = static_conf["address"].split('/')
+    if len(tmp) <= 1:
+        raise Exception("Missing mask prefix in {0}"
+                        .format(static_conf["address"]))
+    address = tmp[0]
+    mask = tmp[1]
+    if not mask.isdigit():
+        raise Exception("The mask should be an integer, found '{0}'"
+                        .format(mask))
+    ips = [address, static_conf["gateway"]]
+    if "dns" in static_conf:
+        ips.append(static_conf['dns'])
+    for item in ips:
+        if not pattern.match(item):
+            raise Exception("Invalid ip format for entry '{0}'".format(item))
+    if ips[0] == ips[1]:
+        raise Exception("Gateway has equal value to address '{0}'"
+                        .format(static_conf))
 
 
 def validate_postnonchroot_template(scripts):
@@ -704,6 +869,7 @@ def validate_template(template):
 
     This function will raise an Exception on finding an error.
     """
+    LOG.info("Validating configuration")
     if not template.get("DestinationType"):
         raise Exception("Missing DestinationType field")
     if not template.get("PartitionLayout"):
@@ -724,8 +890,12 @@ def validate_template(template):
         validate_user_template(template["Users"])
     if template.get("Hostname") is not None:
         validate_hostname_template(template["Hostname"])
+    if template.get("Static_IP") is not None:
+        validate_static_ip_template(template['Static_IP'])
     if template.get("PostNonChroot"):
         validate_postnonchroot_template(template["PostNonChroot"])
+    LOG.debug("Configuration is valid:")
+    LOG.debug(template)
 
 
 def parse_config(args):
@@ -733,6 +903,7 @@ def parse_config(args):
 
     This function will raise an Exception on finding an error.
     """
+    LOG.info("Reading configuration")
     config = {}
     if args.config_file:
         config["template"] = get_template_location(args.config_file)
@@ -753,7 +924,7 @@ def parse_config(args):
         else:
             config["template"] = "file://" + os.path.\
                                  abspath(args.template_file)
-
+    LOG.debug("File found: {0}".format(config["template"]))
     return config
 
 
@@ -771,9 +942,10 @@ def install_os(args):
     template = get_template(configuration["template"])
     validate_template(template)
     try:
+        validate_network(args.url)
         if template["DestinationType"] == "virtual":
             create_virtual_disk(template)
-        if "DisabledNewPartitions" not in template:
+        if not template.get("DisabledNewPartitions", False):
             create_partitions(template)
         if template["DestinationType"] == "virtual":
             map_loop_device(template)
@@ -782,11 +954,37 @@ def install_os(args):
         copy_os(args, template, target_dir)
         add_users(template, target_dir)
         set_hostname(template, target_dir)
+        set_static_configuration(template, target_dir)
         post_install_nonchroot(template, target_dir)
     except Exception as excep:
+        LOG.error("Couldn't install ClearLinux")
         raise excep
     finally:
         cleanup(template, target_dir, False)
+
+
+def handle_logging(level, logfile):
+    """Setup log levels and direct logs to a file"""
+    shandler = logging.StreamHandler(sys.stdout)
+
+    # Apparently the LOG object's level trumps level of handler?
+    LOG.setLevel(logging.DEBUG)
+
+    shandler.setLevel(logging.INFO)
+    if level == 'debug':
+        shandler.setLevel(logging.DEBUG)
+    elif level == 'error':
+        shandler.setLevel(logging.ERROR)
+    LOG.addHandler(shandler)
+
+    if logfile:
+        open(logfile, 'w').close()
+        fhandler = logging.FileHandler(logfile)
+        fhandler.setLevel(logging.DEBUG)
+        formatter = logging.Formatter(
+            '%(asctime)s-%(levelname)s: %(message)s')
+        fhandler.setFormatter(formatter)
+        LOG.addHandler(fhandler)
 
 
 def handle_options():
@@ -803,6 +1001,14 @@ def handle_options():
                         help="URL to use for looking for update content")
     parser.add_argument("-f", "--format", action="store", default=None,
                         help="format to use for looking for update content")
+    parser.add_argument("-v", "--verbose", action="store_true",
+                        help="Output logging to console stream")
+    parser.add_argument("-L", "--loglevel", action="store",
+                        default="info",
+                        help="loglevel: debug, info, error. default=info")
+    parser.add_argument("-l", "--logfile", action="store",
+                        default="/var/log/ister.log",
+                        help="Output debug logging to a file")
     args = parser.parse_args()
     return args
 
@@ -810,13 +1016,22 @@ def handle_options():
 def main():
     """Start the installer
     """
+    global LOG
     args = handle_options()
+
+    LOG = logging.getLogger(__name__)
+    handle_logging(args.loglevel, args.logfile)
+
     try:
         install_os(args)
     except Exception as exep:
-        print("Failed: {}".format(exep))
+        LOG.debug("Failed: {}".format(repr(exep)))
+        # todo: Add arg for loglevel to -v
+        # And change this to trigger on DEBUG level
+        if DEBUG:
+            traceback.print_exc()
         sys.exit(-1)
-
+    LOG.info("Successful installation")
     sys.exit(0)
 
 if __name__ == '__main__':

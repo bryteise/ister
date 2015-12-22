@@ -28,7 +28,7 @@ next_dev=$(sudo losetup -f --show -P $1)
 sudo /usr/bin/mount ${next_dev}p2 $mnt
 sudo cp ister_gui.py ${mnt}/usr/bin/ister_gui.py
 sudo cp ister.py ${mnt}/usr/bin/ister.py
-sudo cp autoinstall-first-gen.expect ${mnt}/usr/bin
+sudo cp autoinstall.expect ${mnt}/usr/bin
 sudo cp ister-expect.service ${mnt}/usr/lib/systemd/system/ister.service
 sudo /usr/bin/umount $mnt
 sudo /usr/bin/losetup -D

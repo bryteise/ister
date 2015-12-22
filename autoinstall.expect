@@ -47,12 +47,18 @@ set env(https_proxy) https://proxy.jf.intel.com:912
 set env(http_proxy) http://proxy.jf.intel.com:911
 spawn /usr/bin/python3 /usr/bin/ister_gui.py
 match_max 100000
-expect -re ".*Network required.*"
+expect -re ".*Network Requirements.*"
 send -- "\r"
-expect -re ".*Which type.*"
+expect -re ".*Stability Enhancement.*"
 send -- "\r"
-expect -re ".*Confirm Auto.*"
-send -- "\[C"
+send -- "\t"
+send -- "\r"
+expect -re ".*Choose Installation Type.*"
+send -- "\r"
+expect -re ".*Choose target device.*"
+send -- "\r"
+expect -re ".*Warning.*"
+send -- "\t"
 send -- "\r"
 expect -re ".*Installation Result.*"
 send -- "\r"
