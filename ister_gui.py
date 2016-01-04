@@ -805,7 +805,7 @@ class Installation(object):
             ['os-core -> Minimal packages to have clear fully functional',
              'kernel-native -> Required to run clear on baremetal',
              'os-core-update -> Required to update the system',
-             'telemetry -> Quality feedback for the OS']
+             'telemetrics -> Quality feedback for the OS']
         selection = None
         backup = None
         while True:
