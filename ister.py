@@ -197,7 +197,8 @@ def setup_mounts(template):
     This function will raise an Exception on finding an error.
     """
     try:
-        target_dir = tempfile.mkdtemp()
+        prefix = "ister-" + str(template["Version"]) + "-"
+        target_dir = tempfile.mkdtemp(prefix=prefix)
     except:
         raise Exception("Failed to setup mounts for install")
 
@@ -427,9 +428,14 @@ def cleanup(template, target_dir, raise_exception=True):
                         raise_exception=raise_exception)
             run_command("rm -fr {0}/var/tmp".format(target_dir),
                         raise_exception=raise_exception)
-        run_command("umount -R {}".format(target_dir),
+        try:
+            run_command("umount -R {}".format(target_dir))
+        except Exception:
+            run_command("lsof {}/boot".format(target_dir),
+                        raise_exception=raise_exception)
+
+        run_command("rm -fr {}".format(target_dir),
                     raise_exception=raise_exception)
-        run_command("rm -fr {}".format(target_dir))
 
     if template.get("dev"):
         run_command("losetup --detach {0}".format(template["dev"]),

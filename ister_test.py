@@ -639,15 +639,21 @@ def setup_mounts_good():
     import tempfile
     backup_mkdtemp = tempfile.mkdtemp
 
-    def mock_mkdtemp():
+    def mock_mkdtemp(*args, **kwargs):
         """mock_mkdtemp wrapper"""
+        global COMMAND_RESULTS
+        if not kwargs.get("prefix"):
+            raise Exception("Missing prefix argument to mkdtemp")
+        COMMAND_RESULTS.append(kwargs["prefix"])
         return "/tmp"
     tempfile.mkdtemp = mock_mkdtemp
     template = {"PartitionMountPoints": [{"mount": "/", "disk": "sda",
                                           "partition": 1},
                                          {"mount": "/boot", "disk": "sda",
-                                          "partition": 2}]}
-    commands = ["sgdisk /dev/sda "
+                                          "partition": 2}],
+                "Version": 10}
+    commands = ["ister-10-",
+                "sgdisk /dev/sda "
                 "--typecode=1:4f68bce3-e8cd-4db1-96e7-fbcaf984b709",
                 "mount /dev/sda1 /tmp/",
                 "sgdisk /dev/sda "
@@ -670,16 +676,22 @@ def setup_mounts_virtual_good():
     import tempfile
     backup_mkdtemp = tempfile.mkdtemp
 
-    def mock_mkdtemp():
+    def mock_mkdtemp(*args, **kwargs):
         """mock_mkdtemp wrapper"""
+        global COMMAND_RESULTS
+        if not kwargs.get("prefix"):
+            raise Exception("Missing prefix argument to mkdtemp")
+        COMMAND_RESULTS.append(kwargs["prefix"])
         return "/tmp"
     tempfile.mkdtemp = mock_mkdtemp
     template = {"PartitionMountPoints": [{"mount": "/", "disk": "test",
                                           "partition": 1},
                                          {"mount": "/boot", "disk": "test",
                                           "partition": 2}],
-                "dev": "/dev/loop0"}
-    commands = ["sgdisk /dev/loop0 "
+                "dev": "/dev/loop0",
+                "Version": 10}
+    commands = ["ister-10-",
+                "sgdisk /dev/loop0 "
                 "--typecode=1:4f68bce3-e8cd-4db1-96e7-fbcaf984b709",
                 "mount /dev/loop0p1 /tmp/",
                 "sgdisk /dev/loop0 "
@@ -702,8 +714,11 @@ def setup_mounts_bad():
     backup_mkdtemp = tempfile.mkdtemp
     template = None
 
-    def mock_mkdtemp():
+    def mock_mkdtemp(*args, **kwargs):
         """mock_mkdtemp wrapper"""
+        if not kwargs.get("prefix"):
+            # Lack of Exception causes test failure
+            return True
         raise Exception("mkdtemp")
     tempfile.mkdtemp = mock_mkdtemp
     exception_flag = False
