@@ -778,7 +778,7 @@ def copy_os_good():
         None
     args.url = None
     args.format = None
-    commands = ["swupd verify -V --log=debug --install --path=/ --manifest=0"]
+    commands = ["swupd verify --install --path=/ --manifest=0"]
     ister.copy_os(args, {"Version": 0, "DestinationType": ""}, "/")
     ister.add_bundles = backup_add_bundles
     commands_compare_helper(commands)
@@ -795,7 +795,7 @@ def copy_os_url_good():
         None
     args.url = "/"
     args.format = None
-    commands = ["swupd verify -V --log=debug --install --path=/ --manifest=0 "
+    commands = ["swupd verify --install --path=/ --manifest=0 "
                 "--url=/"]
     ister.copy_os(args, {"Version": 0, "DestinationType": ""}, "/")
     ister.add_bundles = backup_add_bundles
@@ -813,7 +813,7 @@ def copy_os_format_good():
         None
     args.url = None
     args.format = "test"
-    commands = ["swupd verify -V --log=debug --install --path=/ --manifest=0 "
+    commands = ["swupd verify --install --path=/ --manifest=0 "
                 "--format=test"]
     ister.copy_os(args, {"Version": 0, "DestinationType": ""}, "/")
     ister.add_bundles = backup_add_bundles
@@ -839,7 +839,7 @@ def copy_os_physical_good():
                 0,
                 False,
                 "mount --bind //var/tmp /var/lib/swupd",
-                "swupd verify -V --log=debug --install --path=/ --manifest=0"]
+                "swupd verify --install --path=/ --manifest=0"]
     ister.copy_os(args, {"Version": 0, "DestinationType": "physical"}, "/")
     ister.add_bundles = backup_add_bundles
     commands_compare_helper(commands)
