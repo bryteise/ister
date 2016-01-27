@@ -58,9 +58,11 @@ def disable_tty1_getty(path):
     os.symlink("/dev/null", path + "/etc/systemd/system/getty.target.wants/getty@tty1.service")
 
 
-def remove_provision_service(path):
-    os.unlink("{}/usr/lib/systemd/system/multi-user.target.wants/ister-provision.service"
-              .format(path))
+def add_installer_service(path):
+    os.symlink("{}/usr/lib/systemd/system/ister.service"
+               .format(path),
+               "{}/usr/lib/systemd/system/multi-user.target.wants/ister.service",
+               .format(path))
 
 
 if __name__ == '__main__':
@@ -71,7 +73,7 @@ if __name__ == '__main__':
         create_installer_config(sys.argv[1])
         append_installer_rootdelay(sys.argv[1])
         disable_tty1_getty(sys.argv[1])
-        remove_provision_service(sys.argv[1])
+        add_installer_service(sys.argv[1])
     except Exception as exep:
         print(exep)
         sys.exit(-1)
