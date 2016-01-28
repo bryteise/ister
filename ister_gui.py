@@ -138,6 +138,7 @@ class Confirm(Widget):
         self.only_ok = kwargs.get('only_ok', False)
         self.has_answer = False
         self.init_widget()
+        self.response=''
 
     def init_widget(self):
         """Add text and actions for Confirmation button"""
@@ -169,14 +170,15 @@ class Confirm(Widget):
 
     def on_no_clicked(self, button):
         """Setup handler for no button"""
-        # button unused for now
+        self.has_answer = True
+        self.response = 'no'
         del button
         raise urwid.ExitMainLoop()
 
     def on_yes_clicked(self, button):
         """Setup handler for yes button"""
-        # button unused for now
         del button
+        self.response = 'yes'
         self.has_answer = True
         raise urwid.ExitMainLoop()
 
@@ -431,13 +433,22 @@ class Installation(object):
     def run(self):
         """Starts up the installer ui"""
 
-        self._select_auto_or_manual()
-        if 'Auto' in self.current_w.response:
-            self.automatic_install()
-        elif 'Manual' in self.current_w.response:
-            self.manual_install()
-        else:
-            return
+        while True:
+            self._select_auto_or_manual()
+            if 'Auto' in self.current_w.response:
+
+                confirm_w = Confirm('All existing data on /dev/sda '
+                                    'will be overwritten.\n\nProceed?',
+                                    title='Confirm Auto-install')
+                confirm_w.main_loop()
+                if confirm_w.response == 'yes':
+                    self.automatic_install()
+                    break
+            elif 'Manual' in self.current_w.response:
+                self.manual_install()
+                break
+            else:
+                return
 
         self.current_w = Confirm('The installation has been completed '
                                  'successfully. The system will be rebooted.',
