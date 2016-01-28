@@ -436,12 +436,11 @@ class Installation(object):
         while True:
             self._select_auto_or_manual()
             if 'Auto' in self.current_w.response:
-
-                confirm_w = Confirm('All existing data on /dev/sda '
+                self.current_w = Confirm('All existing data on /dev/sda '
                                     'will be overwritten.\n\nProceed?',
                                     title='Confirm Auto-install')
-                confirm_w.main_loop()
-                if confirm_w.response == 'yes':
+                self.current_w.main_loop()
+                if self.current_w.response == 'yes':
                     self.automatic_install()
                     break
             elif 'Manual' in self.current_w.response:
