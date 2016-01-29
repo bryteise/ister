@@ -435,13 +435,19 @@ class Installation(object):
         output = subprocess.check_output(cmd).decode()
         lines = output.split('\n')
         expr = re.compile('^Device')
+        disk_empty = True
         # discard header...
-        while True:
+        while len(lines) > 0:
             match = expr.match(lines[0])
             if match:
+                disk_empty = False
                 break
             else:
                 lines.pop(0)
+
+        if disk_empty:
+            return "/dev/sda contents: no partitions found."
+
         lines.pop(0)  # header - add this back manually
         partitions = 'Device'.ljust(10) + ' ' + 'Size'.rjust(6) + ' ' + 'Type'.ljust(28) + '\n'
 
