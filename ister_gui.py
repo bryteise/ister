@@ -468,8 +468,9 @@ class Installation(object):
             self._select_auto_or_manual()
             if 'Auto' in self.current_w.response:
                 partitions = self.get_part_list_from_fdisk()
-                self.current_w = Confirm('All existing data on /dev/sda '
-                                    'will be overwritten.\n' + partitions +
+                self.current_w = Confirm('WARNING! Potential data loss!\n'
+                                    'All data on /dev/sda will be erased!\n\n'
+                                    '/dev/sda contents:\n' + partitions +
                                     '\n\nProceed?',
                                     title='Confirm Auto-install')
                 self.current_w.main_loop()
