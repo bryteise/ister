@@ -446,10 +446,10 @@ class Installation(object):
                 lines.pop(0)
 
         if disk_empty:
-            return "/dev/sda contents: no partitions found."
+            return "no partitions found."
 
         lines.pop(0)  # header - add this back manually
-        partitions = 'Device'.ljust(10) + ' ' + 'Size'.rjust(6) + ' ' + 'Type'.ljust(28) + '\n'
+        partitions = '\nDevice'.ljust(10) + ' ' + 'Size'.rjust(6) + ' ' + 'Type'.ljust(28) + '\n'
 
         expr = re.compile('(\S+)\s+\S+\s+\S+\s+\S+\s+(\S+)\s+(\S.*)')
         for l in lines:
@@ -468,9 +468,8 @@ class Installation(object):
             self._select_auto_or_manual()
             if 'Auto' in self.current_w.response:
                 partitions = self.get_part_list_from_fdisk()
-                self.current_w = Confirm('WARNING! Potential data loss!\n'
-                                    'All data on /dev/sda will be erased!\n\n'
-                                    '/dev/sda contents:\n' + partitions +
+                self.current_w = Confirm('WARNING! All data on /dev/sda will be erased!\n\n'
+                                    '/dev/sda contents: ' + partitions +
                                     '\n\nProceed?',
                                     title='Confirm Auto-install')
                 self.current_w.main_loop()
