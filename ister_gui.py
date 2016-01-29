@@ -430,14 +430,41 @@ class Installation(object):
         self.current_w.main_loop()
         exit(int_code)
 
+    def get_part_list_from_fdisk(self):
+        cmd = ['/usr/bin/fdisk', '-l', '/dev/sda']
+        output = subprocess.check_output(cmd).decode()
+        lines = output.split('\n')
+        expr = re.compile('^Device')
+        # discard header...
+        while True:
+            match = expr.match(lines[0])
+            if match:
+                break
+            else:
+                lines.pop(0)
+        lines.pop(0)  # header - add this back manually
+        partitions = 'Device'.ljust(10) + ' ' + 'Size'.rjust(6) + ' ' + 'Type'.ljust(28) + '\n'
+
+        expr = re.compile('(\S+)\s+\S+\s+\S+\s+\S+\s+(\S+)\s+(\S.*)')
+        for l in lines:
+            match = expr.match(l)
+            if match:
+                partitions += match.group(1).ljust(10) + ' ' +  match.group(2).rjust(6) + ' ' +  match.group(3).ljust(28) + '\n'
+            else:
+                break
+        return partitions
+
+
     def run(self):
         """Starts up the installer ui"""
 
         while True:
             self._select_auto_or_manual()
             if 'Auto' in self.current_w.response:
+                partitions = self.get_part_list_from_fdisk()
                 self.current_w = Confirm('All existing data on /dev/sda '
-                                    'will be overwritten.\n\nProceed?',
+                                    'will be overwritten.\n' + partitions +
+                                    '\n\nProceed?',
                                     title='Confirm Auto-install')
                 self.current_w.main_loop()
                 if self.current_w.response == 'yes':
