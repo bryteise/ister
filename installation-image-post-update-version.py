@@ -3,7 +3,7 @@
 import os
 import sys
 
-INSTALLER_VERSION = "5210"
+INSTALLER_VERSION = "6000"
 
 def create_installer_config(path):
     """Create a basicl installation configuration file"""
@@ -61,7 +61,7 @@ def disable_tty1_getty(path):
 def add_installer_service(path):
     os.symlink("{}/usr/lib/systemd/system/ister.service"
                .format(path),
-               "{}/usr/lib/systemd/system/multi-user.target.wants/ister.service",
+               "{}/usr/lib/systemd/system/multi-user.target.wants/ister.service"
                .format(path))
 
 
