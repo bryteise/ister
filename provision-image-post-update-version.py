@@ -33,7 +33,7 @@ def create_provision_config(path):
 def add_provision_symlink(path):
     os.symlink("{}/usr/lib/systemd/system/ister-provision.service"
                .format(path),
-               "{}/usr/lib/systemd/system/multi-user.target.wants/ister-provision.service",
+               "{}/usr/lib/systemd/system/multi-user.target.wants/ister-provision.service"
                .format(path))
 
 
