@@ -463,10 +463,10 @@ class Installation(object):
 
     def run(self):
         """Starts up the installer ui"""
-        self.current_w = Confirm('\nThis network installer pulls ' +
-                                 'installation files from the internet. It requires ' +
-                                 'a wired network connection from which an ip address ' +
-                                 'can be obtained via DHCP. The installer will ' +
+        self.current_w = Confirm('\nNetwork Requirements:\n' +
+                                 '  * Wired network connection\n' +
+                                 '  * DHCP\n\n' +
+                                 'The installer will ' +
                                  'navigate most environments with autoproxies automatically.\n',
                                  title='Network required',
                                  only_ok=True)
