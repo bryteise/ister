@@ -463,6 +463,14 @@ class Installation(object):
 
     def run(self):
         """Starts up the installer ui"""
+        self.current_w = Confirm('\nThis network installer pulls ' +
+                                 'installation files from the internet. It requires ' +
+                                 'a wired network connection from which an ip address ' +
+                                 'can be obtained via DHCP. The installer will ' +
+                                 'navigate most environments with autoproxies automatically.\n',
+                                 title='Network required',
+                                 only_ok=True)
+        self.current_w.main_loop()
 
         while True:
             self._select_auto_or_manual()
@@ -479,6 +487,7 @@ class Installation(object):
                 self.manual_install()
                 break
             else:
+                subprocess.run('/usr/bin/poweroff')
                 return
 
         self.current_w = Confirm('The installation has been completed '
