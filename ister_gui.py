@@ -568,7 +568,7 @@ class Installation(object):
 
             if proc.returncode != 0:
                 self.logger.debug(proc.stderr.read())
-                self._exit(-1, 'Installation error. See /var/log/ister_gui.log for details.\n\nHint: Log in on another tty (ctrl-alt-F2)')
+                self._exit(-1, 'Installation error. See /var/log/ister_gui.log for details.\n\nHint: Log in on another tty (alt-F2)')
 
         self.current_w.main_loop(handle)
 
