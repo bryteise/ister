@@ -482,18 +482,24 @@ class Installation(object):
                                     title='Confirm Auto-install')
                 self.current_w.main_loop()
                 if self.current_w.response == 'yes':
-                    self.automatic_install()
+                    install_result = self.automatic_install()
                     break
             elif 'Manual' in self.current_w.response:
-                self.manual_install()
+                install_result = self.manual_install()
                 break
             else:
                 subprocess.run('/usr/bin/poweroff')
                 return
 
-        self.current_w = Confirm('The installation has been completed '
+        if install_result:
+            self.current_w = Confirm('The installation has been completed '
                                  'successfully. The system will be rebooted.',
-                                 title='Success',
+                                 title='Installation Result',
+                                 only_ok=True)
+        else:
+            self.current_w = Confirm('Installation error. See /var/log/ister_gui.log'
+                                     'for details.\n\nHint: Log in on another tty (alt-F2)',
+                                 title='Installation Result',
                                  only_ok=True)
         self.current_w.main_loop()
 
@@ -568,7 +574,10 @@ class Installation(object):
 
             if proc.returncode != 0:
                 self.logger.debug(proc.stderr.read())
-                self._exit(-1, 'Installation error. See /var/log/ister_gui.log for details.\n\nHint: Log in on another tty (alt-F2)')
+                # self._exit(-1, 'Installation error. See /var/log/ister_gui.log for details.\n\nHint: Log in on another tty (alt-F2)')
+                return False
+            else:
+                return True
 
         self.current_w.main_loop(handle)
 
@@ -578,7 +587,7 @@ class Installation(object):
             if not func():
                 exit(0)
 
-        self.automatic_install()
+        return self.automatic_install()
 
     def _get_list_of_disks(self):
         """"Queries for the available disks discarding the inst. source"""

@@ -1,0 +1,14 @@
+[Unit]
+Description=ister graphical installer
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/expect /usr/bin/autoinstall-first-gen.expect
+ExecStartPost=/usr/sbin/reboot
+StandardInput=tty
+StandardOutput=tty
+StandardError=tty
+TTYPath=/dev/tty1
+
+[Install]
+WantedBy=multi-user.target
