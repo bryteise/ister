@@ -20,6 +20,7 @@ fi
 if [ ! -e $1 ]
 then
         echo $1: Does not exist
+        exit 1
 fi
 
 mnt=$(/usr/bin/mktemp -d)
