@@ -1,0 +1,10 @@
+[Unit]
+Description=Boot Validation
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/bash /usr/bin/boot-canary.sh
+ExecStartPost=/usr/sbin/poweroff
+
+[Install]
+WantedBy=multi-user.target
