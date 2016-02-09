@@ -32,4 +32,4 @@ sudo cp autoinstall-first-gen.expect ${mnt}/usr/bin
 sudo cp ister-expect.service ${mnt}/usr/lib/systemd/system/ister.service
 sudo /usr/bin/umount $mnt
 sudo /usr/bin/losetup -D
-echo "ister_gui.py copied to ${mnt}/usr/bin/ister_gui.py"
+echo "$1 set to use expect to drive install"
