@@ -37,5 +37,5 @@ else
         sudo /usr/bin/ln -f -s ../boot-canary.service ${mnt}/usr/lib/systemd/system/multi-user.target.wants
         sudo /usr/bin/umount $mnt
         sudo /usr/bin/losetup -D
-        echo "Canary script and service installed to $1
+        echo "Canary script and service installed to $1"
 fi

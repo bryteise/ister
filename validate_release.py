@@ -29,7 +29,8 @@ def handle_options():
     return args
 
 def validate_installer(args):
-    # spin new installer
+
+    print(">>> Spinning new installer into ./installer-val.img")
     if os.path.isfile('./installer-val.img'):
         os.remove('./installer-val.img')
     cp = subprocess.run(['qemu-img', 'create', 'installer-val.img', '2G'])
@@ -39,23 +40,25 @@ def validate_installer(args):
                         'http://clearlinux-sandbox.jf.intel.com/update/'])
     cp.check_returncode()
 
-    # Update new installer for expect
+    print(">>> Configuring installer-val.img to be driven by expect using new ister and gui")
     cp = subprocess.run(['sudo', './update_gui_expect.sh', 'installer-val.img'])
     cp.check_returncode()
 
+    print(">>> Create target image for install")
     if os.path.isfile('installer-target.img'):
         os.remove('./installer-target.img')
     cp = subprocess.run(['qemu-img', 'create', 'installer-target.img', '10G'])
     cp.check_returncode()
 
-    # Run new installer w/ new install target
-    # Make ovmf-dir an arg
+    print(">>> Booting installer-val.img against installer-target.img")
     cp = subprocess.run(['sudo', 'qemu-system-x86_64', '-enable-kvm', '-m', '1024', '-vnc', '0.0.0.0:0', '-cpu', 'host', '-drive', 'file=installer-target.img,if=virtio,aio=threads', '-drive', 'file=installer-val.img,if=virtio,aio=threads', '-net', 'nic,model=virtio', '-net', 'user,hostfwd=tcp::2233-:22', '-smp', '2', '-bios', args.bios])
     cp.check_returncode()
 
+    print(">>> Installing boot canary into installer-target.mg")
     cp = subprocess.run(['sudo', './install-canary.sh', 'installer-target.img'])
     cp.check_returncode()
-    # run install target
+
+    print(">>> Booting installer-target.img")
     cp = subprocess.run(['sudo', 'qemu-system-x86_64', '-enable-kvm', '-m', '1024', '-vnc', '0.0.0.0:0', '-cpu', 'host', '-drive', 'file=installer-target.img,if=virtio,aio=threads', '-net', 'nic,model=virtio', '-net', 'user,hostfwd=tcp::2233-:22', '-smp', '2', '-bios', args.bios])
     cp.check_returncode()
 
@@ -63,9 +66,9 @@ def validate_installer(args):
     cp = subprocess.run(['sudo', './check-canary.sh', 'installer-target.img'])
 
     if cp.returncode == 0:
-        print("SUCCESS! Boot Canary detected!")
+        print(">>> SUCCESS! Boot Canary detected!")
     else:
-        print("Failure: installer-target.img failed to boot")
+        print(">>> Failure: installer-target.img failed to boot")
 
 
 def main():
