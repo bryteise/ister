@@ -6,7 +6,7 @@
                           { "disk" : "installer.img", "partition" : 2, "type" : "ext4" } ],
     "PartitionMountPoints" : [ { "disk" : "installer.img", "partition" : 1, "mount" : "/boot" },
 			       { "disk" : "installer.img", "partition" : 2, "mount" : "/" } ],
-    "Version": 6000,
+    "Version": 6190,
     "Bundles": ["kernel-native", "os-installer", "os-core-update", "os-core", "os-core-dev", "bootloader"],
     "PostNonChroot": ["./installation-image-post-update-version.py"]
 }

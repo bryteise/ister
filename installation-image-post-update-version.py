@@ -3,7 +3,7 @@
 import os
 import sys
 
-INSTALLER_VERSION = "6000"
+INSTALLER_VERSION = "6190"
 
 def create_installer_config(path):
     """Create a basicl installation configuration file"""
