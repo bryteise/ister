@@ -624,7 +624,7 @@ class Installation(object):
         self.current_w = Confirm('Do you want to open cgdisk to configure '
                                  'the partitions manually?')
         self.current_w.main_loop()
-        loop = self.current_w.has_answer
+        loop = False if 'no' in self.current_w.response else True
         while loop:
             self.current_w = Terminal(['cgdisk', ('/dev/{0}'
                                                   .format(self.device))])
@@ -778,7 +778,7 @@ class Installation(object):
                                  'device will be repatitioned and all '
                                  'existing data lost)')
         self.current_w.main_loop()
-        if not self.current_w.has_answer:
+        if self.current_w.response == 'no':
             self.logger.debug(self.installation_d)
             return True
         self._select_device()
@@ -813,7 +813,7 @@ class Installation(object):
         """
         self.current_w = Confirm('Do you want to configure a new user?')
         self.current_w.main_loop()
-        if not self.current_w.has_answer:
+        if self.current_w.response == 'no':
             return True
         questions = [
             {'text': 'Enter your first name:\n',
@@ -846,7 +846,10 @@ class Installation(object):
         self.current_w = Confirm('Do you want to add the user to the sudoers '
                                  'file?')
         self.current_w.main_loop()
-        user['sudo'] = self.current_w.has_answer
+        if self.current_w.response == 'no':
+            user['sudo'] = False
+        else:
+            user['sudo'] = True
         self.logger.debug(user)
         self.installation_d['Users'].append(user)
         return True
@@ -885,7 +888,7 @@ class Installation(object):
                        .format('\n- '.join(selection)))
             self.current_w = Confirm(message)
             self.current_w.main_loop()
-            if self.current_w.has_answer:
+            if self.current_w.response == 'yes':
                 break
             del self.current_w
         selected = list()
