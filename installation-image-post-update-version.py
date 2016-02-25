@@ -29,8 +29,7 @@ def create_installer_config(path):
         jfile.write(jconfig.replace('"Version" : 0',
                                     '"Version" : ' + INSTALLER_VERSION))
 
-
-def append_installer_rootdelay(path):
+def append_installer_rootwait(path):
     """Add a delay to the installer kernel commandline"""
     entry_path = path + "/boot/loader/entries/"
     entry_file = os.listdir(entry_path)
@@ -45,7 +44,7 @@ def append_installer_rootdelay(path):
         raise Exception("Last line of entry file is not the kernel "
                         "commandline options")
     # Account for newline at the end of the line
-    options_line = options_line[:-1] + " rootdelay=5\n"
+    options_line = options_line[:-1] + " rootwait\n"
     entry_content[-1] = options_line
     os.unlink(file_full_path)
     with open(file_full_path, "w") as entry:
@@ -71,7 +70,7 @@ if __name__ == '__main__':
 
     try:
         create_installer_config(sys.argv[1])
-        append_installer_rootdelay(sys.argv[1])
+        append_installer_rootwait(sys.argv[1])
         disable_tty1_getty(sys.argv[1])
         add_installer_service(sys.argv[1])
     except Exception as exep:
