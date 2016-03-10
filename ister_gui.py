@@ -108,7 +108,7 @@ def get_disk_info(disk):
     """Return dictionary with disk information"""
     info = {'partitions': []}
     cmd = ['/usr/bin/fdisk', '-l', disk]
-    output = subprocess.check_output(cmd).decode()
+    output = subprocess.check_output(cmd).decode('utf-8')
     lines = output.split('\n')
     expr = re.compile('^Device')
     # discard header...
@@ -1178,8 +1178,8 @@ class MountPointsStep(ProcessStep):
                 if pttr in output:
                     idx = output.index(pttr)
                     output = output[idx + len(pttr):]
-                    output = output[: output.index(b'"')]
-                    if output == b'swap':
+                    output = output[: output.index('"')]
+                    if output == 'swap':
                         disk = ''.join(x for x in part if not x.isdigit())
                         part = part[len(disk):]
                         config['PartitionLayout'].append({
@@ -1225,7 +1225,7 @@ class BundleSelectorStep(ProcessStep):
         self.required_bundles = list()
         try:
             output = subprocess.check_output('systemd-detect-virt',
-                                             shell=True)
+                                             shell=True).decode('utf-8')
         except Exception:
             output = 'none'
         supported = {
@@ -1235,7 +1235,7 @@ class BundleSelectorStep(ProcessStep):
                      'desc': 'Required to run clear on kvm'}}
         kernel = 'Kernel invalid'
         for key in supported:
-            if key in str(output):
+            if key in output:
                 kernel = supported[key]
         self.required_bundles.extend([
             {'name': 'os-core',
@@ -1575,7 +1575,7 @@ class WatchableProcess(threading.Thread):
         self.poll = self.process.poll
         lines = self.process.stdout
         for line in lines:
-            self.output.append(line.decode().strip())
+            self.output.append(line.decode('utf-8').strip())
         self.done = True
 
 
