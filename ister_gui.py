@@ -689,7 +689,15 @@ class SplashScreen(ProcessStep):
 
 The installer will navigate most environments with autoproxies automatically
 """
-        alert = Alert("ClearLinux Installer", alert_content)
+
+        try:
+            with open('/usr/share/clear/version', 'r') as f:
+                version = f.readline()
+                f.close()
+        except Exception as exep:
+            version = 'XYZZY'
+
+        alert = Alert("ClearLinux Installer v{0}".format(version), alert_content)
         alert.do_alert()
         return alert.response
 
