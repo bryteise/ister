@@ -9,9 +9,11 @@ autom4te.cache/
 config.log
 config.status
 configure
+initrd
 install-sh
 installenv/
 missing
+org.clearlinux.native*
 repos/
 test/
 test-log

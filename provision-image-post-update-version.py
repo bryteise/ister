@@ -3,7 +3,7 @@
 import os
 import sys
 
-INSTALLER_VERSION = "5210"
+INSTALLER_VERSION = "6900"
 
 def create_provision_config(path):
     """Create a basicl installation configuration file"""

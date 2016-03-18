@@ -37,6 +37,11 @@
 # pylint: disable=R0912
 # Using lots of statements for a single test is fine
 # pylint: disable=R0915
+# Naked excepts are fine for us - especially in unit tests.
+# pylint: disable=W0702
+# Mock functions almost by definition do not make use of their inputs.
+# Fine if they don't use them
+# pylint: disable=W0613
 
 
 import functools
@@ -45,6 +50,9 @@ import os
 import sys
 import shutil
 import urllib.request as request
+import tempfile
+import socket
+import netifaces
 
 import ister
 
@@ -231,7 +239,58 @@ def chroot_open_wrapper(test_type):
     return chroot_type
 
 
-def open_wrapper(test_type):
+def urlopen_wrapper(test_type, read_str):
+    """Wrapper for urlopen"""
+    def urlopen_type(func):
+        """urlopen_type wrapper"""
+        @functools.wraps(func)
+        def wrapper():
+            """open_wrapper"""
+            backup_open = __builtins__.open
+
+            class MockOpen():
+                """MockOpen wrapper class"""
+                def read(self):
+                    """read wrapper"""
+                    COMMAND_RESULTS.append("read")
+                    return read_str
+
+                def close(self):
+                    """close wrapper"""
+                    COMMAND_RESULTS.append("close")
+                    return
+
+                def __exit__(self, *args):
+                    return
+
+                def __enter__(self, *args):
+                    return self
+
+            def mock_open_good(url):
+                """mock_open_good wrapper"""
+                COMMAND_RESULTS.append(url)
+                return MockOpen()
+
+            def mock_open_bad(url):
+                """mock_open_bad wrapper"""
+                del url
+                raise Exception("urlopen")
+
+            if test_type == "good":
+                request.urlopen = mock_open_good
+            elif test_type == "bad":
+                request.urlopen = mock_open_bad
+            try:
+                func()
+            except Exception as exep:
+                raise exep
+            finally:
+                request.urlopen = backup_open
+        return wrapper
+    return urlopen_type
+
+
+def open_wrapper(test_type, read_str):
     """Wrapper for open"""
     def open_type(func):
         """open_type wrapper"""
@@ -246,6 +305,11 @@ def open_wrapper(test_type):
                     """write wrapper"""
                     COMMAND_RESULTS.append(data)
 
+                def read(self):
+                    """read wrapper"""
+                    COMMAND_RESULTS.append("read")
+                    return read_str
+
                 def close(self):
                     """close wrapper"""
                     COMMAND_RESULTS.append("close")
@@ -253,9 +317,13 @@ def open_wrapper(test_type):
 
                 def writelines(self, data):
                     """writelines wrapper"""
-                    global COMMAND_RESULTS
-                    COMMAND_RESULTS += data
+                    COMMAND_RESULTS.append(data)
                     return
+
+                def readlines(self):
+                    """readlines wrapper"""
+                    COMMAND_RESULTS.append("readlines")
+                    return read_str
 
                 def __exit__(self, *args):
                     return
@@ -287,6 +355,63 @@ def open_wrapper(test_type):
                 __builtins__.open = backup_open
         return wrapper
     return open_type
+
+
+def fdopen_wrapper(test_type, read_str):
+    """Wrapper for fdopen"""
+    def fd_open_type(func):
+        """fdopen_type wrapper"""
+        @functools.wraps(func)
+        def fd_wrapper():
+            """fdopen_wrapper"""
+            backup_open = os.fdopen
+
+            class MockOpen():
+                """MockOpen wrapper class"""
+                def write(self, data):
+                    """write wrapper"""
+                    COMMAND_RESULTS.append(data)
+
+                def read(self):
+                    """read wrapper"""
+                    COMMAND_RESULTS.append("read")
+                    return read_str
+
+                def close(self):
+                    """close wrapper"""
+                    COMMAND_RESULTS.append("close")
+                    return
+
+                def writelines(self, data):
+                    """writelines wrapper"""
+                    global COMMAND_RESULTS
+                    COMMAND_RESULTS += data
+                    return
+
+            def mock_open_good(dest, perm):
+                """mock_open_good wrapper"""
+                COMMAND_RESULTS.append(dest)
+                COMMAND_RESULTS.append(perm)
+                return MockOpen()
+
+            def mock_open_bad(dest, perm):
+                """mock_open_bad wrapper"""
+                del dest
+                del perm
+                raise Exception("open")
+
+            if test_type == "good":
+                os.fdopen = mock_open_good
+            elif test_type == "bad":
+                os.fdopen = mock_open_bad
+            try:
+                func()
+            except Exception as exep:
+                raise exep
+            finally:
+                os.fdopen = backup_open
+        return fd_wrapper
+    return fd_open_type
 
 
 def add_user_key_wrapper(func):
@@ -647,7 +772,6 @@ def create_filesystems_good_options():
 @run_command_wrapper
 def setup_mounts_good():
     """Setup mount points for install"""
-    import tempfile
     backup_mkdtemp = tempfile.mkdtemp
 
     def mock_mkdtemp(*_, **kwargs):
@@ -752,7 +876,6 @@ def setup_mounts_good_units():
 @run_command_wrapper
 def setup_mounts_virtual_good():
     """Setup virtual mount points for install"""
-    import tempfile
     backup_mkdtemp = tempfile.mkdtemp
 
     def mock_mkdtemp(*_, **kwargs):
@@ -792,7 +915,6 @@ def setup_mounts_virtual_good():
 
 def setup_mounts_bad():
     """Setup mount points mkdtemp failure"""
-    import tempfile
     backup_mkdtemp = tempfile.mkdtemp
     template = None
 
@@ -814,7 +936,7 @@ def setup_mounts_bad():
         raise Exception("Failed to handle mkdtemp failure")
 
 
-@open_wrapper("good")
+@open_wrapper("good", "")
 @makedirs_wrapper("good")
 def add_bundles_good():
     """Ensure bundle outputs to correct file"""
@@ -833,7 +955,7 @@ def add_bundles_good():
     commands_compare_helper(commands)
 
 
-@open_wrapper("good")
+@open_wrapper("good", "")
 @makedirs_wrapper("good")
 def set_hostname_good():
     """Ensure /etc/hostname has the proper hostname"""
@@ -1027,7 +1149,7 @@ def create_account_good_uid():
 
 
 @chroot_open_wrapper("silent")
-@open_wrapper("good")
+@open_wrapper("good", "")
 @add_user_key_wrapper
 def add_user_key_good():
     """Add user keyfile to user's authorized keys"""
@@ -1054,7 +1176,7 @@ def add_user_key_good():
 
 
 @chroot_open_wrapper("silent")
-@open_wrapper("bad")
+@open_wrapper("bad", "")
 @add_user_key_wrapper
 def add_user_key_bad():
     """Ensure failures during add_user_key are handled"""
@@ -1068,7 +1190,7 @@ def add_user_key_bad():
         raise Exception("Didn't handle failure during key add")
 
 
-@open_wrapper("good")
+@open_wrapper("good", "")
 @add_user_key_wrapper
 def setup_sudo_good():
     """Add user to sudoers file"""
@@ -1086,7 +1208,7 @@ def setup_sudo_good():
     commands_compare_helper(commands)
 
 
-@open_wrapper("bad")
+@open_wrapper("bad", "")
 @add_user_key_wrapper
 def setup_sudo_bad():
     """Ensure failures during setup_sudo are handled"""
@@ -2308,10 +2430,12 @@ def validate_template_bad_version():
 
 def parse_config_good():
     """Positive tests for configuration parsing"""
+    # pylint: pylint: disable=R0914
     global COMMAND_RESULTS
     COMMAND_RESULTS = []
     backup_isfile = os.path.isfile
     backup_get_template_location = ister.get_template_location
+    backup_check_kernel_cmdline = ister.check_kernel_cmdline
 
     def mock_isfile_true_etc(path):
         """mock_isfile_true_etc wrapper"""
@@ -2346,13 +2470,42 @@ def parse_config_good():
         """mock_get_template_location_cmd wrapper"""
         COMMAND_RESULTS.append(path)
         return "file:///cmd.json"
+
+    def mock_get_template_location_tmp(path):
+        """mock_get_template_location_cmd wrapper"""
+        COMMAND_RESULTS.append(path)
+        return "http://pxeserver/config.json"
+
+    def mock_check_kernel_cmdline_no(path, sleep_time=1):
+        """mock_check_kernel_cmdline wrapper"""
+        # COMMAND_RESULTS.append("no_kcmdline")
+        return False, ""
+
+    def mock_check_kernel_cmdline_yes(path, sleep_time=1):
+        """mock_check_kernel_cmdline wrapper"""
+        COMMAND_RESULTS.append(path)
+        return True, "/tmp/abcxyz"
+
     try:
 
         def args():
             """args empty object"""
             None
+        args.kcmdline = "/proc/cmdline_yes_ister_conf"
         args.config_file = None
         args.template_file = None
+        # Check config from kernel command line/network
+        ister.check_kernel_cmdline = mock_check_kernel_cmdline_yes
+        ister.get_template_location = mock_get_template_location_tmp
+        config = ister.parse_config(args)
+        commands = ["/proc/cmdline_yes_ister_conf", "/tmp/abcxyz"]
+        commands_compare_helper(commands)
+        if config["template"] != "http://pxeserver/config.json":
+            raise Exception("kernel cmdline template does not "
+                            "match expected value")
+        # Check config from default ister.conf in etc
+        COMMAND_RESULTS = []
+        ister.check_kernel_cmdline = mock_check_kernel_cmdline_no
         os.path.isfile = mock_isfile_true_etc
         ister.get_template_location = mock_get_template_location_etc
         config = ister.parse_config(args)
@@ -2360,6 +2513,7 @@ def parse_config_good():
         commands_compare_helper(commands)
         if config["template"] != "file:///etc.json":
             raise Exception("etc template does not match expected value")
+        # Check config from ister.conf in /usr/share/defaults
         COMMAND_RESULTS = []
         os.path.isfile = mock_isfile_true_usr
         ister.get_template_location = mock_get_template_location_usr
@@ -2370,6 +2524,7 @@ def parse_config_good():
         if config["template"] != "file:///usr.json":
             raise Exception("usr template does not match expected value")
         COMMAND_RESULTS = []
+        # See if template file was given on command line
         args.config_file = "cmd.conf"
         os.path.isfile = mock_isfile_false
         ister.get_template_location = mock_get_template_location_cmd
@@ -2393,6 +2548,7 @@ def parse_config_good():
     finally:
         os.path.isfile = backup_isfile
         ister.get_template_location = backup_get_template_location
+        ister.check_kernel_cmdline = backup_check_kernel_cmdline
 
 
 def parse_config_bad():
@@ -2408,12 +2564,12 @@ def parse_config_bad():
     os.path.isfile = mock_isfile_false
 
     try:
-
         def args():
             """args empty object"""
             None
         args.config_file = None
         args.template_file = None
+        args.kcmdline = "/proc/no_isterconf"
         ister.parse_config(args)
     except Exception:
         exception_flag = True
@@ -2581,6 +2737,749 @@ def validate_network_bad():
         raise Exception("Failed to fail getting bad url")
 
 
+@urlopen_wrapper("good", "baz")
+@fdopen_wrapper("good", "")
+@open_wrapper("good", "bar isterconf=http://localhost/")
+def check_kernel_cmdline_good():
+    """ If isterconf is on kernel command line, detect and fetch
+    """
+    global COMMAND_RESULTS
+    COMMAND_RESULTS = []
+
+    def mock_mkstemp():
+        """ works as intended """
+        COMMAND_RESULTS.append("mkstemp")
+        return 42, "/tmp/xyzzy"
+
+    def mock_copyfileobj(a, b):
+        """ breadcrumbs for file copy """
+        COMMAND_RESULTS.append(a.read())
+        COMMAND_RESULTS.append(b.read())
+
+    def mock_os_unlink(path):
+        """ breadcrumb for os.unlink """
+        COMMAND_RESULTS.append("unlink_{0}".format(path))
+
+    mkstemp_orig = tempfile.mkstemp
+    cfo_orig = shutil.copyfileobj
+    unlink_orig = os.unlink
+
+    tempfile.mkstemp = mock_mkstemp
+    shutil.copyfileobj = mock_copyfileobj
+    os.unlink = mock_os_unlink
+    commands = []
+
+    try:
+        ister.check_kernel_cmdline("foo", sleep_time=0)
+    except Exception as exep:
+        raise exep
+    finally:
+        tempfile.mkstemp = mkstemp_orig
+        shutil.copyfileobj = cfo_orig
+        os.unlink = unlink_orig
+
+    commands = ['foo', 'r', 'read', 'mkstemp',
+                'http://localhost/', 42, 'wb', 'read',
+                'baz', 'read', '', 'close']
+    commands_compare_helper(commands)
+
+
+@urlopen_wrapper("good", "baz")
+@fdopen_wrapper("good", "")
+@open_wrapper("good", "bar x y z")
+def check_kernel_cmdline_bad_no_isterconf():
+    """ If isterconf not on kernel command line, do nothing
+    """
+    global COMMAND_RESULTS
+    COMMAND_RESULTS = []
+
+    def mock_mkstemp():
+        """ works as intended """
+        COMMAND_RESULTS.append("mkstemp")
+        return 42, "/tmp/xyzzy"
+
+    def mock_copyfileobj(a, b):
+        """ breadcrumbs for file copy """
+        COMMAND_RESULTS.append(a.read())
+        COMMAND_RESULTS.append(b.read())
+
+    def mock_os_unlink(path):
+        """ breadcrumb for os.unlink """
+        COMMAND_RESULTS.append("unlink_{0}".format(path))
+
+    mkstemp_orig = tempfile.mkstemp
+    cfo_orig = shutil.copyfileobj
+    unlink_orig = os.unlink
+
+    tempfile.mkstemp = mock_mkstemp
+    shutil.copyfileobj = mock_copyfileobj
+    os.unlink = mock_os_unlink
+
+    try:
+        ister.check_kernel_cmdline("foo", sleep_time=0)
+    except Exception as exep:
+        raise exep
+    finally:
+        tempfile.mkstemp = mkstemp_orig
+        shutil.copyfileobj = cfo_orig
+        os.unlink = unlink_orig
+
+    commands = ['foo', 'r', 'read']
+    commands_compare_helper(commands)
+
+
+@urlopen_wrapper("bad", "baz")
+@fdopen_wrapper("good", "")
+@open_wrapper("good", "bar isterconf=http://localhost/")
+def check_kernel_cmdline_bad_urlopen_fails():
+    """ If url given to isterconf param is bad, exception is raised.
+    """
+    global COMMAND_RESULTS
+    COMMAND_RESULTS = []
+
+    def mock_mkstemp():
+        """ works as intended """
+        COMMAND_RESULTS.append("mkstemp")
+        return 42, "/tmp/xyzzy"
+
+    def mock_copyfileobj(a, b):
+        """ breadcrumbs for file copy """
+        COMMAND_RESULTS.append(a.read())
+        COMMAND_RESULTS.append(b.read())
+
+    def mock_os_unlink(path):
+        """ breadcrumb for os.unlink """
+        COMMAND_RESULTS.append("unlink_{0}".format(path))
+
+    mkstemp_orig = tempfile.mkstemp
+    cfo_orig = shutil.copyfileobj
+    unlink_orig = os.unlink
+
+    tempfile.mkstemp = mock_mkstemp
+    shutil.copyfileobj = mock_copyfileobj
+    os.unlink = mock_os_unlink
+
+    try:
+        ister.check_kernel_cmdline("foo", sleep_time=0)
+    except:
+        exception_flag = True
+    finally:
+        tempfile.mkstemp = mkstemp_orig
+        shutil.copyfileobj = cfo_orig
+        os.unlink = unlink_orig
+    if not exception_flag:
+        raise Exception("Failed to fail getting bad url")
+
+
+@urlopen_wrapper("good", "baz")
+@fdopen_wrapper("bad", "")
+@open_wrapper("good", "bar isterconf=http://localhost/")
+def check_kernel_cmdline_bad_fdopen_fails():
+    """ Exception raised if result of mkstemp can't be opened.
+    """
+    global COMMAND_RESULTS
+    COMMAND_RESULTS = []
+
+    def mock_mkstemp():
+        """ works as intended """
+        COMMAND_RESULTS.append("mkstemp")
+        return 42, "/tmp/xyzzy"
+
+    def mock_copyfileobj(a, b):
+        """ breadcrumbs for file copy """
+        COMMAND_RESULTS.append(a.read())
+        COMMAND_RESULTS.append(b.read())
+
+    def mock_os_unlink(path):
+        """ breadcrumb for os.unlink """
+        COMMAND_RESULTS.append("unlink_{0}".format(path))
+
+    mkstemp_orig = tempfile.mkstemp
+    cfo_orig = shutil.copyfileobj
+    unlink_orig = os.unlink
+
+    tempfile.mkstemp = mock_mkstemp
+    shutil.copyfileobj = mock_copyfileobj
+    os.unlink = mock_os_unlink
+
+    try:
+        ister.check_kernel_cmdline("foo", sleep_time=0)
+    except:
+        exception_flag = True
+    finally:
+        tempfile.mkstemp = mkstemp_orig
+        shutil.copyfileobj = cfo_orig
+        os.unlink = unlink_orig
+    if not exception_flag:
+        raise Exception("Failed to fail on fdopen")
+
+
+def get_host_from_url_good_1():
+    """ Validate hostname from valid url
+    """
+    host = ister.get_host_from_url("http://localhost/")
+    if host != "localhost":
+        raise Exception("Failed to parse hostname")
+
+
+def get_host_from_url_good_2():
+    """ Validate hostname from url with port
+    """
+    host = ister.get_host_from_url("http://localhost:5000/")
+    if host != "localhost":
+        raise Exception("Failed to parse hostname")
+
+
+def get_host_from_url_bad_malformed_url():
+    """ Exception raised if bad url given
+    """
+    host = ister.get_host_from_url("not_a_url")
+    if host is not None:
+        raise Exception("Invalid url-derived hostname")
+
+
+def get_iface_for_host_good():
+    """ Validate we find net device used to reach icis service
+    """
+    def mock_gethostbyname(host):
+        """ yield ip addr """
+        return "192.168.1.1"
+
+    def mock_run_command(cmd):
+        """ yield result of ip show route... """
+        return ["default via 192.168.1.1 dev enp0s25 proto "
+                "static metric 600"], 0
+
+    gethostbyname_orig = socket.gethostbyname
+    run_command_orig = ister.run_command
+    socket.gethostbyname = mock_gethostbyname
+    ister.run_command = mock_run_command
+
+    iface = ister.get_iface_for_host("hostname")
+
+    socket.get_hostbyname = gethostbyname_orig
+    ister.run_command = run_command_orig
+
+    if iface != "enp0s25":
+        raise Exception("Failed to find outbound interface to "
+                        "cloud-init-config server")
+
+
+def get_iface_for_host_bad_no_route():
+    """ Gracefully handle no route scenario
+    """
+    def mock_gethostbyname(host):
+        """ yield ip addr """
+        return "192.168.1.1"
+
+    def mock_run_command(cmd):
+        """ ip show route runs into error """
+        return ["error"], 1
+
+    gethostbyname_orig = socket.gethostbyname
+    run_command_orig = ister.run_command
+    socket.gethostbyname = mock_gethostbyname
+    ister.run_command = mock_run_command
+
+    iface = ister.get_iface_for_host("hostname")
+
+    socket.get_hostbyname = gethostbyname_orig
+    ister.run_command = run_command_orig
+
+    if iface is not None:
+        raise Exception("Did not return None for bad route")
+
+
+def get_iface_for_host_bad_hostname():
+    """ Gracefully handle bad hostname scenario
+    """
+    def mock_gethostbyname(host):
+        """ invalid hostname... """
+        return ""
+
+    def mock_run_command(cmd):
+        """ Result of ip show route on empty host... """
+        return ["Error: an inet prefix is expected rather than \"\"."], 1
+
+    gethostbyname_orig = socket.gethostbyname
+    run_command_orig = ister.run_command
+    socket.gethostbyname = mock_gethostbyname
+    ister.run_command = mock_run_command
+
+    iface = ister.get_iface_for_host("hostname")
+
+    socket.get_hostbyname = gethostbyname_orig
+    ister.run_command = run_command_orig
+
+    if iface is not None:
+        raise Exception("Did not return None for bad hostname")
+
+
+def get_mac_for_iface_good():
+    """ Obtain mac address of valid network interface
+    """
+    def mock_ifaddresses(iface):
+        """ Good line for net device """
+        return {17: [{'addr': 'aa:bb:cc:dd:ee:ff',
+                      'broadcast': 'ff:ff:ff:ff:ff:ff'}]}
+
+    ifaddresses_orig = netifaces.ifaddresses
+    netifaces.ifaddresses = mock_ifaddresses
+
+    mac = ister.get_mac_for_iface("net_device")
+
+    netifaces.ifaddresses = ifaddresses_orig
+
+    if mac != "aa:bb:cc:dd:ee:ff":
+        raise Exception("Failed to find MAC for network interface")
+
+
+def get_mac_for_iface_bad():
+    """ Validate bad network interface scenario does not yield MAC addr
+    """
+    def mock_ifaddresses_bad(iface):
+        """ Tried to get info for invalid net device """
+        raise Exception("You must specify a valid interface name..")
+
+    ifaddresses_orig = netifaces.ifaddresses
+    netifaces.ifaddresses = mock_ifaddresses_bad
+
+    mac = ister.get_mac_for_iface("net_device")
+
+    netifaces.ifaddresses = ifaddresses_orig
+
+    if mac is not None:
+        raise Exception("Did not get None for invalid interface")
+
+
+@urlopen_wrapper("good", b'{"mac": "default", "role": "compute"}')
+def fetch_cloud_init_configs_good():
+    """ Validate we handle valid json being returned
+    """
+    global COMMAND_RESULTS
+    COMMAND_RESULTS = []
+
+    pyobj_from_json = ister.fetch_cloud_init_configs("url", "mac")
+
+    commands = ["urlget_config/mac", "read"]
+    commands_compare_helper(commands)
+
+    role = pyobj_from_json.get('role')
+
+    if role != "compute":
+        raise Exception("Expected role 'compute', got {0}".format(role))
+
+
+@urlopen_wrapper("bad", b'{"mac": "default", "role": "compute"}')
+def fetch_cloud_init_configs_bad_urlopen():
+    """ urlopen failure returns "none"
+    """
+    pyobj_from_json = ister.fetch_cloud_init_configs("url", "mac")
+
+    role = pyobj_from_json.get('role')
+
+    if role is not None:
+        raise Exception("Unexpectedly found role {0}".format(role))
+
+
+def get_cloud_init_configs_good():
+    """ Do we get a userdata file if everything is good?
+    """
+    def mock_get_host_from_url(icis_source):
+        """ stub """
+        return "host"
+
+    def mock_get_iface_for_host(host):
+        """ stub """
+        return "iface"
+
+    def mock_get_mac_for_iface(iface):
+        """ stub """
+        return "mac"
+
+    def mock_fetch_cloud_init_configs(icis_source, mac):
+        """ stub """
+        return "good_configs"
+
+    get_host_from_url_orig = ister.get_host_from_url
+    get_iface_for_host_orig = ister.get_iface_for_host
+    get_mac_for_iface_orig = ister.get_mac_for_iface
+    fetch_cloud_init_configs_orig = ister.fetch_cloud_init_configs
+
+    ister.get_host_from_url = mock_get_host_from_url
+    ister.get_iface_for_host = mock_get_iface_for_host
+    ister.get_mac_for_iface = mock_get_mac_for_iface
+    ister.fetch_cloud_init_configs = mock_fetch_cloud_init_configs
+
+    confs = ister.get_cloud_init_configs("source")
+
+    ister.get_host_from_url = get_host_from_url_orig
+    ister.get_iface_for_host = get_iface_for_host_orig
+    ister.get_mac_for_iface = get_mac_for_iface_orig
+    ister.fetch_cloud_init_configs = fetch_cloud_init_configs_orig
+
+    if confs != "good_configs":
+        raise Exception("Failed to get good configs")
+
+
+def get_cloud_init_configs_bad_url_has_no_host():
+    """ if get_host_from_url has problems, we should get None
+    """
+    def mock_get_host_from_url(icis_source):
+        """ failed to get host from url """
+        return None
+
+    def mock_get_iface_for_host(host):
+        """ stub """
+        return "iface"
+
+    def mock_get_mac_for_iface(iface):
+        """ stub """
+        return "mac"
+
+    def mock_fetch_cloud_init_configs(icis_source, mac):
+        """ stub """
+        return "good_configs"
+
+    get_host_from_url_orig = ister.get_host_from_url
+    get_iface_for_host_orig = ister.get_iface_for_host
+    get_mac_for_iface_orig = ister.get_mac_for_iface
+    fetch_cloud_init_configs_orig = ister.fetch_cloud_init_configs
+
+    ister.get_host_from_url = mock_get_host_from_url
+    ister.get_iface_for_host = mock_get_iface_for_host
+    ister.get_mac_for_iface = mock_get_mac_for_iface
+    ister.fetch_cloud_init_configs = mock_fetch_cloud_init_configs
+
+    confs = ister.get_cloud_init_configs("source")
+
+    ister.get_host_from_url = get_host_from_url_orig
+    ister.get_iface_for_host = get_iface_for_host_orig
+    ister.get_mac_for_iface = get_mac_for_iface_orig
+    ister.fetch_cloud_init_configs = fetch_cloud_init_configs_orig
+
+    if confs is not None:
+        raise Exception("Got confs from bad host")
+
+
+def get_cloud_init_configs_bad_no_route_to_host():
+    """ If get_iface_for_host runs into trouble, we should get None
+    """
+    def mock_get_host_from_url(icis_source):
+        """ stub """
+        return "host"
+
+    def mock_get_iface_for_host(host):
+        """ failed to get a valid Interface """
+        return None
+
+    def mock_get_mac_for_iface(iface):
+        """ stub """
+        return "mac"
+
+    def mock_fetch_cloud_init_configs(icis_source, mac):
+        """ stub """
+        return "good_configs"
+
+    get_host_from_url_orig = ister.get_host_from_url
+    get_iface_for_host_orig = ister.get_iface_for_host
+    get_mac_for_iface_orig = ister.get_mac_for_iface
+    fetch_cloud_init_configs_orig = ister.fetch_cloud_init_configs
+
+    ister.get_host_from_url = mock_get_host_from_url
+    ister.get_iface_for_host = mock_get_iface_for_host
+    ister.get_mac_for_iface = mock_get_mac_for_iface
+    ister.fetch_cloud_init_configs = mock_fetch_cloud_init_configs
+
+    confs = ister.get_cloud_init_configs("source")
+
+    ister.get_host_from_url = get_host_from_url_orig
+    ister.get_iface_for_host = get_iface_for_host_orig
+    ister.get_mac_for_iface = get_mac_for_iface_orig
+    ister.fetch_cloud_init_configs = fetch_cloud_init_configs_orig
+
+    if confs is not None:
+        raise Exception("Got confs from unreachable host")
+
+
+def get_cloud_init_configs_bad_iface():
+    """ 'None' is returned if somehow an invalid net interface is used
+    """
+    def mock_get_host_from_url(icis_source):
+        """ stub """
+        return "host"
+
+    def mock_get_iface_for_host(host):
+        """ stub """
+        return "iface"
+
+    def mock_get_mac_for_iface(iface):
+        """ Could not find mac addr of iface """
+        return None
+
+    def mock_fetch_cloud_init_configs(icis_source, mac):
+        """ stub """
+        return "good_configs"
+
+    get_host_from_url_orig = ister.get_host_from_url
+    get_iface_for_host_orig = ister.get_iface_for_host
+    get_mac_for_iface_orig = ister.get_mac_for_iface
+    fetch_cloud_init_configs_orig = ister.fetch_cloud_init_configs
+
+    ister.get_host_from_url = mock_get_host_from_url
+    ister.get_iface_for_host = mock_get_iface_for_host
+    ister.get_mac_for_iface = mock_get_mac_for_iface
+    ister.fetch_cloud_init_configs = mock_fetch_cloud_init_configs
+
+    confs = ister.get_cloud_init_configs("source")
+
+    ister.get_host_from_url = get_host_from_url_orig
+    ister.get_iface_for_host = get_iface_for_host_orig
+    ister.get_mac_for_iface = get_mac_for_iface_orig
+    ister.fetch_cloud_init_configs = fetch_cloud_init_configs_orig
+
+    if confs is not None:
+        raise Exception("Got confs for mac-address \'None\'")
+
+
+def get_cloud_init_configs_bad_no_configs_for_target():
+    """ If no configs exist for the install target, we get 'None'.
+    """
+    def mock_get_host_from_url(icis_source):
+        """ stub """
+        return "host"
+
+    def mock_get_iface_for_host(host):
+        """ stub """
+        return "iface"
+
+    def mock_get_mac_for_iface(iface):
+        """ stub """
+        return "mac"
+
+    def mock_fetch_cloud_init_configs(icis_source, mac):
+        """ Got empty result from ister cloud init svc """
+        return dict()
+
+    get_host_from_url_orig = ister.get_host_from_url
+    get_iface_for_host_orig = ister.get_iface_for_host
+    get_mac_for_iface_orig = ister.get_mac_for_iface
+    fetch_cloud_init_configs_orig = ister.fetch_cloud_init_configs
+
+    ister.get_host_from_url = mock_get_host_from_url
+    ister.get_iface_for_host = mock_get_iface_for_host
+    ister.get_mac_for_iface = mock_get_mac_for_iface
+    ister.fetch_cloud_init_configs = mock_fetch_cloud_init_configs
+
+    confs = ister.get_cloud_init_configs("source")
+
+    ister.get_host_from_url = get_host_from_url_orig
+    ister.get_iface_for_host = get_iface_for_host_orig
+    ister.get_mac_for_iface = get_mac_for_iface_orig
+    ister.fetch_cloud_init_configs = fetch_cloud_init_configs_orig
+
+    if len(confs) > 0:
+        raise Exception("expected empty dict")
+
+
+@urlopen_wrapper("good", "cloud-init configs")
+@open_wrapper("good", "not_used")
+def fetch_cloud_init_role_good():
+    """ With everything working, do we get a cloud-init userdata file?
+    """
+    global COMMAND_RESULTS
+    COMMAND_RESULTS = []
+
+    def mock_copyfileobj(a, b):
+        """ breadcrumbs for file copy """
+        COMMAND_RESULTS.append(a.read())
+        COMMAND_RESULTS.append(b.read())
+
+    cfo_orig = shutil.copyfileobj
+    shutil.copyfileobj = mock_copyfileobj
+
+    ister.fetch_cloud_init_role("source/", "compute", "/dir")
+
+    shutil.copyfileobj = cfo_orig
+    commands = ['source/get_role/compute',
+                '/dir/etc/cloud-init-user-data', 'wb', 'read',
+                'cloud-init configs', 'read', 'not_used', 'close']
+    commands_compare_helper(commands)
+
+
+@urlopen_wrapper("bad", "cloud-init configs")
+@open_wrapper("good", "not_used")
+def fetch_cloud_init_role_bad_cannot_open_url():
+    """ Should get exception if urlopen runs into problems.
+    """
+    global COMMAND_RESULTS
+    COMMAND_RESULTS = []
+    exception_flag = False
+
+    def mock_copyfileobj(a, b):
+        """ breadcrumbs for file copy """
+        COMMAND_RESULTS.append(a.read())
+        COMMAND_RESULTS.append(b.read())
+
+    cfo_orig = shutil.copyfileobj
+    shutil.copyfileobj = mock_copyfileobj
+
+    try:
+        ister.fetch_cloud_init_role("source/", "compute", "/dir")
+    except:
+        exception_flag = True
+
+    shutil.copyfileobj = cfo_orig
+    commands = []
+    commands_compare_helper(commands)
+    if not exception_flag:
+        raise Exception("bad urlopen did not throw exception")
+
+
+@urlopen_wrapper("good", "cloud-init configs")
+@open_wrapper("bad", "not_used")
+def fetch_cloud_init_role_bad_cannot_target_file():
+    """ Should get exception if cannot write out userdata file.
+    """
+    global COMMAND_RESULTS
+    COMMAND_RESULTS = []
+    exception_flag = False
+
+    def mock_copyfileobj(a, b):
+        """ breadcrumbs for file copy """
+        COMMAND_RESULTS.append(a.read())
+        COMMAND_RESULTS.append(b.read())
+
+    cfo_orig = shutil.copyfileobj
+    shutil.copyfileobj = mock_copyfileobj
+
+    try:
+        ister.fetch_cloud_init_role("source/", "compute", "/dir")
+    except:
+        exception_flag = True
+
+    shutil.copyfileobj = cfo_orig
+    commands = ["source/get_role/compute"]
+    commands_compare_helper(commands)
+    if not exception_flag:
+        raise Exception("bad open did not throw exception")
+
+
+@open_wrapper("good", ["line1",
+                       "ExecStart=/usr/bin/cloud-init --fix-disk "
+                       "--metadata --user-data-once"])
+def modify_cloud_init_service_file_good():
+    """ For valid systemd unit file - modify to use userdata file
+    """
+    global COMMAND_RESULTS
+    COMMAND_RESULTS = []
+
+    ister.modify_cloud_init_service_file("/dir")
+    commands = ["/dir/usr/lib/systemd/system/cloud-init.service", "r",
+                "readlines",
+                "/dir/usr/lib/systemd/system/cloud-init.service", "w",
+                "line1",
+                "ExecStart=/usr/bin/cloud-init --fix-disk "
+                "--user-data-file /etc/cloud-init-user-data"]
+    commands_compare_helper(commands)
+
+
+@open_wrapper("bad", ["line1", "line2"])
+def modify_cloud_init_service_file_bad_open():
+    """ Get Exception if can't open systemd unit file
+    """
+    global COMMAND_RESULTS
+    COMMAND_RESULTS = []
+    exception_flag = False
+
+    try:
+        ister.modify_cloud_init_service_file("/dir")
+    except:
+        exception_flag = True
+
+    if not exception_flag:
+        raise Exception("Open did not throw exception")
+
+
+def cloud_init_configs_good():
+    """ Successfuly fetch/install/configure cloud init configs
+    """
+    global COMMAND_RESULTS
+    COMMAND_RESULTS = []
+
+    def mock_get_cloud_init_configs(source):
+        """ breadcrumbs and valid configs """
+        COMMAND_RESULTS.append("get_cloud_init_configs")
+        return {"mac": "default", "role": "compute"}
+
+    def mock_fetch_cloud_init_role(source, role, target_dir):
+        """ breadcrumb stub """
+        COMMAND_RESULTS.append("fetch_cloud_init_role")
+
+    def mock_modify_cloud_init_service_file(target_dir):
+        """ breadcrumb stub """
+        COMMAND_RESULTS.append("modify_cloud_init_service_file")
+
+    template = {"IsterCloudInitSvc": "http://host/icis"}
+
+    gcic_orig = ister.get_cloud_init_configs
+    fcir_orig = ister.fetch_cloud_init_role
+    mcisf_orig = ister.modify_cloud_init_service_file
+
+    ister.get_cloud_init_configs = mock_get_cloud_init_configs
+    ister.fetch_cloud_init_role = mock_fetch_cloud_init_role
+    ister.modify_cloud_init_service_file = mock_modify_cloud_init_service_file
+
+    ister.cloud_init_configs(template, "/path")
+
+    ister.get_cloud_init_configs = gcic_orig
+    ister.fetch_cloud_init_role = fcir_orig
+    ister.modify_cloud_init_service_file = mcisf_orig
+
+    commands = ["get_cloud_init_configs", "fetch_cloud_init_role",
+                "modify_cloud_init_service_file"]
+    commands_compare_helper(commands)
+
+
+def cloud_init_configs_good_no_role():
+    """ Do nothing if we can't get identify a role for install target
+    """
+    global COMMAND_RESULTS
+    COMMAND_RESULTS = []
+
+    def mock_get_cloud_init_configs(source):
+        """ Role missing from result of get_cloud_init_configs """
+        COMMAND_RESULTS.append("get_cloud_init_configs")
+        return {"mac": "default"}
+
+    def mock_fetch_cloud_init_role(source, role, target_dir):
+        """ breadcrumb stub """
+        COMMAND_RESULTS.append("fetch_cloud_init_role")
+
+    def mock_modify_cloud_init_service_file(target_dir):
+        """ breadcrumb stub """
+        COMMAND_RESULTS.append("modify_cloud_init_service_file")
+
+    template = {"IsterCloudInitSvc": "http://host/icis"}
+
+    gcic_orig = ister.get_cloud_init_configs
+    fcir_orig = ister.fetch_cloud_init_role
+    mcisf_orig = ister.modify_cloud_init_service_file
+
+    ister.get_cloud_init_configs = mock_get_cloud_init_configs
+    ister.fetch_cloud_init_role = mock_fetch_cloud_init_role
+    ister.modify_cloud_init_service_file = mock_modify_cloud_init_service_file
+
+    ister.cloud_init_configs(template, "/path")
+
+    ister.get_cloud_init_configs = gcic_orig
+    ister.fetch_cloud_init_role = fcir_orig
+    ister.modify_cloud_init_service_file = mcisf_orig
+
+    commands = ['get_cloud_init_configs']
+    commands_compare_helper(commands)
+
+
 def run_tests(tests):
     """Run ister test suite"""
     fail = 0
@@ -2600,6 +3499,7 @@ def run_tests(tests):
                 flog.write("Test: {0} PASS.\n".format(test.__name__))
 
     return fail
+
 
 if __name__ == '__main__':
     class log_wrapper():
@@ -2747,6 +3647,32 @@ if __name__ == '__main__':
         parse_config_bad,
         handle_options_good,
         handle_logging_good,
+        check_kernel_cmdline_good,
+        check_kernel_cmdline_bad_no_isterconf,
+        check_kernel_cmdline_bad_urlopen_fails,
+        check_kernel_cmdline_bad_fdopen_fails,
+        get_host_from_url_good_1,
+        get_host_from_url_good_2,
+        get_host_from_url_bad_malformed_url,
+        get_iface_for_host_good,
+        get_iface_for_host_bad_no_route,
+        get_iface_for_host_bad_hostname,
+        get_mac_for_iface_good,
+        get_mac_for_iface_bad,
+        fetch_cloud_init_configs_good,
+        fetch_cloud_init_configs_bad_urlopen,
+        get_cloud_init_configs_good,
+        get_cloud_init_configs_bad_url_has_no_host,
+        get_cloud_init_configs_bad_no_route_to_host,
+        get_cloud_init_configs_bad_iface,
+        get_cloud_init_configs_bad_no_configs_for_target,
+        fetch_cloud_init_role_good,
+        fetch_cloud_init_role_bad_cannot_open_url,
+        fetch_cloud_init_role_bad_cannot_target_file,
+        modify_cloud_init_service_file_good,
+        modify_cloud_init_service_file_bad_open,
+        cloud_init_configs_good,
+        cloud_init_configs_good_no_role
     ]
 
     failed = run_tests(TESTS)

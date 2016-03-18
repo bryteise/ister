@@ -29,9 +29,10 @@
 # a warning about too few methods being implemented isn't useful.
 # pylint: disable=R0903
 # Too many branches is probably something we'd have hoped to avoid but this
-# logic for partition creation was born to be ugly, good spot for cleanup though
-# for the adventurous sort
+# logic for partition creation was born to be ugly, good spot for cleanup
+# though for the adventurous sort
 # pylint: disable=R0912
+# pylint: disable=W0702
 
 
 import argparse
@@ -47,8 +48,12 @@ import shutil
 import tempfile
 import time
 import logging
+import socket
 import urllib.request as request
 from urllib.error import URLError, HTTPError
+from urllib.parse import urlparse
+from contextlib import closing
+import netifaces
 
 LOG = None
 
@@ -296,8 +301,8 @@ Where = {1}\nType = {2}\n\n".format(uuid, mount, fs_type)
                                                   part['partition'],
                                                   part["mount"]))
         fs_type = [x["type"] for x in template["FilesystemTypes"]
-                   if x['disk'] == part['disk']
-                   and x['partition'] == part['partition']][-1]
+                   if x['disk'] == part['disk'] and
+                   x['partition'] == part['partition']][-1]
         if part["mount"] == "/":
             run_command("sgdisk {0} --typecode={1}:\
 4f68bce3-e8cd-4db1-96e7-fbcaf984b709"
@@ -898,6 +903,180 @@ def validate_template(template):
     LOG.debug(template)
 
 
+def check_kernel_cmdline(f_kcmdline, sleep_time=15):
+    """Check if ister.conf defined via kernel command line (pxe envs)
+
+    Kernel command line trumps ister invocation args.
+    Return a tuple (True/False, "path")
+    """
+    LOG.debug("Inspecting kernel command line for ister.conf location")
+    LOG.debug("kernel command line file: {0}".format(f_kcmdline))
+    kernel_args = list()
+    ister_conf_uri = None
+    with open(f_kcmdline, "r") as file:
+        kernel_args = file.read().split(' ')
+    for opt in kernel_args:
+        if opt.startswith("isterconf="):
+            ister_conf_uri = opt.split("=")[1]
+
+    LOG.debug("ister_conf_uri = {0}".format(ister_conf_uri))
+
+    # Fetch the file
+    if ister_conf_uri:
+        tmpfd, abs_path = tempfile.mkstemp()
+        LOG.debug("ister_conf tmp file = {0}".format(abs_path))
+        # in a PXE environment it's possible systemd launched us
+        # before the network is up. This is primitive but effective.
+        # And generally only pxe boots will trigger this.
+        time.sleep(sleep_time)
+        with request.urlopen(ister_conf_uri) as response:
+            with closing(os.fdopen(tmpfd, "wb")) as out_file:
+                shutil.copyfileobj(response, out_file)
+                return True, abs_path
+        os.unlink(abs_path)
+    return False, ''
+
+
+def get_host_from_url(url):
+    """ Given url, return the host:port portion
+        Try to be protocol agnostic
+    """
+    LOG.debug("Extracting host component of cloud-init-svc url")
+    parsed = urlparse(url)
+    LOG.debug("URL parsed")
+    return parsed.hostname or None
+
+
+def get_iface_for_host(host):
+    """ Get interface being used to reach host
+    """
+    LOG.debug("Finding interface used to reach {0}".format(host))
+    ip_addr = socket.gethostbyname(host)
+    cmd = "ip route show to match {0}".format(ip_addr)
+    iface = None
+
+    output, ret = run_command(cmd)
+    LOG.debug("Output from ip route show...")
+    LOG.debug(output)
+    if ret == 0:
+        match = re.match(r'.*dev (\w+)', output[-1])
+        iface = match.group(1)
+        # Maybe make sure this really exists?
+
+    return iface
+
+
+def get_mac_for_iface(iface):
+    """ Get the MAC address for iface
+    """
+    # pylint: disable=E1101
+    LOG.debug("Determining MAC address for iface {0}".format(iface))
+    try:
+        addrs = netifaces.ifaddresses(iface)
+    except:
+        return None
+    macs = addrs[netifaces.AF_LINK]
+    mac = macs[0].get('addr')
+    LOG.debug("FOUND MAC address {0}".format(mac))
+    return mac
+
+
+def fetch_cloud_init_configs(src_url, mac):
+    """ Fetch the json configs from ister-cloud-init-svc for mac
+    """
+    src_url += 'get_config/{0}'.format(mac)
+    LOG.debug("Fetching cloud init configs from:\n"
+              "\t{0}".format(src_url))
+    try:
+        json_file = request.urlopen(src_url)
+    except:
+        json_file = None
+
+    if json_file is not None:
+        return json.loads(json_file.read().decode("utf-8"))
+    else:
+        return dict()
+
+
+def get_cloud_init_configs(icis_source):
+    """ Fetch configs from ister-cloud-init-svc
+    """
+
+    # TODO: Iterate over all interfaces in the future?
+
+    # extract hostname/ip from url
+    host = get_host_from_url(icis_source)
+    if not host:
+        LOG.debug("Could not extract hostname for ister cloud "
+                  "init service from url: {0}".format(icis_source))
+        return None
+
+    # get interface being used to communicate
+    iface = get_iface_for_host(host)
+    if not iface:
+        LOG.debug("No route to ister-cloud-init-svc host?"
+                  "  Failed to find interface for route")
+        return None
+
+    mac = get_mac_for_iface(iface)
+    if not mac:
+        LOG.debug("Could not find MAC for iface: {0}".format(iface))
+        return None
+
+    # query icis service for confs
+    icis_confs = fetch_cloud_init_configs(icis_source, mac)
+
+    # return confs
+    return icis_confs
+
+
+def fetch_cloud_init_role(icis_source, role, target_dir):
+    """ Get role from icis_source - install into target
+    """
+    icis_role_url = icis_source + "get_role/" + role
+    out_file = target_dir + "/etc/cloud-init-user-data"
+    LOG.debug("Fetching role file from {0}".format(icis_role_url))
+
+    with request.urlopen(icis_role_url) as response:
+        with closing(open(out_file, 'wb')) as out_file:
+            shutil.copyfileobj(response, out_file)
+
+
+def modify_cloud_init_service_file(target_dir):
+    """ Modify cloud-init service file to use userdata file
+        that was just installed.
+    """
+    LOG.debug("Updating cloud-init.service to user role file for user-data")
+    cloud_init_file = target_dir + "/usr/lib/systemd/system/cloud-init.service"
+
+    with open(cloud_init_file, "r") as service_file:
+        lines = service_file.readlines()
+    with open(cloud_init_file, "w") as service_file:
+        for line in lines:
+            service_file.write(re.sub("(ExecStart.*) --metadata "
+                                      "--user-data-once",
+                                      r"\1 --user-data-file "
+                                      r"/etc/cloud-init-user-data", line))
+
+
+def cloud_init_configs(template, target_dir):
+    """ fetch configs from ister-cloud-init-svc and set appropriate
+    template entries. Configs from ister-cloud-init-svc trump
+    anything already in the template.
+    """
+
+    icis_source = template.get("IsterCloudInitSvc")
+
+    if icis_source:
+        icis_confs = get_cloud_init_configs(icis_source)
+
+    icis_role = icis_confs.get('role')
+
+    if icis_role:
+        fetch_cloud_init_role(icis_source, icis_role, target_dir)
+        modify_cloud_init_service_file(target_dir)
+
+
 def parse_config(args):
     """Setup configuration dict holding ister settings
 
@@ -905,7 +1084,12 @@ def parse_config(args):
     """
     LOG.info("Reading configuration")
     config = {}
-    if args.config_file:
+
+    kcmdline, kconf_file = check_kernel_cmdline(args.kcmdline)
+
+    if kcmdline:
+        config["template"] = get_template_location(kconf_file)
+    elif args.config_file:
         config["template"] = get_template_location(args.config_file)
     elif os.path.isfile("/etc/ister.conf"):
         config["template"] = get_template_location("/etc/ister.conf")
@@ -940,6 +1124,7 @@ def install_os(args):
     target_dir = None
     configuration = parse_config(args)
     template = get_template(configuration["template"])
+
     validate_template(template)
     try:
         # Disabling this until implementation replaced with pycurl
@@ -956,6 +1141,9 @@ def install_os(args):
         add_users(template, target_dir)
         set_hostname(template, target_dir)
         set_static_configuration(template, target_dir)
+        if template.get("IsterCloudInitSvc"):
+            LOG.debug("Detected IsterCloudInitSvc directive")
+            cloud_init_configs(template, target_dir)
         post_install_nonchroot(template, target_dir)
     except Exception as excep:
         LOG.error("Couldn't install ClearLinux")
@@ -1010,6 +1198,9 @@ def handle_options():
     parser.add_argument("-l", "--logfile", action="store",
                         default="/var/log/ister.log",
                         help="Output debug logging to a file")
+    parser.add_argument("-k", "--kcmdline", action="store",
+                        default="/proc/cmdline",
+                        help="File to inspect for kernel cmdline opts")
     args = parser.parse_args()
     return args
 
