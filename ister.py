@@ -942,7 +942,8 @@ def install_os(args):
     template = get_template(configuration["template"])
     validate_template(template)
     try:
-        validate_network(args.url)
+        # Disabling this until implementation replaced with pycurl
+        # validate_network(args.url)
         if template["DestinationType"] == "virtual":
             create_virtual_disk(template)
         if not template.get("DisabledNewPartitions", False):
