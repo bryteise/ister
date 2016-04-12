@@ -6,6 +6,6 @@
                           { "disk" : "cloud.img", "partition" : 2, "type" : "ext4" } ],
     "PartitionMountPoints" : [ { "disk" : "cloud.img", "partition" : 1, "mount" : "/boot" },
 			       { "disk" : "cloud.img", "partition" : 2, "mount" : "/" } ],
-    "Version": 2730,
+    "Version": 7340,
     "Bundles": ["kernel-kvm", "os-core", "os-core-update", "os-cloudguest", "telemetrics"]
 }
