@@ -1,6 +1,7 @@
 *.img
 *.pyc
 *.xz
+.*.swp
 Makefile
 Makefile.in
 __pycache__/
