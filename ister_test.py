@@ -955,6 +955,20 @@ def add_bundles_good():
     commands_compare_helper(commands)
 
 
+@open_wrapper("good", "1\n")
+def get_current_format_good():
+    """Ensure correct data read from format file"""
+    global COMMAND_RESULTS
+    COMMAND_RESULTS = []
+    commands = ["/usr/share/defaults/swupd/format",
+                "r",
+                "read",
+                "1"]
+    frmt = ister.get_current_format()
+    COMMAND_RESULTS.append(frmt)
+    commands_compare_helper(commands)
+
+
 @open_wrapper("good", "")
 @makedirs_wrapper("good")
 def set_hostname_good():
@@ -976,38 +990,20 @@ def copy_os_good():
     """Check installer command"""
     backup_add_bundles = ister.add_bundles
     ister.add_bundles = lambda x, y: None
+    backup_which = shutil.which
+    shutil.which = lambda x: False
 
     def args():
         """args empty object"""
         None
-    args.url = None
-    args.format = None
-    swupd_cmd = "swupd verify --install --path=/ --manifest=0"
-    if shutil.which("stdbuf"):
-        swupd_cmd = "stdbuf -o 0 {0}".format(swupd_cmd)
+    args.url = "urltest"
+    args.format = "formattest"
+    swupd_cmd = "swupd verify --install --path=/ --manifest=0 --url=urltest \
+--format=formattest"
     commands = [swupd_cmd]
     ister.copy_os(args, {"Version": 0, "DestinationType": ""}, "/")
     ister.add_bundles = backup_add_bundles
-    commands_compare_helper(commands)
-
-
-@run_command_wrapper
-def copy_os_url_good():
-    """Check installer command with url string"""
-    backup_add_bundles = ister.add_bundles
-    ister.add_bundles = lambda x, y: None
-
-    def args():
-        """args empty object"""
-        None
-    args.url = "/"
-    args.format = None
-    swupd_cmd = "swupd verify --install --path=/ --manifest=0 --url=/"
-    if shutil.which("stdbuf"):
-        swupd_cmd = "stdbuf -o 0 {0}".format(swupd_cmd)
-    commands = [swupd_cmd]
-    ister.copy_os(args, {"Version": 0, "DestinationType": ""}, "/")
-    ister.add_bundles = backup_add_bundles
+    shutil.which = backup_which
     commands_compare_helper(commands)
 
 
@@ -1016,18 +1012,46 @@ def copy_os_format_good():
     """Check installer command with format string"""
     backup_add_bundles = ister.add_bundles
     ister.add_bundles = lambda x, y: None
+    backup_which = shutil.which
+    shutil.which = lambda x: False
+    backup_get_current_format = ister.get_current_format
+    ister.get_current_format = lambda: "test"
 
     def args():
         """args empty object"""
         None
-    args.url = None
-    args.format = "test"
-    swupd_cmd = "swupd verify --install --path=/ --manifest=0 --format=test"
-    if shutil.which("stdbuf"):
-        swupd_cmd = "stdbuf -o 0 {0}".format(swupd_cmd)
+    args.url = "urltest"
+    args.format = None
+    swupd_cmd = "swupd verify --install --path=/ --manifest=0 --url=urltest \
+--format=test"
     commands = [swupd_cmd]
     ister.copy_os(args, {"Version": 0, "DestinationType": ""}, "/")
     ister.add_bundles = backup_add_bundles
+    shutil.which = backup_which
+    ister.get_current_format = backup_get_current_format
+    commands_compare_helper(commands)
+
+
+@run_command_wrapper
+def copy_os_which_good():
+    """Check installer command"""
+    backup_add_bundles = ister.add_bundles
+    ister.add_bundles = lambda x, y: None
+    backup_which = shutil.which
+    shutil.which = lambda x: True
+
+    def args():
+        """args empty object"""
+        None
+    args.url = "urltest"
+    args.format = "formattest"
+    swupd_cmd = "swupd verify --install --path=/ --manifest=0 --url=urltest \
+--format=formattest"
+    swupd_cmd = "stdbuf -o 0 {0}".format(swupd_cmd)
+    commands = [swupd_cmd]
+    ister.copy_os(args, {"Version": 0, "DestinationType": ""}, "/")
+    ister.add_bundles = backup_add_bundles
+    shutil.which = backup_which
     commands_compare_helper(commands)
 
 
@@ -1037,15 +1061,16 @@ def copy_os_physical_good():
     """Check installer command for physical install"""
     backup_add_bundles = ister.add_bundles
     ister.add_bundles = lambda x, y: None
+    backup_which = shutil.which
+    shutil.which = lambda x: False
 
     def args():
         """args empty object"""
         None
-    args.url = None
-    args.format = None
-    swupd_cmd = "swupd verify --install --path=/ --manifest=0"
-    if shutil.which("stdbuf"):
-        swupd_cmd = "stdbuf -o 0 {0}".format(swupd_cmd)
+    args.url = "urltest"
+    args.format = "formattest"
+    swupd_cmd = "swupd verify --install --path=/ --manifest=0 --url=urltest \
+--format=formattest"
     commands = ["/var/lib/swupd",
                 0,
                 True,
@@ -1056,6 +1081,7 @@ def copy_os_physical_good():
                 swupd_cmd]
     ister.copy_os(args, {"Version": 0, "DestinationType": "physical"}, "/")
     ister.add_bundles = backup_add_bundles
+    shutil.which = backup_which
     commands_compare_helper(commands)
 
 
@@ -2634,7 +2660,7 @@ def handle_options_good():
         raise Exception("Incorrect default config file set")
     if args.template_file:
         raise Exception("Incorrect default template file set")
-    if args.url:
+    if args.url != "https://download.clearlinux.org/update":
         raise Exception("Incorrect default url set")
     if args.format:
         raise Exception("Incorrect default format set")
@@ -3541,10 +3567,11 @@ if __name__ == '__main__':
         setup_mounts_bad,
         setup_mounts_good_units,
         add_bundles_good,
+        get_current_format_good,
         set_hostname_good,
         copy_os_good,
-        copy_os_url_good,
         copy_os_format_good,
+        copy_os_which_good,
         copy_os_physical_good,
         chroot_open_class_good,
         chroot_open_class_bad_open,

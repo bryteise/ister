@@ -345,19 +345,28 @@ def add_bundles(template, target_dir):
         open(target_dir + bundles_dir + bundle, "w").close()
 
 
+def get_current_format():
+    """Find the format id (if any) on the current system
+    """
+    frmt = ""
+    with open("/usr/share/defaults/swupd/format", "r") as format_file:
+        frmt = format_file.read().strip()
+    return frmt
+
+
 def copy_os(args, template, target_dir):
     """Wrapper for running install command
     """
     LOG.info("Starting swupd. May take several minutes")
+    if not args.format:
+        args.format = get_current_format()
     add_bundles(template, target_dir)
     swupd_command = "swupd verify --install --path={0} " \
                     "--manifest={1}".format(target_dir, template["Version"])
     if shutil.which("stdbuf"):
         swupd_command = "stdbuf -o 0 {0}".format(swupd_command)
-    if args.url:
-        swupd_command += " --url={0}".format(args.url)
-    if args.format:
-        swupd_command += " --format={0}".format(args.format)
+    swupd_command += " --url={0}".format(args.url)
+    swupd_command += " --format={0}".format(args.format)
     if template["DestinationType"] == "physical":
         os.makedirs("/var/lib/swupd", exist_ok=True)
         os.makedirs("{0}/var/tmp".format(target_dir))
@@ -1186,7 +1195,8 @@ def handle_options():
     parser.add_argument("-t", "--template-file", action="store",
                         default=None,
                         help="Path to template file to use")
-    parser.add_argument("-u", "--url", action="store", default=None,
+    parser.add_argument("-u", "--url", action="store",
+                        default="https://download.clearlinux.org/update",
                         help="URL to use for looking for update content")
     parser.add_argument("-f", "--format", action="store", default=None,
                         help="format to use for looking for update content")
