@@ -10,3 +10,5 @@ exception before being submitted. If a new exception makes sense it can be added
 on a case by case basis.
 
 Testing is supported through ister_test.py.
+
+Currently requires netifaces and python3.

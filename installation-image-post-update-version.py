@@ -3,7 +3,7 @@
 import os
 import sys
 
-INSTALLER_VERSION = "7120"
+INSTALLER_VERSION = "7490"
 
 def create_installer_config(path):
     """Create a basicl installation configuration file"""
@@ -51,6 +51,28 @@ def append_installer_rootwait(path):
         entry.writelines(entry_content)
 
 
+def append_installer_no_kms(path):
+    """Disable KMS on the installer kernel commandline"""
+    entry_path = path + "/boot/loader/entries/"
+    entry_file = os.listdir(entry_path)
+    if len(entry_file) != 1:
+        raise Exception("Unable to find specific entry file in {0}, "
+                        "found {1} instead".format(entry_path, entry_file))
+    file_full_path = entry_path + entry_file[0]
+    with open(file_full_path, "r") as entry:
+        entry_content = entry.readlines()
+    options_line = entry_content[-1]
+    if not options_line.startswith("options "):
+        raise Exception("Last line of entry file is not the kernel "
+                        "commandline options")
+    # Account for newline at the end of the line
+    options_line = options_line[:-1] + " nomodeset i915.modeset=0\n"
+    entry_content[-1] = options_line
+    os.unlink(file_full_path)
+    with open(file_full_path, "w") as entry:
+        entry.writelines(entry_content)
+
+
 def disable_tty1_getty(path):
     """Add a symlink masking the systemd tty1 generator"""
     os.makedirs(path + "/etc/systemd/system/getty.target.wants")
@@ -71,6 +93,7 @@ if __name__ == '__main__':
     try:
         create_installer_config(sys.argv[1])
         append_installer_rootwait(sys.argv[1])
+        append_installer_no_kms(sys.argv[1])
         disable_tty1_getty(sys.argv[1])
         add_installer_service(sys.argv[1])
     except Exception as exep:
