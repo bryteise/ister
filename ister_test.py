@@ -996,10 +996,11 @@ def copy_os_good():
     def args():
         """args empty object"""
         None
-    args.url = "urltest"
+    args.contenturl = "ctest"
+    args.versionurl = "vtest"
     args.format = "formattest"
-    swupd_cmd = "swupd verify --install --path=/ --manifest=0 --url=urltest \
---format=formattest"
+    swupd_cmd = "swupd verify --install --path=/ --manifest=0 \
+--contenturl=ctest --versionurl=vtest --format=formattest"
     commands = [swupd_cmd]
     ister.copy_os(args, {"Version": 0, "DestinationType": ""}, "/")
     ister.add_bundles = backup_add_bundles
@@ -1020,10 +1021,12 @@ def copy_os_format_good():
     def args():
         """args empty object"""
         None
-    args.url = "urltest"
+
+    args.contenturl = "ctest"
+    args.versionurl = "vtest"
     args.format = None
-    swupd_cmd = "swupd verify --install --path=/ --manifest=0 --url=urltest \
---format=test"
+    swupd_cmd = "swupd verify --install --path=/ --manifest=0 \
+--contenturl=ctest --versionurl=vtest --format=test"
     commands = [swupd_cmd]
     ister.copy_os(args, {"Version": 0, "DestinationType": ""}, "/")
     ister.add_bundles = backup_add_bundles
@@ -1043,10 +1046,12 @@ def copy_os_which_good():
     def args():
         """args empty object"""
         None
-    args.url = "urltest"
+
+    args.contenturl = "ctest"
+    args.versionurl = "vtest"
     args.format = "formattest"
-    swupd_cmd = "swupd verify --install --path=/ --manifest=0 --url=urltest \
---format=formattest"
+    swupd_cmd = "swupd verify --install --path=/ --manifest=0 \
+--contenturl=ctest --versionurl=vtest --format=formattest"
     swupd_cmd = "stdbuf -o 0 {0}".format(swupd_cmd)
     commands = [swupd_cmd]
     ister.copy_os(args, {"Version": 0, "DestinationType": ""}, "/")
@@ -1067,10 +1072,12 @@ def copy_os_physical_good():
     def args():
         """args empty object"""
         None
-    args.url = "urltest"
+
+    args.contenturl = "ctest"
+    args.versionurl = "vtest"
     args.format = "formattest"
-    swupd_cmd = "swupd verify --install --path=/ --manifest=0 --url=urltest \
---format=formattest"
+    swupd_cmd = "swupd verify --install --path=/ --manifest=0 \
+--contenturl=ctest --versionurl=vtest --format=formattest"
     commands = ["/var/lib/swupd",
                 0,
                 True,
@@ -2608,8 +2615,8 @@ def parse_config_bad():
 def handle_options_good():
     """Test all values handle options supports"""
     # Test short options first
-    sys.argv = ["ister.py", "-c", "cfg", "-t", "tpt", "-u", "/", "-f",
-                "1", "-v", "-l", "log", "-L", "debug"]
+    sys.argv = ["ister.py", "-c", "cfg", "-t", "tpt", "-C", "/", "-V", "/",
+                "-f", "1", "-v", "-l", "log", "-L", "debug"]
     try:
         args = ister.handle_options()
     except Exception:
@@ -2618,8 +2625,10 @@ def handle_options_good():
         raise Exception("Failed to correctly set short config file")
     if args.template_file != "tpt":
         raise Exception("Failed to correctly set short template file")
-    if args.url != "/":
-        raise Exception("Failed to correctly set short url")
+    if args.contenturl != "/":
+        raise Exception("Failed to correctly set short contenturl")
+    if args.versionurl != "/":
+        raise Exception("Failed to correctly set short versionurl")
     if args.format != "1":
         raise Exception("Failed to correctly set short format")
     if args.verbose is not True:
@@ -2630,7 +2639,7 @@ def handle_options_good():
         raise Exception("Failed to correctly set short loglevel")
     # Test long options next
     sys.argv = ["ister.py", "--config-file=cfg", "--template-file=tpt",
-                "--url=/", "--format=1", "--verbose",
+                "--contenturl=/", "--versionurl=/", "--format=1", "--verbose",
                 "--logfile=log", "--loglevel=debug"]
     try:
         args = ister.handle_options()
@@ -2640,8 +2649,10 @@ def handle_options_good():
         raise Exception("Failed to correctly set long config file")
     if args.template_file != "tpt":
         raise Exception("Failed to correctly set long template file")
-    if args.url != "/":
-        raise Exception("Failed to correctly set long url")
+    if args.contenturl != "/":
+        raise Exception("Failed to correctly set long contenturl")
+    if args.versionurl != "/":
+        raise Exception("Failed to correctly set long versionurl")
     if args.format != "1":
         raise Exception("Failed to correctly set long format")
     if args.verbose is not True:
@@ -2660,8 +2671,10 @@ def handle_options_good():
         raise Exception("Incorrect default config file set")
     if args.template_file:
         raise Exception("Incorrect default template file set")
-    if args.url != "https://download.clearlinux.org/update":
-        raise Exception("Incorrect default url set")
+    if args.contenturl != "https://download.clearlinux.org/update":
+        raise Exception("Incorrect default contenturl set")
+    if args.versionurl != "https://download.clearlinux.org/update":
+        raise Exception("Incorrect default versionurl set")
     if args.format:
         raise Exception("Incorrect default format set")
     if args.verbose:

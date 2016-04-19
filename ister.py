@@ -365,7 +365,8 @@ def copy_os(args, template, target_dir):
                     "--manifest={1}".format(target_dir, template["Version"])
     if shutil.which("stdbuf"):
         swupd_command = "stdbuf -o 0 {0}".format(swupd_command)
-    swupd_command += " --url={0}".format(args.url)
+    swupd_command += " --contenturl={0}".format(args.contenturl)
+    swupd_command += " --versionurl={0}".format(args.versionurl)
     swupd_command += " --format={0}".format(args.format)
     if template["DestinationType"] == "physical":
         os.makedirs("/var/lib/swupd", exist_ok=True)
@@ -1195,7 +1196,10 @@ def handle_options():
     parser.add_argument("-t", "--template-file", action="store",
                         default=None,
                         help="Path to template file to use")
-    parser.add_argument("-u", "--url", action="store",
+    parser.add_argument("-V", "--versionurl", action="store",
+                        default="https://download.clearlinux.org/update",
+                        help="URL to use for looking for update versions")
+    parser.add_argument("-C", "--contenturl", action="store",
                         default="https://download.clearlinux.org/update",
                         help="URL to use for looking for update content")
     parser.add_argument("-f", "--format", action="store", default=None,
