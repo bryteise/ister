@@ -899,8 +899,11 @@ def validate_template(template):
         raise Exception("Missing Bundles field")
     validate_type_template(template)
     validate_disk_template(template)
-    if template["Version"] <= 0:
+    version = template["Version"]
+    if type(version) == int and version <= 0:
         raise Exception("Invalid version number")
+    if type(version) == str and version != "latest":
+        raise Exception("Invalid version string (must be 'latest')")
     if template.get("Users"):
         validate_user_template(template["Users"])
     if template.get("Hostname") is not None:

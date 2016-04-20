@@ -76,6 +76,23 @@ def good_virtual_disk_template():
     "Version" : 800, "Bundles" : ["linux-kvm"]}'
 
 
+def good_latest_template():
+    """Return string representation of good_latest_template"""
+    return u'{"DestinationType" : "virtual", "PartitionLayout" : \
+    [{"disk" : "gvdt", "partition" : 1, "size" : "512M", "type" : "EFI"}, \
+    {"disk" : "gvdt", "partition" : 2, \
+    "size" : "512M", "type" : "swap"}, {"disk" : "gvdt", "partition" : 3, \
+    "size" : "rest", "type" : "linux"}], \
+    "FilesystemTypes" : \
+    [{"disk" : "gvdt", "partition" : 1, "type" : "vfat"}, {"disk" : "gvdt", \
+    "partition" : 2, "type" : "swap"}, \
+    {"disk" : "gvdt", "partition" : 3, "type" : "ext4"}], \
+    "PartitionMountPoints" : \
+    [{"disk" : "gvdt", "partition" : 1, "mount" : "/boot"}, {"disk" : "gvdt", \
+    "partition" : 3, "mount" : "/"}], \
+    "Version" : "latest", "Bundles" : ["linux-kvm"]}'
+
+
 def full_user_install_template():
     """Return string representation of full_user_install_template"""
     return u'{"DestinationType" : "virtual", "PartitionLayout": \
@@ -2316,6 +2333,12 @@ def validate_template_good():
     ister.validate_template(template)
 
 
+def validate_template_latest_good():
+    """Good validate_template"""
+    template = json.loads(good_latest_template())
+    ister.validate_template(template)
+
+
 def validate_template_good_disable_partitioning():
     """Good validate tamplate without creating new partitions"""
     template = json.loads(good_virtual_disk_template())
@@ -3671,6 +3694,7 @@ if __name__ == '__main__':
         validate_postnonchroot_template_good,
         validate_postnonchroot_template_bad,
         validate_template_good,
+        validate_template_latest_good,
         validate_template_good_disable_partitioning,
         validate_template_bad_long_hostname,
         validate_template_bad_missing_destination_type,
