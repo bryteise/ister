@@ -690,14 +690,7 @@ class SplashScreen(ProcessStep):
 The installer will navigate most environments with autoproxies automatically
 """
 
-        try:
-            with open('/usr/share/clear/version', 'r') as f:
-                version = f.readline()
-                f.close()
-        except Exception as exep:
-            version = 'XYZZY'
-
-        alert = Alert("ClearLinux Installer v{0}".format(version), alert_content)
+        alert = Alert("ClearLinux Installer", alert_content)
         alert.do_alert()
         return alert.response
 
@@ -1721,7 +1714,7 @@ class Installation(object):
             self.logger.debug(self.installation_d)
             template.write(json.dumps(self.installation_d))
         text = ""
-        title = u'Automatic installation of ClearLinux v{0}' \
+        title = u'Automatic installation of ClearLinux {0}' \
                 .format(self.installation_d['Version'])
         Alert(title, 'Starting....', block=False).do_alert()
         if self.args['no_install']:
