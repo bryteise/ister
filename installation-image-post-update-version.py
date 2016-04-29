@@ -3,7 +3,7 @@
 import os
 import sys
 
-INSTALLER_VERSION = "7490"
+INSTALLER_VERSION = "latest"
 
 def create_installer_config(path):
     """Create a basicl installation configuration file"""
@@ -27,7 +27,8 @@ def create_installer_config(path):
         cfile.write(config)
     with open("{}/etc/ister.json".format(path), "w") as jfile:
         jfile.write(jconfig.replace('"Version" : 0',
-                                    '"Version" : ' + INSTALLER_VERSION))
+                                    '"Version" : "{}"'.format(INSTALLER_VERSION)))
+
 
 def append_installer_rootwait(path):
     """Add a delay to the installer kernel commandline"""
