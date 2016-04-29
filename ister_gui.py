@@ -1720,7 +1720,8 @@ class Installation(object):
         if self.args['no_install']:
             self._exit(0, 'dry run - actual install skipped.')
         supported = [
-            {'name': 'url', 'out': '--url={0}'},
+            {'name': 'contenturl', 'out': '--contenturl={0}'},
+            {'name': 'versionurl', 'out': '--versionurl={0}'},
             {'name': 'format', 'out': '--format={0}'}]
         flags = [item['out'].format(self.args[item['name']])
                  for item in supported if self.args[item['name']] is not None]
@@ -1775,7 +1776,11 @@ class Installation(object):
 def handle_options():
     """Argument parser for the ui"""
     parser = argparse.ArgumentParser()
-    parser.add_argument("-u", "--url", action="store", default=None,
+    parser.add_argument("-V", "--versionurl", action="store",
+                        default="https://download.clearlinux.org/update",
+                        help="URL to use for looking for update versions")
+    parser.add_argument("-C", "--contenturl", action="store",
+                        default="https://download.clearlinux.org/update",
                         help="URL to use for looking for update content")
     parser.add_argument("-f", "--format", action="store", default=None,
                         help="format to use for looking for update content")
