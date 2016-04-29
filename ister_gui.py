@@ -1229,15 +1229,12 @@ class BundleSelectorStep(ProcessStep):
                                              shell=True).decode('utf-8')
         except Exception:
             output = 'none'
-        supported = {
-            'none': {'name': 'kernel-native',
-                     'desc': 'Required to run clear on baremetal'},
-            'qemu': {'name': 'kernel-kvm',
-                     'desc': 'Required to run clear on kvm'}}
-        kernel = 'Kernel invalid'
-        for key in supported:
-            if key in output:
-                kernel = supported[key]
+        if 'qemu' in output or 'kvm' in output:
+            kernel = {'name': 'kernel-kvm',
+                      'desc': 'Required to run clear on kvm'}
+        else:
+            kernel = {'name': 'kernel-native',
+                      'desc': 'Required to run clear on baremetal'}
         self.required_bundles.extend([
             {'name': 'os-core',
              'desc': 'Minimal packages to have clear fully functional'},
