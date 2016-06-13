@@ -666,7 +666,8 @@ in PartitionLayout".format(disk, part))
     if template["DestinationType"] == "virtual" and len(disk_to_parts) != 1:
         raise Exception("Mulitple files for virtual disk \
 destination is unsupported")
-    if not has_efi and template["DestinationType"] != "virtual":
+    if not has_efi and template["DestinationType"] != "virtual" and \
+       template.get("LegacyBios") != True:
         raise Exception("No EFI partition defined")
 
     for key in disk_to_parts:
@@ -755,7 +756,8 @@ PartitionMountPoints not found in FilesystemTypes"
 
     if not has_rootfs:
         raise Exception("Missing rootfs mount")
-    if not has_boot and template["DestinationType"] != "virtual":
+    if not has_boot and template["DestinationType"] != "virtual" and \
+       template.get("LegacyBios") != True:
         raise Exception("Missing boot mount")
 
 
@@ -811,7 +813,7 @@ def validate_user_template(users):
             uids[uid] = uid
 
         if sudo is not None:
-            if sudo is not True and sudo is not False:
+            if type(sudo) != bool:
                 raise Exception("Invalid sudo option")
             if sudo and not key and (password is None or password == ""):
                 raise Exception("Missing password for user entry: {0}"
@@ -879,6 +881,15 @@ def validate_postnonchroot_template(scripts):
                             .format(script))
 
 
+def validate_legacybios_template(legacy):
+    """Attempt to verify legacy bios setting is valid
+
+    This function will raise an Exception on finding an error.
+    """
+    if type(legacy) != bool:
+        raise Exception("Invalid type for LegacyBios, must be True or False")
+
+
 def validate_template(template):
     """Attempt to verify template is sane
 
@@ -912,6 +923,8 @@ def validate_template(template):
         validate_static_ip_template(template['Static_IP'])
     if template.get("PostNonChroot"):
         validate_postnonchroot_template(template["PostNonChroot"])
+    if template.get("LegacyBios"):
+        validate_legacybios_template(template["LegacyBios"])
     LOG.debug("Configuration is valid:")
     LOG.debug(template)
 

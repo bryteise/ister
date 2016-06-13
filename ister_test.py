@@ -1482,6 +1482,18 @@ def validate_layout_good_missing_efi_virtual():
         raise Exception("Valid template failed to parse {}".format(exep))
 
 
+def validate_layout_good_missing_boot():
+    """Good validate_layout without boot partition (MBR type)"""
+    template = {"PartitionLayout": [{"disk": "sda", "partition": 1,
+                                     "size": "4G", "type": "linux"}],
+                "DestinationType": "physical",
+                "LegacyBios": True}
+    try:
+        ister.validate_layout(template)
+    except Exception as exep:
+        raise Exception("Valid template failed to parse {}".format(exep))
+
+
 def validate_layout_bad_missing_disk():
     """Bad validate_layout no disk on partition"""
     exception_flag = False
@@ -1643,7 +1655,8 @@ def validate_layout_bad_missing_efi():
     exception_flag = False
     template = {"PartitionLayout": [{"disk": "sda", "partition": 1,
                                      "size": "4G", "type": "linux"}],
-                "DestinationType": "physical"}
+                "DestinationType": "physical",
+                "LegacyBios": False}
     try:
         ister.validate_layout(template)
     except Exception:
@@ -2031,6 +2044,19 @@ def validate_partition_mounts_good_missing_boot_virtual():
         raise Exception("Valid template failed to parse")
 
 
+def validate_partition_mounts_good_missing_boot():
+    """Good validate_partition_mounts missing boot partition (mbr type)"""
+    template = {"PartitionMountPoints": [{"disk": "sda", "partition": 1,
+                                          "mount": "/"}],
+                "DestinationType": "virtual",
+                "LegacyBios": True}
+    partition_fstypes = set(["sda1"])
+    try:
+        ister.validate_partition_mounts(template, partition_fstypes)
+    except Exception:
+        raise Exception("Valid template failed to parse")
+
+
 def validate_partition_mounts_bad_missing_disk():
     """Bad validate_partition_mounts missing disk"""
     exception_flag = False
@@ -2118,7 +2144,8 @@ def validate_partition_mounts_bad_missing_boot():
     """Bad validate_partition_mounts missing boot partition"""
     exception_flag = False
     template = {"PartitionMountPoints": [{"disk": "sda", "partition": 1,
-                                          "mount": "/"}]}
+                                          "mount": "/"}],
+                "LegacyBios": False}
     partition_fstypes = set(["sda1"])
     try:
         ister.validate_partition_mounts(template, partition_fstypes)
@@ -3632,6 +3659,7 @@ if __name__ == '__main__':
         get_template_good,
         validate_layout_good,
         validate_layout_good_missing_efi_virtual,
+        validate_layout_good_missing_boot,
         validate_layout_bad_missing_disk,
         validate_layout_bad_missing_part,
         validate_layout_bad_missing_size,
@@ -3669,6 +3697,7 @@ if __name__ == '__main__':
         validate_static_ip_bad_repeated_values,
         validate_partition_mounts_good,
         validate_partition_mounts_good_missing_boot_virtual,
+        validate_partition_mounts_good_missing_boot,
         validate_partition_mounts_bad_missing_disk,
         validate_partition_mounts_bad_missing_partition,
         validate_partition_mounts_bad_missing_mount,
