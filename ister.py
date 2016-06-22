@@ -270,6 +270,8 @@ def setup_mounts(template):
     except:
         raise Exception("Failed to setup mounts for install")
 
+    has_boot = False
+
     units_dir = os.path.join(target_dir, "etc", "systemd", "system",
                              "local-fs.target.wants")
 
@@ -290,8 +292,11 @@ Where = {1}\nType = {2}\n\n".format(uuid, mount, fs_type)
         unit_file.write(unit)
         unit_file.close()
 
-    for part in sorted(template["PartitionMountPoints"], key=lambda v:
-                       v["mount"]):
+    parts = sorted(template["PartitionMountPoints"], key=lambda v: v["mount"])
+    for part in parts:
+        if part["mount"] == "/boot":
+            has_boot = True
+    for part in parts:
         dev = get_device_name(template, part["disk"])
         if template.get("dev"):
             base_dev = dev[:-1]
@@ -307,9 +312,15 @@ Where = {1}\nType = {2}\n\n".format(uuid, mount, fs_type)
             run_command("sgdisk {0} --typecode={1}:\
 4f68bce3-e8cd-4db1-96e7-fbcaf984b709"
                         .format(base_dev, part["partition"]))
-        if part["mount"] == "/boot":
+            if not has_boot and template.get("LegacyBios"):
+                run_command("sgdisk {0} --attributes={1}:set:2"
+                            .format(base_dev, part["partition"]))
+        if part["mount"] == "/boot" and not template.get("LegacyBios"):
             run_command("sgdisk {0} --typecode={1}:\
 c12a7328-f81f-11d2-ba4b-00a0c93ec93b"
+                        .format(base_dev, part["partition"]))
+        if part["mount"] == "/boot" and template.get("LegacyBios"):
+            run_command("sgdisk {0} --attributes={1}:set:2"
                         .format(base_dev, part["partition"]))
         if part["mount"] == "/srv":
             run_command("sgdisk {0} --typecode={1}:\
@@ -333,6 +344,7 @@ c12a7328-f81f-11d2-ba4b-00a0c93ec93b"
                 create_mount_unit(os.path.join(units_dir, filename),
                                   get_uuid(part["partition"], base_dev),
                                   part["mount"], fs_type)
+
     return target_dir
 
 

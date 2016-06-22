@@ -826,6 +826,78 @@ def setup_mounts_good():
 
 
 @run_command_wrapper
+def setup_mounts_good_mbr():
+    """Setup mount points for mbr install"""
+    backup_mkdtemp = tempfile.mkdtemp
+
+    def mock_mkdtemp(*_, **kwargs):
+        """mock_mkdtemp wrapper"""
+        if not kwargs.get("prefix"):
+            raise Exception("Missing prefix argument to mkdtemp")
+        COMMAND_RESULTS.append(kwargs["prefix"])
+        return "/tmp"
+    tempfile.mkdtemp = mock_mkdtemp
+    template = {"PartitionMountPoints": [{"mount": "/", "disk": "sda",
+                                          "partition": 1},
+                                         {"mount": "/boot", "disk": "sda",
+                                          "partition": 2}],
+                "FilesystemTypes": [{"disk": "sda", "partition": 1,
+                                     "type": "ext4"},
+                                    {"disk": "sda", "partition": 2,
+                                     "type": "ext4"}],
+                "Version": 10,
+                "LegacyBios": True}
+    commands = ["ister-10-",
+                "sgdisk /dev/sda "
+                "--typecode=1:4f68bce3-e8cd-4db1-96e7-fbcaf984b709",
+                "mount /dev/sda1 /tmp/",
+                "sgdisk /dev/sda --attributes=2:set:2",
+                "mkdir -p /tmp/boot",
+                "mount /dev/sda2 /tmp/boot"]
+    try:
+        target_dir = ister.setup_mounts(template)
+    finally:
+        tempfile.mkdtemp = backup_mkdtemp
+    if target_dir != "/tmp":
+        raise Exception("Target dir doesn't match expected: {0}"
+                        .format(target_dir))
+    commands_compare_helper(commands)
+
+
+@run_command_wrapper
+def setup_mounts_good_no_boot():
+    """Setup mount points for install without a /boot (mbr type)"""
+    backup_mkdtemp = tempfile.mkdtemp
+
+    def mock_mkdtemp(*_, **kwargs):
+        """mock_mkdtemp wrapper"""
+        if not kwargs.get("prefix"):
+            raise Exception("Missing prefix argument to mkdtemp")
+        COMMAND_RESULTS.append(kwargs["prefix"])
+        return "/tmp"
+    tempfile.mkdtemp = mock_mkdtemp
+    template = {"PartitionMountPoints": [{"mount": "/", "disk": "sda",
+                                          "partition": 1}],
+                "FilesystemTypes": [{"disk": "sda", "partition": 1,
+                                     "type": "vfat"}],
+                "Version": 10,
+                "LegacyBios": True}
+    commands = ["ister-10-",
+                "sgdisk /dev/sda "
+                "--typecode=1:4f68bce3-e8cd-4db1-96e7-fbcaf984b709",
+                "sgdisk /dev/sda --attributes=1:set:2",
+                "mount /dev/sda1 /tmp/"]
+    try:
+        target_dir = ister.setup_mounts(template)
+    finally:
+        tempfile.mkdtemp = backup_mkdtemp
+    if target_dir != "/tmp":
+        raise Exception("Target dir doesn't match expected: {0}"
+                        .format(target_dir))
+    commands_compare_helper(commands)
+
+
+@run_command_wrapper
 def setup_mounts_good_units():
     """Setup mount points for install"""
     backup_mkdtemp = ister.tempfile.mkdtemp
@@ -3626,6 +3698,8 @@ if __name__ == '__main__':
         create_filesystems_virtual_good,
         create_filesystems_good_options,
         setup_mounts_good,
+        setup_mounts_good_mbr,
+        setup_mounts_good_no_boot,
         setup_mounts_virtual_good,
         setup_mounts_bad,
         setup_mounts_good_units,
