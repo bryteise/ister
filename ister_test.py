@@ -1088,8 +1088,9 @@ def copy_os_good():
     args.contenturl = "ctest"
     args.versionurl = "vtest"
     args.format = "formattest"
+    args.statedir = "/statetest"
     swupd_cmd = "swupd verify --install --path=/ --manifest=0 \
---contenturl=ctest --versionurl=vtest --format=formattest"
+--contenturl=ctest --versionurl=vtest --format=formattest --statedir=/statetest"
     commands = [swupd_cmd]
     ister.copy_os(args, {"Version": 0, "DestinationType": ""}, "/")
     ister.add_bundles = backup_add_bundles
@@ -1114,8 +1115,9 @@ def copy_os_format_good():
     args.contenturl = "ctest"
     args.versionurl = "vtest"
     args.format = None
+    args.statedir = "/statetest"
     swupd_cmd = "swupd verify --install --path=/ --manifest=0 \
---contenturl=ctest --versionurl=vtest --format=test"
+--contenturl=ctest --versionurl=vtest --format=test --statedir=/statetest"
     commands = [swupd_cmd]
     ister.copy_os(args, {"Version": 0, "DestinationType": ""}, "/")
     ister.add_bundles = backup_add_bundles
@@ -1139,8 +1141,9 @@ def copy_os_which_good():
     args.contenturl = "ctest"
     args.versionurl = "vtest"
     args.format = "formattest"
+    args.statedir = "/statetest"
     swupd_cmd = "swupd verify --install --path=/ --manifest=0 \
---contenturl=ctest --versionurl=vtest --format=formattest"
+--contenturl=ctest --versionurl=vtest --format=formattest --statedir=/statetest"
     swupd_cmd = "stdbuf -o 0 {0}".format(swupd_cmd)
     commands = [swupd_cmd]
     ister.copy_os(args, {"Version": 0, "DestinationType": ""}, "/")
@@ -1165,8 +1168,9 @@ def copy_os_physical_good():
     args.contenturl = "ctest"
     args.versionurl = "vtest"
     args.format = "formattest"
+    args.statedir = "/statetest"
     swupd_cmd = "swupd verify --install --path=/ --manifest=0 \
---contenturl=ctest --versionurl=vtest --format=formattest"
+--contenturl=ctest --versionurl=vtest --format=formattest --statedir=/statetest"
     commands = ["/var/lib/swupd",
                 0,
                 True,
@@ -2738,7 +2742,7 @@ def handle_options_good():
     """Test all values handle options supports"""
     # Test short options first
     sys.argv = ["ister.py", "-c", "cfg", "-t", "tpt", "-C", "/", "-V", "/",
-                "-f", "1", "-v", "-l", "log", "-L", "debug"]
+                "-f", "1", "-v", "-l", "log", "-L", "debug", "-S", "/"]
     try:
         args = ister.handle_options()
     except Exception:
@@ -2759,10 +2763,12 @@ def handle_options_good():
         raise Exception("Failed to correctly set short logfile")
     if args.loglevel != "debug":
         raise Exception("Failed to correctly set short loglevel")
+    if args.statedir != "/":
+        raise Exception("Failed to correctly set short state dir")
     # Test long options next
     sys.argv = ["ister.py", "--config-file=cfg", "--template-file=tpt",
                 "--contenturl=/", "--versionurl=/", "--format=1", "--verbose",
-                "--logfile=log", "--loglevel=debug"]
+                "--logfile=log", "--loglevel=debug", "--statedir=/"]
     try:
         args = ister.handle_options()
     except Exception:
@@ -2783,6 +2789,8 @@ def handle_options_good():
         raise Exception("Failed to correctly set long logfile")
     if args.loglevel != "debug":
         raise Exception("Failed to correctly set long loglevel")
+    if args.statedir != "/":
+        raise Exception("Failed to correctly set long state dir")
     # Test default options
     sys.argv = ["ister.py"]
     try:
@@ -2805,6 +2813,8 @@ def handle_options_good():
         raise Exception("Incorrect default logfile set")
     if args.loglevel != "info":
         raise Exception("Incorrect default loglevel set")
+    if args.statedir != "/var/lib/swupd":
+        raise Exception("Incorrect default state dir set")
 
 
 def handle_logging_good():

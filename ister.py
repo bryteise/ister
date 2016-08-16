@@ -380,6 +380,8 @@ def copy_os(args, template, target_dir):
     swupd_command += " --contenturl={0}".format(args.contenturl)
     swupd_command += " --versionurl={0}".format(args.versionurl)
     swupd_command += " --format={0}".format(args.format)
+    swupd_command += " --statedir={0}".format(args.statedir)
+
     if template["DestinationType"] == "physical":
         os.makedirs("/var/lib/swupd", exist_ok=True)
         os.makedirs("{0}/var/tmp".format(target_dir))
@@ -1243,6 +1245,9 @@ def handle_options():
     parser.add_argument("-k", "--kcmdline", action="store",
                         default="/proc/cmdline",
                         help="File to inspect for kernel cmdline opts")
+    parser.add_argument("-S", "--statedir", action="store",
+                        default="/var/lib/swupd",
+                        help="Path to swupd state dir")
     args = parser.parse_args()
     return args
 
