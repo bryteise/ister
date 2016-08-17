@@ -757,7 +757,7 @@ class TelemetryDisclosure(ProcessStep):
 class StartInstaller(ProcessStep):
     """UI to select automatic or manual installation"""
     def handler(self, config):
-        choices = u'Automatic Manual(Advanced) Exit'.split()
+        choices = [u'Automatic', u'Manual(Advanced)', u'Exit']
 
         if not self._ui:
             self._ui = ButtonMenu(u'Choose Installation Type', choices)
@@ -864,7 +864,7 @@ class PartitioningMenu(ProcessStep):
 
     def build_ui_widgets(self):
         self._ui_widgets = list()
-        for key in self.choices:
+        for key in sorted(self.choices):
             button = urwid.Button(self.choices[key])
             urwid.connect_signal(button, 'click', self._item_chosen, key)
             button = urwid.AttrMap(button, None, focus_map='reversed')
@@ -1299,7 +1299,7 @@ class ConfirmUserMenu(ProcessStep):
 
     def build_ui_widgets(self):
         self._ui_widgets = list()
-        for key in self.choices:
+        for key in sorted(self.choices):
             button = urwid.Button(self.choices[key])
             urwid.connect_signal(button, 'click', self._item_chosen, key)
             button = urwid.AttrMap(button, None, focus_map='reversed')
@@ -1444,7 +1444,7 @@ class ConfirmDHCPMenu(ProcessStep):
 
     def build_ui_widgets(self):
         self._ui_widgets = list()
-        for key in self.choices:
+        for key in sorted(self.choices):
             button = urwid.Button(self.choices[key])
             urwid.connect_signal(button, 'click', self._item_chosen, key)
             button = urwid.AttrMap(button, None, focus_map='reversed')
