@@ -1354,14 +1354,24 @@ class UserConfigurationStep(ProcessStep):
                              self._username_handler)
 
     def _username_handler(self, edit, new_text):
-        name_text = self.edit_name.get_edit_text()[0:1]
-        lastname_text = self.edit_lastname.get_edit_text()[0:8]
+        new_text = new_text.lower()
+        name_text = self.edit_name.get_edit_text()[0:1].lower()
+        lastname_text = self.edit_lastname.get_edit_text()[0:8].lower()
         if edit == self.edit_name:
             name_text = new_text[0:1]
         else:
             lastname_text = new_text[0:8]
-        self.edit_username.set_edit_text(name_text.lower() +
-                                         lastname_text.lower())
+
+        # first letter of suggested username must be valid
+        if not re.match('[a-z_]', name_text):
+            name_text = ''
+
+        # rest of suggested username must be valid
+        for c in lastname_text:
+            if not re.match('[a-z0-9_-]', c):
+                lastname_text = lastname_text.replace(c, '')
+
+        self.edit_username.set_edit_text(name_text + lastname_text)
 
     def handler(self, config):
         if not self._ui_widgets:
