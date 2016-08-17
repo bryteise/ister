@@ -1,4 +1,4 @@
-"""Linux installation gui"""
+"""Clear Linux OS installation gui"""
 
 #
 # This file is part of ister.
@@ -690,7 +690,7 @@ class SplashScreen(ProcessStep):
 The installer will navigate most environments with autoproxies automatically
 """
 
-        alert = Alert("ClearLinux Installer", alert_content)
+        alert = Alert("Clear Linux OS for Intel Architecture Installer", alert_content)
         alert.do_alert()
         return alert.response
 
@@ -699,13 +699,14 @@ class TelemetryDisclosure(ProcessStep):
     """UI to accept telemetry"""
     def __init__(self):
         super(TelemetryDisclosure, self).__init__()
-        self._msg_prefix = 'Allow the Clear Linux Project for Intel Architecture ' \
-                           'to collect anonymous reports to improve system stability? ' \
-                           'These reports only relate to operating system details - ' \
-                           'no personally identifiable information is collected.' \
+        self._msg_prefix = 'Allow the Clear Linux OS for Intel Architecture ' \
+                           'to collect anonymous reports to improve system ' \
+                           'stability? These reports only relate to ' \
+                           'operating system details - no personally ' \
+                           'identifiable information is collected.' \
                            '\n\n' \
-                           'See http://clearlinux.org/features/telemetry for ' \
-                           'more information.\n\n'
+                           'See http://clearlinux.org/features/telemetry ' \
+                           'for more information.\n\n'
         self._msg_suffix = 'Install the telemetrics-client bundle later if '\
                            'you change your mind.'
         self.message = urwid.Text(self._msg_prefix + self._msg_suffix)
@@ -1231,13 +1232,14 @@ class BundleSelectorStep(ProcessStep):
             output = 'none'
         if 'qemu' in output or 'kvm' in output:
             kernel = {'name': 'kernel-kvm',
-                      'desc': 'Required to run clear on kvm'}
+                      'desc': 'Required to run Clear Linux OS on kvm'}
         else:
             kernel = {'name': 'kernel-native',
-                      'desc': 'Required to run clear on baremetal'}
+                      'desc': 'Required to run Clear Linux OS on baremetal'}
         self.required_bundles.extend([
             {'name': 'os-core',
-             'desc': 'Minimal packages to have clear fully functional'},
+             'desc': 'Minimal packages to have Clear Linux OS fully ' \
+                     'functional'},
             kernel,
             {'name': 'os-core-update',
              'desc': 'Required to update the system'},
@@ -1711,7 +1713,7 @@ class Installation(object):
             self.logger.debug(self.installation_d)
             template.write(json.dumps(self.installation_d))
         text = ""
-        title = u'Automatic installation of ClearLinux {0}' \
+        title = u'Automatic installation of Clear Linux OS {0}' \
                 .format(self.installation_d['Version'])
         Alert(title, 'Starting....', block=False).do_alert()
         if self.args['no_install']:
