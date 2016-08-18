@@ -690,7 +690,8 @@ class SplashScreen(ProcessStep):
 The installer will navigate most environments with autoproxies automatically
 """
 
-        alert = Alert("Clear Linux OS for Intel Architecture Installer", alert_content)
+        alert = Alert("Clear Linux OS for Intel Architecture Installer",
+                      alert_content)
         alert.do_alert()
         return alert.response
 
@@ -1238,7 +1239,7 @@ class BundleSelectorStep(ProcessStep):
                       'desc': 'Required to run Clear Linux OS on baremetal'}
         self.required_bundles.extend([
             {'name': 'os-core',
-             'desc': 'Minimal packages to have Clear Linux OS fully ' \
+             'desc': 'Minimal packages to have Clear Linux OS fully '
                      'functional'},
             kernel,
             {'name': 'os-core-update',
@@ -1369,9 +1370,9 @@ class UserConfigurationStep(ProcessStep):
             name_text = ''
 
         # rest of suggested username must be valid
-        for c in lastname_text:
-            if not re.match('[a-z0-9_-]', c):
-                lastname_text = lastname_text.replace(c, '')
+        for letter in lastname_text:
+            if not re.match('[a-z0-9_-]', letter):
+                lastname_text = lastname_text.replace(letter, '')
 
         self.edit_username.set_edit_text(name_text + lastname_text)
 
