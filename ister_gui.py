@@ -752,18 +752,50 @@ class TelemetryDisclosure(ProcessStep):
 
     def build_ui(self):
         self._ui = SimpleForm(u'Stability Enhancement Program',
-                              self._ui_widgets, buttons=["Next"])
+                              self._ui_widgets, buttons=["Previous", "Next"])
 
 
 class StartInstaller(ProcessStep):
     """UI to select automatic or manual installation"""
+    def __init__(self):
+        super(StartInstaller, self).__init__()
+        self.choices = [u'Automatic', u'Manual(Advanced)', u'Exit']
+        self._clicked = None
+
+    def build_ui_widgets(self):
+        self._ui_widgets = list()
+        for choice in self.choices:
+            button = urwid.Button(choice)
+            urwid.connect_signal(button, 'click', self._item_chosen, choice)
+            button = urwid.AttrMap(button, None, focus_map='reversed')
+            self._ui_widgets.append(button)
+
+    def _item_chosen(self, _, choice):
+        self._clicked = choice
+        raise urwid.ExitMainLoop()
+
+    def build_ui(self):
+        self._ui = SimpleForm(u'Choose Installation Type', self._ui_widgets,
+                              buttons=['Previous'])
+
+    def run_ui(self):
+        return self._ui.do_form()
+
     def handler(self, config):
-        choices = [u'Automatic', u'Manual(Advanced)', u'Exit']
+        if not self._ui_widgets:
+            self.build_ui_widgets()
 
         if not self._ui:
-            self._ui = ButtonMenu(u'Choose Installation Type', choices)
+            self.build_ui()
 
-        self._action = self._ui.run_ui()
+        self._clicked = ''
+
+        if self._ui:
+            self._action = self.run_ui()
+
+        if self._clicked:
+            self._action = self._clicked
+
         config['DisabledNewPartitions'] = False
 
         return self._action
@@ -1643,7 +1675,9 @@ class Installation(object):
         run = RunInstallation()
 
         self.start.set_action('Ok', telem_disclosure)
+        telem_disclosure.set_action('Previous', self.start)
         telem_disclosure.set_action('Next', startmenu)
+        startmenu.set_action('Previous', telem_disclosure)
         startmenu.set_action('Automatic', automatic_device)
         automatic_device.set_action('Previous', startmenu)
         automatic_device.set_action('Next', confirm_disk_wipe)
