@@ -272,9 +272,6 @@ class ButtonMenu(object):
         if 'tab' in keys or 'down' in keys:
             self._lb.focus_position = (i + 1) % max_pos
             self._lb._invalidate()
-        elif 'shift tab' in keys or 'up' in keys:
-            self._lb.focus_position = (i - 1) % max_pos
-            self._lb._invalidate()
         else:
             return keys
 
@@ -306,20 +303,20 @@ class NavBar(urwid.Columns):
         # pylint: disable=W0201
         max_cols = len(self.contents)
         pos = self.focus_position
-        key = super(NavBar, self).keypress(size, key)
-        if key == 'tab':
+        # we will handle the following keys ourselves, don't call super
+        if key not in ['tab', 'down', 'up', 'shift tab']:
+            key = super(NavBar, self).keypress(size, key)
+        # up and shift tab should behave like right in the navbar (so that the
+        # Next option is selected first)
+        elif key in ['up', 'shift tab']:
+            key = super(NavBar, self).keypress(size, 'right')
+
+        if key in ['tab', 'down']:
             if self.have_focus is False:
                 self.have_focus = True
-                self.focus_position = 0
-            elif pos < (max_cols - 1):
-                self.focus_position = pos + 1
-            elif pos == (max_cols - 1):
-                self.have_focus = False
-                return key
-        elif key == 'shift tab':
-            if self.have_focus is False:
-                self.have_focus = True
-                self.focus_position = (max_cols - 1)
+                # first focus should be the Next button in the last column if
+                # it is present
+                self.focus_position = max_cols - 1
             elif pos > 0:
                 self.focus_position = pos - 1
             elif pos == 0:
@@ -345,9 +342,16 @@ class FormBody(urwid.ListBox):
         # pylint: disable=E0203
         # pylint: disable=W0201
         # pylint: disable=R0912
-        key = super(FormBody, self).keypress(size, key)
+
+        # we will handle the following keys ourselves, don't call super
+        if key not in ['tab', 'down', 'shift tab']:
+            key = super(FormBody, self).keypress(size, key)
+        # shift tab should behave like the up arrow
+        elif key == 'shift tab':
+            key = super(FormBody, self).keypress(size, 'up')
+
         pos = self.focus_position
-        if key == 'tab' or key == 'enter':
+        if key in ['tab', 'enter', 'down']:
             if self._lost_focus:
                 self._lost_focus = False
                 self.focus_position = 0
@@ -377,36 +381,6 @@ class FormBody(urwid.ListBox):
             elif pos >= (self._num_fields - 1):
                 self._lost_focus = True
                 return 'tab'
-        elif key == 'shift tab':
-            if self._lost_focus:
-                self._lost_focus = False
-                self.focus_position = (self._num_fields - 1)
-                pos = self.focus_position
-                while pos >= 0:
-                    if self._body[pos].selectable():
-                        self.focus_position = pos
-                        self._invalidate()
-                        break
-                    else:
-                        pos -= 1
-                if pos < 0:
-                    self.lost_focus = True
-                    return 'shift tab'
-            elif pos > 0:
-                pos -= 1
-                while pos >= 0:
-                    if self._body[pos].selectable():
-                        self.focus_position = pos
-                        self._invalidate()
-                        break
-                    else:
-                        pos -= 1
-                if pos < 0:
-                    self._lost_focus = True
-                    return 'shift tab'
-            elif pos == 0:
-                self._lost_focus = True
-                return 'shift tab'
         else:
             return key
 
@@ -421,7 +395,7 @@ class FormController(urwid.Pile):
         # pylint: disable=W0201
         key = super(FormController, self).keypress(size, key)
         pos = self.focus_position
-        if key == 'tab':
+        if key in ['tab', 'down']:
             start = self.focus_position
             # Skip the header
             while True:
@@ -432,20 +406,7 @@ class FormController(urwid.Pile):
                 # guard against infinite spinning
                 if pos == start:
                     break
-            # Send the tab into the newly focused widget
-            self.focus.keypress(size, key)
-        elif key == 'shift tab':
-            start = self.focus_position
-            # Skip the header
-            while True:
-                pos = (pos - 1) % len(self.contents)
-                self.focus_position = pos
-                if self.focus.selectable():
-                    break
-                # guard against infinite spinning
-                if pos == start:
-                    break
-            # Send the tab into the newly focused widget
+            # Send the key into the newly focused widget
             self.focus.keypress(size, key)
         else:
             return key
