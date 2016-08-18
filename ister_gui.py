@@ -465,6 +465,7 @@ class SimpleForm(object):
         self._next_id = 0
         self.button_labels = buttons
         self._nav_bar_has_focus = True
+        self.nav = None
 
         # Build the forum
         self._frame = [('pack', urwid.Divider()),
@@ -502,9 +503,9 @@ class SimpleForm(object):
             buttons.append(urwid.Padding(button, 'center', width=12))
 
         # Add to frame
-        nav = NavBar(buttons)
-        nav.have_focus = self._nav_bar_has_focus
-        self._frame.append(('pack', nav))
+        self.nav = NavBar(buttons)
+        self.nav.have_focus = self._nav_bar_has_focus
+        self._frame.append(('pack', self.nav))
         self._frame.append(('pack', urwid.Divider()))
 
     def _set_ui(self):
@@ -711,8 +712,7 @@ class TelemetryDisclosure(ProcessStep):
         self._msg_suffix = 'Install the telemetrics-client bundle later if '\
                            'you change your mind.'
         self.message = urwid.Text(self._msg_prefix + self._msg_suffix)
-        self.accept = urwid.CheckBox('Yes.')
-        urwid.connect_signal(self.accept, 'change', self._on_opt_in_change)
+        self.accept = urwid.CheckBox('Yes.', on_state_change=self._on_opt_in_change)
 
     def _on_opt_in_change(self, cbox, _):
         if cbox.get_state():
@@ -721,6 +721,10 @@ class TelemetryDisclosure(ProcessStep):
         else:
             cbox.set_label('Yes. (Thank you!)')
             self.message.set_text(self._msg_prefix)
+            # Shift focus past form body to nav bar
+            self._ui._frame.focus_position += 1
+            # Set focus to 'Next' button in column 1
+            self._ui.nav.focus_position = 1
 
     def handler(self, config):
         """Handles all the work for the current UI"""
