@@ -272,9 +272,6 @@ class ButtonMenu(object):
         if 'tab' in keys or 'down' in keys:
             self._lb.focus_position = (i + 1) % max_pos
             self._lb._invalidate()
-        elif 'shift tab' in keys or 'up' in keys:
-            self._lb.focus_position = (i - 1) % max_pos
-            self._lb._invalidate()
         else:
             return keys
 
@@ -307,7 +304,7 @@ class NavBar(urwid.Columns):
         max_cols = len(self.contents)
         pos = self.focus_position
         key = super(NavBar, self).keypress(size, key)
-        if key == 'tab':
+        if key == 'tab' or key == 'down':
             if self.have_focus is False:
                 self.have_focus = True
                 self.focus_position = 0
@@ -316,7 +313,7 @@ class NavBar(urwid.Columns):
             elif pos == (max_cols - 1):
                 self.have_focus = False
                 return key
-        elif key == 'shift tab':
+        elif key == 'up' or key == 'shift tab':
             if self.have_focus is False:
                 self.have_focus = True
                 self.focus_position = (max_cols - 1)
@@ -347,7 +344,7 @@ class FormBody(urwid.ListBox):
         # pylint: disable=R0912
         key = super(FormBody, self).keypress(size, key)
         pos = self.focus_position
-        if key == 'tab' or key == 'enter':
+        if key == 'tab' or key == 'enter' or key == 'down':
             if self._lost_focus:
                 self._lost_focus = False
                 self.focus_position = 0
@@ -377,7 +374,7 @@ class FormBody(urwid.ListBox):
             elif pos >= (self._num_fields - 1):
                 self._lost_focus = True
                 return 'tab'
-        elif key == 'shift tab':
+        elif key == 'up' or key == 'shift tab':
             if self._lost_focus:
                 self._lost_focus = False
                 self.focus_position = (self._num_fields - 1)
@@ -391,7 +388,7 @@ class FormBody(urwid.ListBox):
                         pos -= 1
                 if pos < 0:
                     self.lost_focus = True
-                    return 'shift tab'
+                    return key
             elif pos > 0:
                 pos -= 1
                 while pos >= 0:
@@ -403,10 +400,10 @@ class FormBody(urwid.ListBox):
                         pos -= 1
                 if pos < 0:
                     self._lost_focus = True
-                    return 'shift tab'
+                    return key
             elif pos == 0:
                 self._lost_focus = True
-                return 'shift tab'
+                return key
         else:
             return key
 
@@ -421,7 +418,7 @@ class FormController(urwid.Pile):
         # pylint: disable=W0201
         key = super(FormController, self).keypress(size, key)
         pos = self.focus_position
-        if key == 'tab':
+        if key == 'tab' or key == 'down':
             start = self.focus_position
             # Skip the header
             while True:
@@ -432,9 +429,9 @@ class FormController(urwid.Pile):
                 # guard against infinite spinning
                 if pos == start:
                     break
-            # Send the tab into the newly focused widget
+            # Send the key into the newly focused widget
             self.focus.keypress(size, key)
-        elif key == 'shift tab':
+        elif key == 'up' or key == 'shift tab':
             start = self.focus_position
             # Skip the header
             while True:
@@ -445,7 +442,7 @@ class FormController(urwid.Pile):
                 # guard against infinite spinning
                 if pos == start:
                     break
-            # Send the tab into the newly focused widget
+            # Send the key into the newly focused widget
             self.focus.keypress(size, key)
         else:
             return key
