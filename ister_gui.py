@@ -644,13 +644,13 @@ class ConditionalStep(ProcessStep):
 class SplashScreen(ProcessStep):
     """UI to select automatic or manual installation"""
     def handler(self, config):
-        alert_content = """Network Requirements:
-  * Wired network connection
-  * DHCP
-  * Internet Access
-
-The installer will navigate most environments with autoproxies automatically
-"""
+        alert_content = 'Step 1 of 5\n\n'                                     \
+                        'Network Requirements:\n'                             \
+                        '  * Wired network connection\n'                      \
+                        '  * DHCP\n'                                          \
+                        '  * Internet Access\n\n'                             \
+                        'The installer will navigate most environments with ' \
+                        'autoproxies automatically\n'
 
         alert = Alert("Clear Linux OS for Intel Architecture Installer",
                       alert_content)
@@ -660,7 +660,7 @@ The installer will navigate most environments with autoproxies automatically
 
 class TelemetryDisclosure(ProcessStep):
     """UI to accept telemetry"""
-    def __init__(self):
+    def __init__(self, cur_step, tot_steps):
         super(TelemetryDisclosure, self).__init__()
         self._msg_prefix = 'Allow the Clear Linux OS for Intel Architecture ' \
                            'to collect anonymous reports to improve system ' \
@@ -672,6 +672,7 @@ class TelemetryDisclosure(ProcessStep):
                            'for more information.\n\n'
         self._msg_suffix = 'Install the telemetrics-client bundle later if '\
                            'you change your mind.'
+        self.progress = urwid.Text('Step {} of {}'.format(cur_step, tot_steps))
         self.message = urwid.Text(self._msg_prefix + self._msg_suffix)
         self.accept = urwid.CheckBox('Yes.', on_state_change=self._on_opt_in_change)
 
@@ -710,7 +711,9 @@ class TelemetryDisclosure(ProcessStep):
     def build_ui_widgets(self):
         """Build ui handler
         The last urwid Divider helps to tab movement to work"""
-        self._ui_widgets = [self.message,
+        self._ui_widgets = [self.progress,
+                            urwid.Divider(),
+                            self.message,
                             urwid.Divider(),
                             self.accept,
                             urwid.Divider()]
@@ -720,15 +723,17 @@ class TelemetryDisclosure(ProcessStep):
                               self._ui_widgets, buttons=["Previous", "Next"])
 
 
+
 class StartInstaller(ProcessStep):
     """UI to select automatic or manual installation"""
-    def __init__(self):
+    def __init__(self, cur_step, tot_steps):
         super(StartInstaller, self).__init__()
         self.choices = [u'Automatic', u'Manual(Advanced)', u'Exit']
         self._clicked = None
+        self.progress = urwid.Text('Step {} of {}'.format(cur_step, tot_steps))
 
     def build_ui_widgets(self):
-        self._ui_widgets = list()
+        self._ui_widgets = [self.progress, urwid.Divider()]
         for choice in self.choices:
             button = urwid.Button(choice)
             urwid.connect_signal(button, 'click', self._item_chosen, choice)
@@ -768,6 +773,10 @@ class StartInstaller(ProcessStep):
 
 class ConfigureHostname(ProcessStep):
     """UI to gather the host's name"""
+    def __init__(self, cur_step, tot_steps):
+        super(ConfigureHostname, self).__init__()
+        self.progress = urwid.Text('Step {} of {}'.format(cur_step, tot_steps))
+
     def handler(self, config):
 
         if not self._ui_widgets:
@@ -780,7 +789,7 @@ class ConfigureHostname(ProcessStep):
             self._action = self.run_ui()
             # Validate and ship out the hostname that was given to the configs
             if self._action == 'Next':
-                config['Hostname'] = self._ui_widgets[0].get_edit_text()
+                config['Hostname'] = self._ui_widgets[2].get_edit_text()
                 error = ister_wrapper('validate_hostname_template',
                                       config['Hostname'])
                 if error is None:
@@ -799,7 +808,7 @@ class ConfigureHostname(ProcessStep):
         return self._ui.do_form()
 
     def build_ui_widgets(self):
-        self._ui_widgets = list()
+        self._ui_widgets = [self.progress, urwid.Divider()]
         hostname_field = HostnameEdit(u'{0:30}'.format('Hostname:'),
                                       align='left',
                                       edit_text=u'clr')
@@ -811,10 +820,13 @@ class ConfigureHostname(ProcessStep):
 
 class ConfirmStep(ProcessStep):
     """UI to show a confirm box"""
-    def __init__(self, title, body):
+    def __init__(self, title, body, cur_step=None, tot_steps=None):
         super(ConfirmStep, self).__init__()
         self._title = title
-        self._body = body
+        if cur_step and tot_steps:
+            self._body = 'Step {} of {}\n\n'.format(cur_step, tot_steps) + body
+        else:
+            self._body = body
 
     def handler(self, config):
         alert = Alert(self._title,
@@ -826,15 +838,18 @@ class ConfirmStep(ProcessStep):
 
 class ConfirmDiskWipe(ConfirmStep):
     """UI to display disk partitions and install confirmation"""
-    def __init__(self):
+    def __init__(self, cur_step, tot_steps):
         self.text = ''
+        self._cur_step = cur_step
+        self._tot_steps = tot_steps
         super(ConfirmDiskWipe, self).__init__('Warning!', '')
 
     def handler(self, config):
         disk = '/dev/{0}'.format(config['PartitionLayout'][0]['disk'])
-        self.text = ('All data on {0} will be erased!'
+        self.text = ('Step {} of {}\n\n'
+                     'All data on {} will be erased!'
                      ' Do you want to proceed with the installation?\n\n'
-                     .format(disk))
+                     .format(self._cur_step, self._tot_steps, disk))
         disk_info = get_disk_info(disk)
         if not disk_info["partitions"]:
             self.text += "{0} contents: no partitions found.".format(disk)
@@ -852,16 +867,17 @@ class ConfirmDiskWipe(ConfirmStep):
 
 class PartitioningMenu(ProcessStep):
     """UI to select partitioning method"""
-    def __init__(self):
+    def __init__(self, cur_step, tot_steps):
         super(PartitioningMenu, self).__init__()
         self.choices = {
             'Manual': 'Manually configure mounts and partitions',
             'Auto': 'Use default partition and mount scheme on target device',
         }
         self._clicked = None
+        self.progress = urwid.Text('Step {} of {}'.format(cur_step, tot_steps))
 
     def build_ui_widgets(self):
-        self._ui_widgets = list()
+        self._ui_widgets = [self.progress, urwid.Divider()]
         for key in sorted(self.choices):
             button = urwid.Button(self.choices[key])
             urwid.connect_signal(button, 'click', self._item_chosen, key)
@@ -904,11 +920,12 @@ class PartitioningMenu(ProcessStep):
 
 class SelectDeviceStep(ProcessStep):
     """UI to display the available disks"""
-    def __init__(self):
+    def __init__(self, cur_step, tot_steps):
         super(SelectDeviceStep, self).__init__()
         self._clicked = None
         self._actions = None
         self.disks = self._get_list_of_disks()
+        self.progress = 'Step {} of {}'.format(cur_step, tot_steps)
 
     def handler(self, config):
         self.build_ui_widgets()
@@ -939,7 +956,7 @@ class SelectDeviceStep(ProcessStep):
         raise urwid.ExitMainLoop()
 
     def build_ui_widgets(self):
-        self._ui_widgets = []
+        self._ui_widgets = [urwid.Text(self.progress)]
         if len(self.disks) == 0:
             widget = urwid.Text(u"No free devices found.")
             self._ui_widgets.append(widget)
@@ -1065,6 +1082,10 @@ class SetMountEachStep(ProcessStep):
 
 class MountPointsStep(ProcessStep):
     """UI which displays the partitions of the selected disk"""
+    def __init__(self, cur_step, tot_steps):
+        super(MountPointsStep, self).__init__()
+        self.progress = urwid.Text('Step {} of {}'.format(cur_step, tot_steps))
+
     def handler(self, config):
         # pylint: disable=R0914
         mount_d = dict()
@@ -1118,7 +1139,7 @@ class MountPointsStep(ProcessStep):
         raise urwid.ExitMainLoop()
 
     def build_ui_widgets(self, choices, *_):
-        self._ui_widgets = []
+        self._ui_widgets = [self.progress]
         if len(choices) == 0:
             widget = urwid.Text(u"No partitions found.")
             self._ui_widgets.append(widget)
@@ -1206,7 +1227,7 @@ class MountPointsStep(ProcessStep):
 
 class BundleSelectorStep(ProcessStep):
     """UI which displays the bundle list to be installed"""
-    def __init__(self):
+    def __init__(self, cur_step, tot_steps):
         super(BundleSelectorStep, self).__init__()
         self.bundles = [{'name': 'editors',
                          'desc': 'Popular text editors (terminal-based)'},
@@ -1243,6 +1264,7 @@ class BundleSelectorStep(ProcessStep):
              'desc': 'Required to update the system'},
             {'name': 'os-utils',
              'desc': 'A core set of OS utilities'}])
+        self.progress = urwid.Text('Step {} of {}'.format(cur_step, tot_steps))
 
     def handler(self, config):
         if not self._ui_widgets:
@@ -1268,7 +1290,9 @@ class BundleSelectorStep(ProcessStep):
         return self._ui.do_form()
 
     def build_ui_widgets(self):
-        self._ui_widgets = [urwid.Text('Select the bundles to install:'),
+        self._ui_widgets = [self.progress,
+                            urwid.Divider(),
+                            urwid.Text('Select the bundles to install:'),
                             urwid.Divider()]
         for bundle in self.bundles:
             check = urwid.CheckBox(bundle['name'])
@@ -1287,16 +1311,17 @@ class BundleSelectorStep(ProcessStep):
 
 class ConfirmUserMenu(ProcessStep):
     """UI to confirm user creation"""
-    def __init__(self):
+    def __init__(self, cur_step, tot_steps):
         super(ConfirmUserMenu, self).__init__()
         self.choices = {
             'mkuser': 'Create an administrative user',
             'nouser': 'No user creation (login as root)',
         }
         self._clicked = None
+        self.progress = urwid.Text('Step {} of {}'.format(cur_step, tot_steps))
 
     def build_ui_widgets(self):
-        self._ui_widgets = list()
+        self._ui_widgets = [self.progress, urwid.Divider()]
         for key in sorted(self.choices):
             button = urwid.Button(self.choices[key])
             urwid.connect_signal(button, 'click', self._item_chosen, key)
@@ -1336,7 +1361,7 @@ class ConfirmUserMenu(ProcessStep):
 class UserConfigurationStep(ProcessStep):
     """UI to gather the user info"""
     # pylint: disable=R0902
-    def __init__(self):
+    def __init__(self, cur_step, tot_steps):
         super(UserConfigurationStep, self).__init__()
         fmt = '{0:>25}'
         self.edit_name = urwid.Edit(fmt.format('First Name: '))
@@ -1352,6 +1377,7 @@ class UserConfigurationStep(ProcessStep):
         urwid.connect_signal(self.edit_lastname,
                              'change',
                              self._username_handler)
+        self.progress = urwid.Text('Step {} of {}'.format(cur_step, tot_steps))
 
     def _username_handler(self, edit, new_text):
         new_text = new_text.lower()
@@ -1411,7 +1437,9 @@ class UserConfigurationStep(ProcessStep):
     def build_ui_widgets(self):
         """Build ui handler
         The last urwid Divider helps to tab movement to work"""
-        self._ui_widgets = [self.edit_name,
+        self._ui_widgets = [self.progress,
+                            urwid.Divider(),
+                            self.edit_name,
                             urwid.Divider(),
                             self.edit_lastname,
                             urwid.Divider(),
@@ -1432,16 +1460,17 @@ class UserConfigurationStep(ProcessStep):
 
 class ConfirmDHCPMenu(ProcessStep):
     """UI to confirm static ip configuration"""
-    def __init__(self):
+    def __init__(self, cur_step, tot_steps):
         super(ConfirmDHCPMenu, self).__init__()
         self.choices = {
             'dhcp': 'Use DHCP',
             'staticip': 'Use static IP configuration',
         }
         self._clicked = None
+        self.progress = urwid.Text('Step {} of {}'.format(cur_step, tot_steps))
 
     def build_ui_widgets(self):
-        self._ui_widgets = list()
+        self._ui_widgets = [self.progress, urwid.Divider()]
         for key in sorted(self.choices):
             button = urwid.Button(self.choices[key])
             urwid.connect_signal(button, 'click', self._item_chosen, key)
@@ -1480,13 +1509,14 @@ class ConfirmDHCPMenu(ProcessStep):
 
 class StaticIpStep(ProcessStep):
     """UI to gather the static ip configuration"""
-    def __init__(self):
+    def __init__(self, cur_step, tot_steps):
         super(StaticIpStep, self).__init__()
         fmt = '{0:30}'
         self.edit_ip = IpEdit(fmt.format('Enter ip address:'))
         self.edit_mask = IpEdit(fmt.format('Enter mask:'))
         self.edit_gateway = IpEdit(fmt.format('Enter gateway:'))
         self.edit_dns = IpEdit(fmt.format('Enter DNS (optional):'))
+        self.progress = urwid.Text('Step {} of {}'.format(cur_step, tot_steps))
 
     def _save_config(self, config):
         pows = [pow(2, idx) for idx in range(0, 8)]
@@ -1547,7 +1577,9 @@ class StaticIpStep(ProcessStep):
         return self._ui.do_form()
 
     def build_ui_widgets(self):
-        self._ui_widgets = [self.edit_ip,
+        self._ui_widgets = [self.progress,
+                            urwid.Divider(),
+                            self.edit_ip,
                             urwid.Divider(),
                             self.edit_mask,
                             urwid.Divider(),
@@ -1618,25 +1650,25 @@ class Installation(object):
             self._exit(-1, 'Template file does not exist')
 
     def _init_actions(self):
-        telem_disclosure = TelemetryDisclosure()
-        startmenu = StartInstaller()
-        config_hostname = ConfigureHostname()
-        confirm_disk_wipe = ConfirmDiskWipe()
-        confirm_disk_wipe2 = ConfirmDiskWipe()
-        part_menu = PartitioningMenu()
-        automatic_device = SelectDeviceStep()
-        manual_part_device = SelectMultiDeviceStep()
-        manual_nopart_device = SelectDeviceStep()
+        telem_disclosure = TelemetryDisclosure(2, 5)
+        startmenu = StartInstaller(3, 5)
+        config_hostname = ConfigureHostname(7, 11)
+        confirm_disk_wipe = ConfirmDiskWipe(5, 5)
+        confirm_disk_wipe2 = ConfirmDiskWipe(7, 11)
+        part_menu = PartitioningMenu(4, 11)
+        automatic_device = SelectDeviceStep(4, 5)
+        manual_part_device = SelectMultiDeviceStep(5, 11)
+        manual_nopart_device = SelectDeviceStep(5, 11)
         terminal_cgdisk = TerminalStep()
-        set_mount_points = MountPointsStep()
-        bundle_selector = BundleSelectorStep()
-        confirm_user = ConfirmUserMenu()
-        user_configuration = UserConfigurationStep()
-        confirm_dhcp = ConfirmDHCPMenu()
-        static_ip_config = StaticIpStep()
+        set_mount_points = MountPointsStep(6, 11)
+        bundle_selector = BundleSelectorStep(8, 11)
+        confirm_user = ConfirmUserMenu(9, 11)
+        user_configuration = UserConfigurationStep(9, 11)
+        confirm_dhcp = ConfirmDHCPMenu(10, 11)
+        static_ip_config = StaticIpStep(10, 11)
         confirm_installation = ConfirmStep('Attention!', 'Setup is complete. '
                                            'Do you want to begin '
-                                           'installation?')
+                                           'installation?', 11, 11)
         run = RunInstallation()
 
         self.start.set_action('Ok', telem_disclosure)
