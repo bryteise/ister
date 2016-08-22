@@ -1333,7 +1333,7 @@ class ConfirmUserMenu(ProcessStep):
         raise urwid.ExitMainLoop()
 
     def build_ui(self):
-        self._ui = SimpleForm(u'Choose user configuration', self._ui_widgets,
+        self._ui = SimpleForm(u'User configuration', self._ui_widgets,
                               buttons=["Previous"])
 
     def run_ui(self):
@@ -1482,7 +1482,7 @@ class ConfirmDHCPMenu(ProcessStep):
         raise urwid.ExitMainLoop()
 
     def build_ui(self):
-        self._ui = SimpleForm(u'Choose network configuration',
+        self._ui = SimpleForm(u'Network configuration',
                               self._ui_widgets,
                               buttons=["Previous"])
 
@@ -1517,6 +1517,7 @@ class StaticIpStep(ProcessStep):
         self.edit_gateway = IpEdit(fmt.format('Enter gateway:'))
         self.edit_dns = IpEdit(fmt.format('Enter DNS (optional):'))
         self.progress = urwid.Text('Step {} of {}'.format(cur_step, tot_steps))
+        self.subtitle = urwid.Text('Static IP configuration')
 
     def _save_config(self, config):
         pows = [pow(2, idx) for idx in range(0, 8)]
@@ -1579,6 +1580,8 @@ class StaticIpStep(ProcessStep):
     def build_ui_widgets(self):
         self._ui_widgets = [self.progress,
                             urwid.Divider(),
+                            self.subtitle,
+                            urwid.Divider(),
                             self.edit_ip,
                             urwid.Divider(),
                             self.edit_mask,
@@ -1589,7 +1592,7 @@ class StaticIpStep(ProcessStep):
                             urwid.Divider()]
 
     def build_ui(self):
-        self._ui = SimpleForm(u'Static ip configuration', self._ui_widgets)
+        self._ui = SimpleForm(u'Network configuration', self._ui_widgets)
 
 
 class RunInstallation(ProcessStep):
