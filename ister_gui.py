@@ -1728,6 +1728,8 @@ class Installation(object):
                 title = 'Error!'
             alert = Alert(title, message)
             alert.do_alert()
+        if self.args['dry_run']:
+            exit()
         if reboot:
             subprocess.call('reboot')
         subprocess.call('poweroff')
@@ -1765,7 +1767,7 @@ class Installation(object):
         title = u'Automatic installation of Clear Linux OS {0}' \
                 .format(self.installation_d['Version'])
         Alert(title, 'Starting....', block=False).do_alert()
-        if self.args['no_install']:
+        if self.args['no_install'] or self.args['dry_run']:
             self._exit(0, 'dry run - actual install skipped.')
         supported = [
             {'name': 'contenturl', 'out': '--contenturl={0}'},
@@ -1834,6 +1836,9 @@ def handle_options():
                         help="format to use for looking for update content")
     parser.add_argument("-n", "--no-install", action="store_true",
                         help="Dry run the UI - no install performed.")
+    parser.add_argument("-d", "--dry-run", action="store_true",
+                        help="Dry run the UI locally in test mode, no poweroff"
+                        "on exit, no install performed.")
     args = parser.parse_args()
     return args
 
