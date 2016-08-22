@@ -53,8 +53,10 @@ import urllib.request as request
 import tempfile
 import socket
 import netifaces
+import pycurl
 
 import ister
+import ister_gui
 
 COMMAND_RESULTS = []
 
@@ -116,13 +118,15 @@ def run_command_wrapper(func):
     def wrapper():
         """run_command_wrapper"""
         def mock_run_command(cmd, _=None, raise_exception=True,
-                             log_output=True):
+                             log_output=True, environ=None):
             """mock_run_command wrapper"""
             COMMAND_RESULTS.append(cmd)
             if not raise_exception:
                 COMMAND_RESULTS.append(False)
             if not log_output:
                 COMMAND_RESULTS.append(False)
+            if environ:
+                COMMAND_RESULTS.append(environ)
         global COMMAND_RESULTS
         COMMAND_RESULTS = []
         run_command = ister.run_command
@@ -481,6 +485,14 @@ def run_command_bad():
         exception_flag = True
     if not exception_flag:
         raise Exception("Bad command did not fail")
+
+
+@run_command_wrapper
+def run_command_with_env():
+    """run_command with environment variable passed"""
+    command = ["true", os.environ]
+    ister.run_command("true", environ=os.environ)
+    commands_compare_helper(command)
 
 
 @run_command_wrapper
@@ -1211,8 +1223,40 @@ def copy_os_good():
     args.statedir = "/statetest"
     swupd_cmd = "swupd verify --install --path=/ --manifest=0 \
 --contenturl=ctest --versionurl=vtest --format=formattest --statedir=/statetest"
-    commands = [swupd_cmd]
+    commands = [swupd_cmd, os.environ]
     ister.copy_os(args, {"Version": 0, "DestinationType": ""}, "/")
+    ister.add_bundles = backup_add_bundles
+    shutil.which = backup_which
+    commands_compare_helper(commands)
+
+
+@run_command_wrapper
+def copy_os_proxy_good():
+    """Check installer command with proxy present"""
+    backup_add_bundles = ister.add_bundles
+    ister.add_bundles = lambda x, y: None
+    backup_which = shutil.which
+    shutil.which = lambda x: False
+
+    def args():
+        """args empty object"""
+        None
+    args.contenturl = "ctest"
+    args.versionurl = "vtest"
+    args.format = "formattest"
+    args.statedir = "/statetest"
+    swupd_cmd = "swupd verify --install --path=/ --manifest=0 \
+--contenturl=ctest --versionurl=vtest --format=formattest --statedir=/statetest"
+    swupd_env = os.environ
+    swupd_env["https_proxy"] = "https://to.clearlinux.org"
+    swupd_env["http_proxy"] = "https://to.clearlinux.org"
+    commands = [swupd_cmd, swupd_env]
+    template = {
+        "Version": 0,
+        "DestinationType": "",
+        "Proxy": "https://to.clearlinux.org"
+    }
+    ister.copy_os(args, template, "/")
     ister.add_bundles = backup_add_bundles
     shutil.which = backup_which
     commands_compare_helper(commands)
@@ -1238,7 +1282,7 @@ def copy_os_format_good():
     args.statedir = "/statetest"
     swupd_cmd = "swupd verify --install --path=/ --manifest=0 \
 --contenturl=ctest --versionurl=vtest --format=test --statedir=/statetest"
-    commands = [swupd_cmd]
+    commands = [swupd_cmd, os.environ]
     ister.copy_os(args, {"Version": 0, "DestinationType": ""}, "/")
     ister.add_bundles = backup_add_bundles
     shutil.which = backup_which
@@ -1265,7 +1309,7 @@ def copy_os_which_good():
     swupd_cmd = "swupd verify --install --path=/ --manifest=0 \
 --contenturl=ctest --versionurl=vtest --format=formattest --statedir=/statetest"
     swupd_cmd = "stdbuf -o 0 {0}".format(swupd_cmd)
-    commands = [swupd_cmd]
+    commands = [swupd_cmd, os.environ]
     ister.copy_os(args, {"Version": 0, "DestinationType": ""}, "/")
     ister.add_bundles = backup_add_bundles
     shutil.which = backup_which
@@ -1298,7 +1342,8 @@ def copy_os_physical_good():
                 0,
                 False,
                 "mount --bind //var/tmp /var/lib/swupd",
-                swupd_cmd]
+                swupd_cmd,
+                os.environ]
     ister.copy_os(args, {"Version": 0, "DestinationType": "physical"}, "/")
     ister.add_bundles = backup_add_bundles
     shutil.which = backup_which
@@ -3771,6 +3816,211 @@ def cloud_init_configs_good_no_role():
     commands_compare_helper(commands)
 
 
+def gui_network_connection_with_proxy():
+    """
+    Test that network connection can be detected with proxy set and successful
+    pycurl perform
+    """
+    import time
+
+    actual = []
+    expected = ["https://www.clearlinux.org", 1, 1, 1,
+                "https://proxy.to.clearlinux.org:1080"]
+
+    class mock_pycurl_curl():
+        """mock pycurl.Curl class"""
+        def __init__(self):
+            self.URL = None
+            self.HEADER = None
+            self.NOBODY = None
+            self.HEADERFUNCTION = None
+            self.TIMEOUT = None
+            self.PROXY = None
+
+        def setopt(self, attr, val):
+            # Don't copy storage class address
+            if isinstance(val, str) or isinstance(val, int):
+                actual.append(val)
+
+        def perform(self):
+            pass
+
+    def mock_sleep(sec):
+        """mock_sleep wrapper so the tests run faster"""
+        del(sec)
+
+    pycurl_backup = pycurl.Curl
+    sleep_backup = time.sleep
+
+    pycurl.Curl = mock_pycurl_curl
+    time.sleep = mock_sleep
+
+    netreq = ister_gui.NetworkRequirements()
+    netreq.config = {"Proxy": "https://proxy.to.clearlinux.org:1080"}
+    if not netreq._network_connection():
+        raise Exception("No network detected when proxy set")
+
+    if actual != expected:
+        raise Exception("pycurl.Curl options {} do not match "
+                        "expected options {}".format(actual, expected))
+
+    pycurl.Curl = pycurl_backup
+    time.sleep = sleep_backup
+
+
+def gui_network_connection_no_proxy_when_required():
+    """
+    Test that a failing pycurl perform results in failed network check with
+    all pycurl opts set correctly
+    """
+    import time
+
+    actual = []
+    expected = ["https://www.clearlinux.org", 1, 1, 1]
+
+    class mock_pycurl_curl():
+        """mock pycurl.Curl class"""
+        def __init__(self):
+            self.URL = None
+            self.HEADER = None
+            self.NOBODY = None
+            self.HEADERFUNCTION = None
+            self.TIMEOUT = None
+
+        def setopt(self, attr, val):
+            # Don't copy storage class address
+            if isinstance(val, str) or isinstance(val, int):
+                actual.append(val)
+
+        def perform(self):
+            raise Exception("Connection error")
+
+    def mock_sleep(sec):
+        """mock_sleep wrapper so the tests run faster"""
+        del(sec)
+
+    pycurl_backup = pycurl.Curl
+    sleep_backup = time.sleep
+
+    pycurl.Curl = mock_pycurl_curl
+    time.sleep = mock_sleep
+
+    netreq = ister_gui.NetworkRequirements()
+    netreq.config = {}
+    if netreq._network_connection():
+        pycurl.Curl = pycurl_backup
+        time.sleep = sleep_backup
+        raise Exception("Network detected when required proxy not set")
+
+    pycurl.Curl = pycurl_backup
+    time.sleep = sleep_backup
+
+    if actual != expected:
+        raise Exception("pycurl.Curl options {} do not match "
+                        "expected options {}".format(actual, expected))
+
+
+@run_command_wrapper
+@open_wrapper("good", "")
+def gui_static_configuration():
+    """
+    Setting static ip configuration for the installer writes the configuration
+    to /etc/systemd/network/10-en-static.network
+    """
+    import subprocess
+    import time
+
+    class Edit():
+        """mock urwid.Edit class"""
+        def __init__(self, edit_text):
+            self.edit_text = edit_text
+
+        def get_edit_text(self):
+            return self.edit_text
+
+    def mock_call(cmd):
+        """mock_call wrapper"""
+        del(cmd)
+
+    def mock_makedirs(path):
+        """mock_makedirs wrapper"""
+        del(path)
+
+    def mock_sleep(sec):
+        """mock_sleep wrapper so the tests run faster"""
+        del(sec)
+
+    call_backup = subprocess.call
+    makedirs_backup = os.makedirs
+    sleep_backup = time.sleep
+
+    subprocess.call = mock_call
+    os.makedirs = mock_makedirs
+    time.sleep = mock_sleep
+
+    commands = ['/etc/systemd/network/10-en-static.network', 'w',
+                '[Match]\n',
+                'Name=enp0s1\n\n',
+                '[Network]\n',
+                'Address=10.0.2.15\n',
+                'Gateway=10.0.2.2\n']
+
+    netreq = ister_gui.NetworkRequirements()
+    netreq.config = {}
+    netreq.ifaceaddrs = {"enp0s1": "10.0.2.15"}
+    netreq.static_ip = Edit("10.0.2.15")
+    netreq.interface = Edit("enp0s1")
+    netreq.gateway = Edit("10.0.2.2")
+    try:
+        netreq._static_configuration(None)
+    except Exception:
+        # this method always exits with an exception (urwid.ExitMainLoop)
+        pass
+
+    subprocess.call = call_backup
+    os.makedirs = makedirs_backup
+    time.sleep = sleep_backup
+
+    commands_compare_helper(commands)
+
+
+def gui_set_proxy():
+    """
+    Setting the proxy in the gui results in the proxy getting stored
+    in the template (config)
+    """
+    import time
+
+    class Edit():
+        """mock uwrid.Edit class"""
+        def __init__(self, edit_text):
+            self.edit_text = edit_text
+
+        def get_edit_text(self):
+            return self.edit_text
+
+    def mock_sleep(sec):
+        """mock_sleep wrapper so the tests run faster"""
+        del(sec)
+
+    sleep_backup = time.sleep
+    time.sleep = mock_sleep
+
+    netreq = ister_gui.NetworkRequirements()
+    netreq.config = good_latest_template()
+    netreq.installer_proxy = Edit("https://to.clearlinux.org:1080")
+    try:
+        netreq._set_proxy(None)
+    except Exception:
+        # this method always exits with an exception (urwid.ExitMainLoop)
+        pass
+
+    time.sleep = sleep_backup
+    if "Proxy" in netreq.config:
+        if netreq.config["Proxy"] != "https://to.clearlinux.org:1080":
+            raise Exception("Proxy not set properly in config")
+
+
 def run_tests(tests):
     """Run ister test suite"""
     fail = 0
@@ -3811,6 +4061,7 @@ if __name__ == '__main__':
 
     TESTS = [
         run_command_good,
+        run_command_with_env,
         run_command_bad,
         create_virtual_disk_good_meg,
         create_virtual_disk_good_gig,
@@ -3840,6 +4091,7 @@ if __name__ == '__main__':
         get_current_format_good,
         set_hostname_good,
         copy_os_good,
+        copy_os_proxy_good,
         copy_os_format_good,
         copy_os_which_good,
         copy_os_physical_good,
@@ -3972,7 +4224,11 @@ if __name__ == '__main__':
         modify_cloud_init_service_file_good,
         modify_cloud_init_service_file_bad_open,
         cloud_init_configs_good,
-        cloud_init_configs_good_no_role
+        cloud_init_configs_good_no_role,
+        gui_network_connection_with_proxy,
+        gui_network_connection_no_proxy_when_required,
+        gui_static_configuration,
+        gui_set_proxy
     ]
 
     failed = run_tests(TESTS)

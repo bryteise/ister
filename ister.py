@@ -60,7 +60,7 @@ LOG = None
 DEBUG = False
 
 
-def run_command(cmd, raise_exception=True, log_output=True):
+def run_command(cmd, raise_exception=True, log_output=True, environ=None):
     """Execute given command in a subprocess
 
     This function will raise an Exception if the command fails unless
@@ -71,7 +71,8 @@ def run_command(cmd, raise_exception=True, log_output=True):
         sys.stdout.flush()
         proc = subprocess.Popen(cmd.split(" "),
                                 stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE)
+                                stderr=subprocess.PIPE,
+                                env=environ)
         lines = proc.stdout
         output = []
         for line in lines:
@@ -398,7 +399,14 @@ def copy_os(args, template, target_dir):
         os.makedirs("{0}/var/tmp".format(target_dir))
         run_command("mount --bind {0}/var/tmp /var/lib/swupd"
                     .format(target_dir))
-    run_command(swupd_command)
+    swupd_env = os.environ
+    if "Proxy" in template and template["Proxy"]:
+        proxy = "https_proxy={} ".format(template["Proxy"])
+        swupd_env["http_proxy"] = proxy
+        swupd_env["https_proxy"] = proxy
+        LOG.debug("proxy: {}".format(proxy))
+
+    run_command(swupd_command, environ=swupd_env)
 
 
 class ChrootOpen(object):

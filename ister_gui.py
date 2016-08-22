@@ -50,7 +50,10 @@ import subprocess
 import threading
 import sys
 import pprint
+import time
 import ipaddress
+import netifaces
+import pycurl
 
 # pylint: disable=E0401
 import urwid
@@ -641,24 +644,241 @@ class ConditionalStep(ProcessStep):
         return True
 
 
-class SplashScreen(ProcessStep):
-    """UI to select automatic or manual installation"""
-    def handler(self, config):
-        alert_content = 'Step 1 of 5\n\n'                                     \
-                        'Network Requirements:\n'                             \
-                        '  * Wired network connection\n'                      \
-                        '  * DHCP\n'                                          \
-                        '  * Internet Access\n\n'                             \
-                        'The installer will navigate most environments with ' \
-                        'autoproxies automatically\n'
+class NetworkRequirements(ProcessStep):
+    """UI to verify and configure network connectivity to
+    https://www.clearlinux.org for the installer"""
+    # pylint: disable=R0902
+    def __init__(self):
+        # allow time to start network unit on boot
+        time.sleep(.8)
+        super(NetworkRequirements, self).__init__()
+        static_button = urwid.Button('Set static ip configuration',
+                                     on_press=self._static_configuration)
+        reset_button = urwid.Button('Reset network to default configuration',
+                                    on_press=self._reset_network)
+        proxy_button = urwid.Button('Set installer proxy settings',
+                                    on_press=self._set_proxy)
+        static_button = urwid.AttrMap(static_button, None,
+                                      focus_map='reversed')
+        reset_button = urwid.AttrMap(reset_button, None,
+                                     focus_map='reversed')
+        proxy_button = urwid.AttrMap(proxy_button, None,
+                                     focus_map='reversed')
+        self.static_col = urwid.Columns([static_button, urwid.Divider()])
+        self.reset_col = urwid.Columns([reset_button, urwid.Divider()])
+        self.proxy_col = urwid.Columns([proxy_button, urwid.Divider()])
+        self.installer_proxy = urwid.Edit('installer proxy: ', '')
+        self.progress = urwid.Text('Step 1 of 5')
+        self.static_ip = None
+        self.interface = None
+        self.gateway = None
+        self.error = None
+        self.config = None
+        self.ifaceaddrs = None
 
-        alert = Alert("Clear Linux OS for Intel Architecture Installer",
-                      alert_content)
-        alert.do_alert()
-        return alert.response
+    def handler(self, config):
+        # make config an insance variable so we can copy proxy settings to it
+        self.config = config
+
+        # normally much of this would belong in __init__, but we want it
+        # refreshed every time the user refreshes/returns to the screen
+        self.build_ui_widgets()
+        self.build_ui()
+        self._action = self.run_ui()
+        if self._action == 'Refresh':
+            # re-build the widgets
+            return self._action
+
+        self.error = ''
+        try:
+            ipaddress.ip_address(self.static_ip.get_edit_text())
+        except Exception as err:
+            self.error = 'The configuration for "ip" is invalid {}'.format(err)
+            # an empty action signals to refresh the page
+            self._action = ''
+        if self.interface.get_edit_text() not in self.ifaceaddrs.keys():
+            self.error = 'Interface "{}" not detected'\
+                         .format(self.interface.get_edit_text())
+            # an empty action signals to refresh the page
+            self._action = ''
+
+        if not self.error:
+            config = self.config
+            return self._action
+        else:
+            Alert('Error!', self.error).do_alert()
+            self.error = ''
+            return self._action
+
+    def build_ui_widgets(self):
+        """Build ui handler
+        The last urwid Divider helps the tab movement to work"""
+        fmt = '{0:>25}'
+        wired = '* Connection to clearlinux.org: '
+        wired += 'established' if self._network_connection() else \
+                 'none detected, install will fail'
+        wired_req = urwid.Text(wired)
+        interface_ip = self._find_interface_ip()
+        interface_msg = 'Interface: '
+        ip_msg = 'IP address: '
+        if interface_ip:
+            interface_res = interface_ip[0]
+            ip_res = interface_ip[1]
+        else:
+            interface_res = 'none found'
+            ip_res = 'none found'
+
+        self.interface = urwid.Edit(fmt.format(interface_msg),
+                                    interface_res)
+        self.static_ip = urwid.Edit(fmt.format(ip_msg), ip_res)
+        # pylint: disable=E1103
+        try:
+            gateway = netifaces.gateways()['default'][netifaces.AF_INET][0]
+        except Exception:
+            gateway = 'none found'
+
+        self.gateway = urwid.Edit(fmt.format('Gateway: '), gateway)
+        self._ui_widgets = [self.progress,
+                            urwid.Divider(),
+                            wired_req,
+                            urwid.Divider(),
+                            self.installer_proxy,
+                            urwid.Divider(),
+                            self.proxy_col,
+                            urwid.Divider(),
+                            self.interface,
+                            self.static_ip,
+                            self.gateway,
+                            urwid.Divider(),
+                            self.static_col,
+                            urwid.Divider(),
+                            self.reset_col,
+                            urwid.Divider()]
+
+    def build_ui(self):
+        self._ui = SimpleForm(u'Network Requirements',
+                              self._ui_widgets, buttons=["Refresh", "Ok"])
+
+    def run_ui(self):
+        return self._ui.do_form()
+
+    def _network_connection(self):
+        """Check if connection to https://www.clearlinux.org is available"""
+        # pylint: disable=E1103
+
+        class Storage(object):
+            """Storage class for pycurl"""
+            # pylint: disable=R0903
+            def __init__(self):
+                self.buffer = ''
+                self.line = 0
+
+            def store(self, buf):
+                """Grab curl output"""
+                self.line = self.line + 1
+                self.buffer = "{}{}: {}".format(self.buffer, self.line, buf)
+
+            def __str__(self):
+                return self.buffer
+
+        headers = Storage()
+
+        curl = pycurl.Curl()
+        curl.setopt(curl.URL, 'https://www.clearlinux.org')
+        curl.setopt(curl.HEADER, 1)
+        curl.setopt(curl.NOBODY, 1)
+        curl.setopt(curl.HEADERFUNCTION, headers.store)
+        curl.setopt(curl.TIMEOUT, 1)
+        if 'Proxy' in self.config and self.config['Proxy']:
+            curl.setopt(curl.PROXY, self.config['Proxy'])
+
+        try:
+            curl.perform()
+        except Exception:
+            return False
+
+        return bool('401' not in str(headers))
+
+    def _static_configuration(self, _):
+        """
+        Writes the configuration on /etc/systemd/network/10-en-static.network
+        """
+        try:
+            ipaddress.ip_address(self.static_ip.get_edit_text())
+        except:
+            # the main loop is waiting on this method to exit so it can report
+            # the error
+            raise urwid.ExitMainLoop()
+
+        if self.interface.get_edit_text() not in self.ifaceaddrs.keys():
+            # the main loop is waiting on this method to exit so it can report
+            # the error
+            raise urwid.ExitMainLoop()
+
+        path = '/etc/systemd/network/'
+        if not os.path.exists(path):
+            os.makedirs(path)
+
+        with open(path + "10-en-static.network", "w") as nfile:
+            nfile.write("[Match]\n")
+            nfile.write("Name={}\n\n".format(self.interface.get_edit_text()))
+            nfile.write("[Network]\n")
+            nfile.write("Address={0}\n".format(self.static_ip.get_edit_text()))
+            nfile.write("Gateway={0}\n".format(self.gateway.get_edit_text()))
+
+        try:
+            subprocess.call(['/usr/bin/systemctl', 'restart',
+                             'systemd-networkd', 'systemd-resolved'])
+        except Exception as err:
+            Alert('Error!', err).do_alert()
+
+        raise urwid.ExitMainLoop()
+
+    def _reset_network(self, _):
+        """Reset the network to original configuration by removing static
+        network file and restarting network services"""
+        try:
+            os.remove('/etc/systemd/network/10-en-static.network')
+        except FileNotFoundError:
+            pass
+
+        try:
+            subprocess.call(['/usr/bin/systemctl', 'restart',
+                             'systemd-networkd', 'systemd-resolved'])
+        except:
+            raise urwid.ExitMainLoop()
+
+        # give the network a chance to start up again
+        time.sleep(.1)
+        raise urwid.ExitMainLoop()
+
+    def _set_proxy(self, _):
+        """Set the user defined proxy for the installer in the template"""
+        if self.installer_proxy.get_edit_text():
+            self.config['Proxy'] = self.installer_proxy.get_edit_text()
+
+        raise urwid.ExitMainLoop()
+
+    def _find_interface_ip(self):
+        """Find active interface and ip address"""
+        # pylint: disable=E1103
+        addrs = {}
+        af_inet = netifaces.AF_INET
+        for if_name in netifaces.interfaces():
+            ifaddrs = netifaces.ifaddresses(if_name)
+            if af_inet in ifaddrs:
+                ip_addrs = ifaddrs[af_inet][0]
+                if ip_addrs['addr'] and '127.0.' not in ip_addrs['addr']:
+                    addrs[if_name] = ip_addrs['addr']
+
+        self.ifaceaddrs = addrs
+        for interface in addrs:
+            if interface.startswith('e'):
+                return (interface, addrs[interface])
 
 
 class TelemetryDisclosure(ProcessStep):
+    # pylint: disable=R0902
     """UI to accept telemetry"""
     def __init__(self, cur_step, tot_steps):
         super(TelemetryDisclosure, self).__init__()
@@ -1516,6 +1736,7 @@ class ConfirmDHCPMenu(ProcessStep):
 
 
 class StaticIpStep(ProcessStep):
+    # pylint: disable=R0902
     """UI to gather the static ip configuration"""
     def __init__(self, cur_step, tot_steps):
         super(StaticIpStep, self).__init__()
@@ -1639,7 +1860,7 @@ class Installation(object):
         # args unused for now
         del args
         self._steps = list()
-        self.start = SplashScreen()
+        self.start = NetworkRequirements()
         self._init_actions()
         self.current_w = None
         self.logger = logging.getLogger('ister_gui')
@@ -1683,6 +1904,8 @@ class Installation(object):
         run = RunInstallation()
 
         self.start.set_action('Ok', telem_disclosure)
+        self.start.set_action('Refresh', self.start)
+        self.start.set_action('', self.start)
         telem_disclosure.set_action('Previous', self.start)
         telem_disclosure.set_action('Next', startmenu)
         startmenu.set_action('Previous', telem_disclosure)
