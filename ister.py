@@ -218,11 +218,22 @@ def map_loop_device(template, sleep_time=1):
 def get_device_name(template, disk):
     """Return /dev/{loopXp, sdX} type device name
     """
+    # handle loop devices, disk can be None
     if template.get("dev"):
-        dev = template["dev"] + "p"
-    else:
-        dev = "/dev/{0}".format(disk)
-    return dev
+        return ("{}p".format(template["dev"]), "p")
+
+    # if not a loop device, search for partition format in /dev
+    devices = os.listdir("/dev")
+    devgen = (name for name in devices if disk in name)
+    for name in devgen:
+        part = name.replace(disk, "")
+        if len(part) > 0:
+            prefix = "p" if part.startswith("p") else ""
+            return ("/dev/{}{}".format(disk, prefix), prefix)
+
+    # if we got this far, no partitions were found and nothing would be
+    # returned, resulting in a failed install.
+    raise Exception("No partitions found on /dev/{}".format(disk))
 
 
 def create_filesystems(template):
@@ -233,7 +244,7 @@ def create_filesystems(template):
                "ext4": "mkfs.ext4 -F", "btrfs": "mkfs.btrfs -f",
                "vfat": "mkfs.vfat", "swap": "mkswap", "xfs": "mkfs.xfs -f"}
     for fst in template["FilesystemTypes"]:
-        dev = get_device_name(template, fst["disk"])
+        (dev, prefix) = get_device_name(template, fst["disk"])
         LOG.debug("Creating file system {0} in {1}{2}"
                   .format(fst["type"], dev, fst["partition"]))
         if fst.get("options"):
@@ -244,7 +255,7 @@ def create_filesystems(template):
             command = "{0} {1}{2}".format(fs_util[fst["type"]], dev,
                                           fst["partition"])
         if fst["type"] == "swap":
-            if template.get("dev"):
+            if prefix:
                 base_dev = dev[:-1]
             else:
                 base_dev = dev
@@ -297,8 +308,8 @@ Where = {1}\nType = {2}\n\n".format(uuid, mount, fs_type)
         if part["mount"] == "/boot":
             has_boot = True
     for part in parts:
-        dev = get_device_name(template, part["disk"])
-        if template.get("dev"):
+        dev, prefix = get_device_name(template, part["disk"])
+        if prefix:
             base_dev = dev[:-1]
         else:
             base_dev = dev

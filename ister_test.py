@@ -696,20 +696,53 @@ def get_device_name_good_virtual():
     """Get virtual device name"""
     template = {"dev": "/dev/loop0"}
     dev = ister.get_device_name(template, None)
-    if dev != "/dev/loop0p":
+    if dev != ("/dev/loop0p", "p"):
         raise Exception("Bad device name returned {0}".format(dev))
 
 
 def get_device_name_good_physical():
     """Get physical device name"""
+    listdir_backup = os.listdir
+
+    def mock_listdir(directory):
+        """mock_listdir wrapper"""
+        del directory
+        return ["sda", "sda1", "sda2"]
+
+    os.listdir = mock_listdir
     dev = ister.get_device_name({}, "sda")
-    if dev != "/dev/sda":
+    os.listdir = listdir_backup
+    if dev != ("/dev/sda", ""):
+        raise Exception("Bad device name returned {0}".format(dev))
+
+
+def get_device_name_good_mmcblk_physical():
+    """Get physical device name"""
+    listdir_backup = os.listdir
+
+    def mock_listdir(directory):
+        """mock_listdir wrapper"""
+        del directory
+        return ["mmcblk1", "mmcblk1p1", "mmcblk1p2"]
+
+    os.listdir = mock_listdir
+    dev = ister.get_device_name({}, "mmcblk1")
+    os.listdir = listdir_backup
+    if dev != ("/dev/mmcblk1p", "p"):
         raise Exception("Bad device name returned {0}".format(dev))
 
 
 @run_command_wrapper
 def create_filesystems_good():
     """Create filesystems without options"""
+    listdir_backup = os.listdir
+
+    def mock_listdir(directory):
+        """mock_listdir wrapper"""
+        del directory
+        return ["sda", "sda1", "sda2", "sda3", "sda4",
+                "sdb", "sdb1", "sdb2", "sdb3"]
+
     template = {"FilesystemTypes": [{"disk": "sda", "type": "ext2",
                                      "partition": 1},
                                     {"disk": "sda", "type": "ext3",
@@ -733,7 +766,36 @@ def create_filesystems_good():
                 "--typecode=2:0657fd6d-a4ab-43c4-84e5-0933c84b4f4f",
                 "mkswap /dev/sdb2",
                 "mkfs.xfs -f /dev/sdb3"]
+    os.listdir = mock_listdir
     ister.create_filesystems(template)
+    os.listdir = listdir_backup
+    commands_compare_helper(commands)
+
+
+@run_command_wrapper
+def create_filesystems_mmcblk_good():
+    """Create filesystems without options"""
+    listdir_backup = os.listdir
+
+    def mock_listdir(directory):
+        """mock_listdir wrapper"""
+        del directory
+        return ["mmcblk1", "mmcblk1p1", "mmcblk1p2", "mmcblk1p3"]
+
+    template = {"FilesystemTypes": [{"disk": "mmcblk1", "type": "vfat",
+                                     "partition": 1},
+                                    {"disk": "mmcblk1", "type": "swap",
+                                     "partition": 2},
+                                    {"disk": "mmcblk1", "type": "ext4",
+                                     "partition": 3}]}
+    commands = ["mkfs.vfat /dev/mmcblk1p1",
+                "sgdisk /dev/mmcblk1 "
+                "--typecode=2:0657fd6d-a4ab-43c4-84e5-0933c84b4f4f",
+                "mkswap /dev/mmcblk1p2",
+                "mkfs.ext4 -F /dev/mmcblk1p3"]
+    os.listdir = mock_listdir
+    ister.create_filesystems(template)
+    os.listdir = listdir_backup
     commands_compare_helper(commands)
 
 
@@ -759,6 +821,14 @@ def create_filesystems_virtual_good():
 @run_command_wrapper
 def create_filesystems_good_options():
     """Create filesystems with options"""
+    listdir_backup = os.listdir
+
+    def mock_listdir(directory):
+        """mock_listdir wrapper"""
+        del directory
+        return ["sda", "sda1", "sda2", "sda3", "sda4",
+                "sdb", "sdb1", "sdb2", "sdb3"]
+
     template = {"FilesystemTypes": [{"disk": "sda", "type": "ext2",
                                      "partition": 1, "options": "opt"},
                                     {"disk": "sda", "type": "ext3",
@@ -782,7 +852,9 @@ def create_filesystems_good_options():
                 "--typecode=2:0657fd6d-a4ab-43c4-84e5-0933c84b4f4f",
                 "mkswap opt /dev/sdb2",
                 "mkfs.xfs -f opt /dev/sdb3"]
+    os.listdir = mock_listdir
     ister.create_filesystems(template)
+    os.listdir = listdir_backup
     commands_compare_helper(commands)
 
 
@@ -996,6 +1068,54 @@ def setup_mounts_virtual_good():
         target_dir = ister.setup_mounts(template)
     finally:
         tempfile.mkdtemp = backup_mkdtemp
+    if target_dir != "/tmp":
+        raise Exception("Target dir doesn't match expected: {0}"
+                        .format(target_dir))
+    commands_compare_helper(commands)
+
+
+@run_command_wrapper
+def setup_mounts_mmcblk_good():
+    """Setup mount points for install"""
+    listdir_backup = os.listdir
+
+    def mock_listdir(directory):
+        """mock_listdir wrapper"""
+        del directory
+        return ["sda", "sda1", "sda2", "mmcblk1", "mmcblk1p1", "mmcblk1p2"]
+
+    backup_mkdtemp = tempfile.mkdtemp
+
+    def mock_mkdtemp(*_, **kwargs):
+        """mock_mkdtemp wrapper"""
+        if not kwargs.get("prefix"):
+            raise Exception("Missing prefix argument to mkdtemp")
+        COMMAND_RESULTS.append(kwargs["prefix"])
+        return "/tmp"
+    tempfile.mkdtemp = mock_mkdtemp
+    template = {"PartitionMountPoints": [{"mount": "/", "disk": "mmcblk1",
+                                          "partition": 1},
+                                         {"mount": "/boot", "disk": "mmcblk1",
+                                          "partition": 2}],
+                "FilesystemTypes": [{"disk": "mmcblk1", "partition": 1,
+                                     "type": "vfat"},
+                                    {"disk": "mmcblk1", "partition": 2,
+                                     "type": "ext4"}],
+                "Version": 10}
+    commands = ["ister-10-",
+                "sgdisk /dev/mmcblk1 "
+                "--typecode=1:4f68bce3-e8cd-4db1-96e7-fbcaf984b709",
+                "mount /dev/mmcblk1p1 /tmp/",
+                "sgdisk /dev/mmcblk1 "
+                "--typecode=2:c12a7328-f81f-11d2-ba4b-00a0c93ec93b",
+                "mkdir -p /tmp/boot",
+                "mount /dev/mmcblk1p2 /tmp/boot"]
+    os.listdir = mock_listdir
+    try:
+        target_dir = ister.setup_mounts(template)
+    finally:
+        tempfile.mkdtemp = backup_mkdtemp
+        os.listdir = listdir_backup
     if target_dir != "/tmp":
         raise Exception("Target dir doesn't match expected: {0}"
                         .format(target_dir))
@@ -3704,13 +3824,16 @@ if __name__ == '__main__':
         map_loop_device_bad_losetup,
         get_device_name_good_virtual,
         get_device_name_good_physical,
+        get_device_name_good_mmcblk_physical,
         create_filesystems_good,
         create_filesystems_virtual_good,
+        create_filesystems_mmcblk_good,
         create_filesystems_good_options,
         setup_mounts_good,
         setup_mounts_good_mbr,
         setup_mounts_good_no_boot,
         setup_mounts_virtual_good,
+        setup_mounts_mmcblk_good,
         setup_mounts_bad,
         setup_mounts_good_units,
         add_bundles_good,
