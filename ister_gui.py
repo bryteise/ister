@@ -855,7 +855,9 @@ class ConfirmDiskWipe(ConfirmStep):
             self.text += "{0} contents: no partitions found.".format(disk)
         else:
             for part in disk_info["partitions"]:
-                self.text += '{0:10}{1:6}{2:28}\n'.format(part["name"],
+                # leave space between part name and size so long partition
+                # names such as mmcblk1p1 don't bump into the partition size
+                self.text += '{0:10} {1:6}{2:28}\n'.format(part["name"],
                                                           part["size"],
                                                           part["type"])
         alert = Alert(self._title,
