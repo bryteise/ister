@@ -674,7 +674,8 @@ class TelemetryDisclosure(ProcessStep):
                            'you change your mind.'
         self.progress = urwid.Text('Step {} of {}'.format(cur_step, tot_steps))
         self.message = urwid.Text(self._msg_prefix + self._msg_suffix)
-        self.accept = urwid.CheckBox('Yes.', on_state_change=self._on_opt_in_change)
+        self.accept = urwid.CheckBox('Yes.',
+                                     on_state_change=self._on_opt_in_change)
 
     def _on_opt_in_change(self, cbox, _):
         if cbox.get_state():
@@ -721,7 +722,6 @@ class TelemetryDisclosure(ProcessStep):
     def build_ui(self):
         self._ui = SimpleForm(u'Stability Enhancement Program',
                               self._ui_widgets, buttons=["Previous", "Next"])
-
 
 
 class StartInstaller(ProcessStep):
@@ -858,8 +858,8 @@ class ConfirmDiskWipe(ConfirmStep):
                 # leave space between part name and size so long partition
                 # names such as mmcblk1p1 don't bump into the partition size
                 self.text += '{0:10} {1:6}{2:28}\n'.format(part["name"],
-                                                          part["size"],
-                                                          part["type"])
+                                                           part["size"],
+                                                           part["type"])
         alert = Alert(self._title,
                       self.text,
                       labels=[u'No', u'Yes'])
