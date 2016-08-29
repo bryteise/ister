@@ -1229,7 +1229,7 @@ class MountPointsStep(ProcessStep):
 
 class BundleSelectorStep(ProcessStep):
     """UI which displays the bundle list to be installed"""
-    def __init__(self, cur_step, tot_steps):
+    def __init__(self, cur_step=None, tot_steps=None):
         super(BundleSelectorStep, self).__init__()
         self.bundles = [{'name': 'editors',
                          'desc': 'Popular text editors (terminal-based)'},
@@ -1266,7 +1266,9 @@ class BundleSelectorStep(ProcessStep):
              'desc': 'Required to update the system'},
             {'name': 'os-utils',
              'desc': 'A core set of OS utilities'}])
-        self.progress = urwid.Text('Step {} of {}'.format(cur_step, tot_steps))
+        if cur_step and tot_steps:
+            self.progress = urwid.Text('Step {} of {}'.format(cur_step,
+                                                              tot_steps))
 
     def handler(self, config):
         if not self._ui_widgets:
@@ -1292,10 +1294,11 @@ class BundleSelectorStep(ProcessStep):
         return self._ui.do_form()
 
     def build_ui_widgets(self):
-        self._ui_widgets = [self.progress,
-                            urwid.Divider(),
-                            urwid.Text('Select the bundles to install:'),
-                            urwid.Divider()]
+        self._ui_widgets = []
+        if self.progress:
+            self._ui_widgets = [self.progress, urwid.Divider()]
+        self._ui_widgets.extend([urwid.Text('Select the bundles to install:'),
+                                 urwid.Divider()])
         for bundle in self.bundles:
             check = urwid.CheckBox(bundle['name'])
             desc_text = urwid.Text(bundle['desc'])
