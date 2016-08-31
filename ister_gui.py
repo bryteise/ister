@@ -1627,6 +1627,16 @@ class UserConfigurationStep(ProcessStep):
 
         self.edit_username.set_edit_text(name_text + lastname_text)
 
+    def _set_fullname(self, user):
+        fname = self.edit_name.get_edit_text()
+        lname = self.edit_lastname.get_edit_text()
+        if fname or lname:
+            if fname and lname:
+                user['fullname'] = '{} {}'.format(fname, lname)
+            else:
+                user['fullname'] = fname or lname
+
+
     def handler(self, config):
         if not self._ui_widgets:
             self.build_ui_widgets()
@@ -1656,6 +1666,8 @@ class UserConfigurationStep(ProcessStep):
         tmp['password'] = crypt.crypt(self.edit_password.get_edit_text(),
                                       'aa')
         tmp['sudo'] = self.sudo.get_state()
+        self._set_fullname(tmp)
+
         config['Users'] = [tmp]
         return self._action
 

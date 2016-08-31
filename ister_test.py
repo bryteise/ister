@@ -1521,6 +1521,7 @@ def add_users_good():
     backup_add_user_key = ister.add_user_key
     backup_setup_sudo = ister.setup_sudo
     backup_disable_root_login = ister.disable_root_login
+    backup_add_user_fullname = ister.add_user_fullname
 
     def mock_create_account(user, target_dir):
         """mock_create_account wrapper"""
@@ -1541,10 +1542,15 @@ def add_users_good():
         """mock_disable_root_login wrapper"""
         COMMAND_RESULTS.append("password")
 
+    def mock_add_user_fullname(_, __):
+        """mock_add_user_fullname wrapper"""
+        COMMAND_RESULTS.append("fullname")
+
     ister.create_account = mock_create_account
     ister.add_user_key = mock_add_user_key
     ister.setup_sudo = mock_setup_sudo
     ister.disable_root_login = mock_disable_root_login
+    ister.add_user_fullname = mock_add_user_fullname
     global COMMAND_RESULTS
     COMMAND_RESULTS = []
     target_dir = "/tmp"
@@ -1561,16 +1567,18 @@ def add_users_good():
                 "sudo",
                 "password",
                 "four",
-                target_dir]
+                target_dir,
+                "fullname"]
     template = {"Users": [{"n": "one", "key": "akey", "sudo": True},
                           {"n": "two", "key": "akey", "sudo": False},
                           {"n": "three", "sudo": True},
-                          {"n": "four"}]}
+                          {"n": "four", "fullname": "Test User"}]}
     ister.add_users(template, target_dir)
     ister.create_account = backup_create_account
     ister.add_user_key = backup_add_user_key
     ister.setup_sudo = backup_setup_sudo
     ister.disable_root_login = backup_disable_root_login
+    ister.add_user_fullname = backup_add_user_fullname
     commands_compare_helper(commands)
 
 
@@ -1589,6 +1597,27 @@ def add_users_none():
         raise exep
     finally:
         ister.create_account = backup_create_account
+
+
+@chroot_open_wrapper("silent")
+def add_user_fullname():
+    import subprocess
+
+    global COMMAND_RESULTS
+    COMMAND_RESULTS = []
+
+    def mock_call(cmd):
+        """mock_call wrapper"""
+        COMMAND_RESULTS.extend(cmd)
+
+    backup_call = subprocess.call
+    subprocess.call = mock_call
+
+    template = {"fullname": "Test User", "username": "user"}
+    commands = ["chfn", "-f", "Test User", "user"]
+    ister.add_user_fullname(template, "/tmp")
+    subprocess.call = backup_call
+    commands_compare_helper(commands)
 
 
 @run_command_wrapper
@@ -4023,6 +4052,95 @@ def gui_set_proxy():
             raise Exception("Proxy not set properly in config")
 
 
+def gui_set_fullname_fname_lname_present():
+    """
+    Set the user's full name in the gui with first and last names present
+    """
+
+    class Edit():
+        """mock uwrid.Edit class"""
+        def __init__(self, edit_text):
+            self.edit_text = edit_text
+
+        def get_edit_text(self):
+            return self.edit_text
+
+    userconfig = ister_gui.UserConfigurationStep(0, 0)
+    temp = {}
+    userconfig.edit_name = Edit("Test")
+    userconfig.edit_lastname = Edit("User")
+    userconfig._set_fullname(temp)
+    if "fullname" not in temp or temp["fullname"] != "Test User":
+        raise Exception("Gui failed to set user fullname properly")
+
+
+def gui_set_fullname_fname_present():
+    """
+    Set the user's full name in the gui with only first name present
+    """
+
+    class Edit():
+        """mock uwrid.Edit class"""
+        def __init__(self, edit_text):
+            self.edit_text = edit_text
+
+        def get_edit_text(self):
+            return self.edit_text
+
+    userconfig = ister_gui.UserConfigurationStep(0, 0)
+    temp = {}
+    userconfig.edit_name = Edit("Test")
+    userconfig.edit_lastname = Edit("")
+    userconfig._set_fullname(temp)
+    if "fullname" not in temp or temp["fullname"] != "Test":
+        raise Exception("Gui failed to set user fullname properly")
+
+
+def gui_set_fullname_lname_present():
+    """
+    Set the user's full name in the gui with only last name present
+    """
+
+    class Edit():
+        """mock uwrid.Edit class"""
+        def __init__(self, edit_text):
+            self.edit_text = edit_text
+
+        def get_edit_text(self):
+            return self.edit_text
+
+    userconfig = ister_gui.UserConfigurationStep(0, 0)
+    temp = {}
+    userconfig.edit_name = Edit("")
+    userconfig.edit_lastname = Edit("User")
+    userconfig._set_fullname(temp)
+    if "fullname" not in temp or temp["fullname"] != "User":
+        raise Exception("Gui failed to set user fullname properly")
+
+
+def gui_set_fullname_none_present():
+    """
+    The user's full name should not be set in the gui if none are configured
+    by the user
+    """
+
+    class Edit():
+        """mock uwrid.Edit class"""
+        def __init__(self, edit_text):
+            self.edit_text = edit_text
+
+        def get_edit_text(self):
+            return self.edit_text
+
+    userconfig = ister_gui.UserConfigurationStep(0, 0)
+    temp = {}
+    userconfig.edit_name = Edit("")
+    userconfig.edit_lastname = Edit("")
+    userconfig._set_fullname(temp)
+    if "fullname" in temp:
+        raise Exception("Gui set user fullname when no fullname was present")
+
+
 def run_tests(tests):
     """Run ister test suite"""
     fail = 0
@@ -4110,6 +4228,7 @@ if __name__ == '__main__':
         setup_sudo_bad,
         add_users_good,
         add_users_none,
+        add_user_fullname,
         post_install_nonchroot_good,
         cleanup_physical_good,
         cleanup_virtual_good,
@@ -4230,7 +4349,11 @@ if __name__ == '__main__':
         gui_network_connection_with_proxy,
         gui_network_connection_no_proxy_when_required,
         gui_static_configuration,
-        gui_set_proxy
+        gui_set_proxy,
+        gui_set_fullname_fname_lname_present,
+        gui_set_fullname_fname_present,
+        gui_set_fullname_lname_present,
+        gui_set_fullname_none_present
     ]
 
     failed = run_tests(TESTS)
