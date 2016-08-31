@@ -400,11 +400,10 @@ def copy_os(args, template, target_dir):
         run_command("mount --bind {0}/var/tmp /var/lib/swupd"
                     .format(target_dir))
     swupd_env = os.environ
-    if "Proxy" in template and template["Proxy"]:
-        proxy = "https_proxy={} ".format(template["Proxy"])
-        swupd_env["http_proxy"] = proxy
-        swupd_env["https_proxy"] = proxy
-        LOG.debug("proxy: {}".format(proxy))
+    if template.get("Proxy"):
+        swupd_env["http_proxy"] = template["Proxy"]
+        swupd_env["https_proxy"] = template["Proxy"]
+        LOG.debug("proxy: {}".format(template["Proxy"]))
 
     run_command(swupd_command, environ=swupd_env)
 
