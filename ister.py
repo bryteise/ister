@@ -465,6 +465,23 @@ def create_account(user, target_dir):
         run_command(command)
 
 
+def add_user_fullname(user, target_dir):
+    """Add user's full name to /etc/passwd
+
+    If the user's full name is set in the template, use chfn to set their full
+    name in the GECOS field of the /etc/passwd file
+    """
+    try:
+        command = ["chfn", "-f", user["fullname"], user["username"]]
+
+        with ChrootOpen(target_dir) as _:
+            subprocess.call(command)
+    except Exception as exep:
+        print(exep)
+        LOG.info("Unable to set user {} full name: {}".format(user["username"],
+                                                              exep))
+
+
 def add_user_key(user, target_dir):
     """Append public key to user's ssh authorized_keys file
 
@@ -543,6 +560,8 @@ def add_users(template, target_dir):
         if user.get("sudo") and user["sudo"]:
             setup_sudo(user, target_dir)
             disable_root_login(target_dir)
+        if user.get("fullname"):
+            add_user_fullname(user, target_dir)
 
 
 def set_hostname(template, target_dir):
