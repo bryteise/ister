@@ -1886,7 +1886,7 @@ class Installation(object):
         startmenu = StartInstaller(3, 5)
         config_hostname = ConfigureHostname(7, 11)
         confirm_disk_wipe = ConfirmDiskWipe(5, 5)
-        confirm_disk_wipe2 = ConfirmDiskWipe(7, 11)
+        confirm_disk_wipe2 = ConfirmDiskWipe(6, 11)
         part_menu = PartitioningMenu(4, 11)
         automatic_device = SelectDeviceStep(4, 5)
         manual_part_device = SelectMultiDeviceStep(5, 11)
