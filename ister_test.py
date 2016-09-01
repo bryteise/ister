@@ -126,7 +126,9 @@ def run_command_wrapper(func):
             if not log_output:
                 COMMAND_RESULTS.append(False)
             if environ:
-                COMMAND_RESULTS.append(environ)
+                https_proxy = environ.get("https_proxy")
+                http_proxy = environ.get("http_proxy")
+                COMMAND_RESULTS.extend([https_proxy, http_proxy])
         global COMMAND_RESULTS
         COMMAND_RESULTS = []
         run_command = ister.run_command
@@ -490,7 +492,7 @@ def run_command_bad():
 @run_command_wrapper
 def run_command_with_env():
     """run_command with environment variable passed"""
-    command = ["true", os.environ]
+    command = ["true", os.getenv("https_proxy"), os.getenv("http_proxy")]
     ister.run_command("true", environ=os.environ)
     commands_compare_helper(command)
 
@@ -1223,7 +1225,7 @@ def copy_os_good():
     args.statedir = "/statetest"
     swupd_cmd = "swupd verify --install --path=/ --manifest=0 \
 --contenturl=ctest --versionurl=vtest --format=formattest --statedir=/statetest"
-    commands = [swupd_cmd, os.environ]
+    commands = [swupd_cmd, os.getenv("https_proxy"), os.getenv("http_proxy")]
     ister.copy_os(args, {"Version": 0, "DestinationType": ""}, "/")
     ister.add_bundles = backup_add_bundles
     shutil.which = backup_which
@@ -1247,10 +1249,9 @@ def copy_os_proxy_good():
     args.statedir = "/statetest"
     swupd_cmd = "swupd verify --install --path=/ --manifest=0 \
 --contenturl=ctest --versionurl=vtest --format=formattest --statedir=/statetest"
-    swupd_env = os.environ
-    swupd_env["https_proxy"] = "https://to.clearlinux.org"
-    swupd_env["http_proxy"] = "https://to.clearlinux.org"
-    commands = [swupd_cmd, swupd_env]
+    commands = [swupd_cmd,
+                "https://to.clearlinux.org",
+                "https://to.clearlinux.org"]
     template = {
         "Version": 0,
         "DestinationType": "",
@@ -1282,7 +1283,7 @@ def copy_os_format_good():
     args.statedir = "/statetest"
     swupd_cmd = "swupd verify --install --path=/ --manifest=0 \
 --contenturl=ctest --versionurl=vtest --format=test --statedir=/statetest"
-    commands = [swupd_cmd, os.environ]
+    commands = [swupd_cmd, os.getenv("https_proxy"), os.getenv("http_proxy")]
     ister.copy_os(args, {"Version": 0, "DestinationType": ""}, "/")
     ister.add_bundles = backup_add_bundles
     shutil.which = backup_which
@@ -1309,7 +1310,7 @@ def copy_os_which_good():
     swupd_cmd = "swupd verify --install --path=/ --manifest=0 \
 --contenturl=ctest --versionurl=vtest --format=formattest --statedir=/statetest"
     swupd_cmd = "stdbuf -o 0 {0}".format(swupd_cmd)
-    commands = [swupd_cmd, os.environ]
+    commands = [swupd_cmd, os.getenv("https_proxy"), os.getenv("http_proxy")]
     ister.copy_os(args, {"Version": 0, "DestinationType": ""}, "/")
     ister.add_bundles = backup_add_bundles
     shutil.which = backup_which
@@ -1343,7 +1344,8 @@ def copy_os_physical_good():
                 False,
                 "mount --bind //var/tmp /var/lib/swupd",
                 swupd_cmd,
-                os.environ]
+                os.getenv("https_proxy"),
+                os.getenv("http_proxy")]
     ister.copy_os(args, {"Version": 0, "DestinationType": "physical"}, "/")
     ister.add_bundles = backup_add_bundles
     shutil.which = backup_which
