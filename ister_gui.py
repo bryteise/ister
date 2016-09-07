@@ -54,6 +54,8 @@ import time
 import ipaddress
 import netifaces
 import pycurl
+import tempfile
+import shutil
 
 # pylint: disable=E0401
 import urwid
@@ -136,6 +138,32 @@ def get_disk_info(disk):
         else:
             break
     return info
+
+
+def get_list_of_disks():
+    """"Queries for the available disks discarding the inst. source"""
+    dir_path = '/sys/block'
+    disks = [device for device in os.listdir(dir_path)
+             if 'pci' in os.readlink('{0}/{1}'.format(dir_path, device))]
+    unmounted = list()
+
+    output = subprocess.check_output([
+        '/usr/bin/lsblk', '-o',
+        'MOUNTPOINT,PARTUUID']).decode('utf-8')
+    parts = output.split('\n')
+
+    expr = re.compile(r'(\S*)\s*(\S*)')
+    for line in parts:
+        match = expr.match(line)
+        if match:
+            if match.group(1) == '/':
+                part_uuid = match.group(2)
+
+    root_disk = os.readlink('/dev/disk/by-partuuid/{0}'.format(part_uuid))
+    for disk in disks:
+        if disk not in root_disk:
+            unmounted.append(disk)
+    return unmounted
 
 
 class Alert(object):
@@ -644,6 +672,254 @@ class ConditionalStep(ProcessStep):
         return True
 
 
+class ChooseAction(ProcessStep):
+    """UI to select installation path (Install, Shell, or Repair)"""
+    def __init__(self):
+        super(ChooseAction, self).__init__()
+        self.choices = {
+            'Install': 'Install - Install Clear Linux OS',
+            'Repair': 'Repair  - Attempt to repair host OS',
+            'Shell': 'Shell   - Open shell in host OS'
+        }
+        self._clicked = None
+        self.error = False
+        self.current = self._find_current_disk()
+        self.target_dir = None
+
+    def build_ui_widgets(self):
+        self._ui_widgets = []
+        for key in sorted(self.choices):
+            button = urwid.Button(self.choices[key])
+            urwid.connect_signal(button, 'click', self._item_chosen, key)
+            button = urwid.AttrMap(button, None, focus_map='reversed')
+            self._ui_widgets.append(button)
+
+    def _item_chosen(self, _, choice):
+        self._clicked = choice
+        raise urwid.ExitMainLoop()
+
+    def build_ui(self):
+        self._ui = SimpleForm('Choose Action', self._ui_widgets,
+                              buttons=['Previous'])
+
+    def run_ui(self):
+        return self._ui.do_form()
+
+    def handler(self, config):
+        prefix = 'ister-{}-'.format(str(config["Version"]))
+        self.target_dir = tempfile.mkdtemp(prefix=prefix)
+
+        if not self._ui_widgets:
+            self.build_ui_widgets()
+
+        if not self._ui:
+            self.build_ui()
+
+        self._clicked = ''
+
+        if self._ui:
+            self._action = self.run_ui()
+
+        if self._clicked:
+            self._action = self._clicked
+
+        if self._action == 'Shell':
+            self.chroot_shell(config)
+
+        if self._action == 'Repair':
+            self.repair_host(config)
+
+        return self._action
+
+    def chroot_shell(self, config):
+        """Chroot into host os (if one is found) and provide a shell"""
+        root_part, boot_part = self._mount_host_disk(config)
+        term = None
+        if not self.error:
+            term = Terminal(['chroot', self.target_dir, '/bin/bash'])
+        else:
+            # ask user if they want a shell in the installer instead
+            alert = Alert('Info',
+                          'Open shell in installer instead?',
+                          labels=['OK', 'Cancel'])
+            alert.do_alert()
+            if alert.response == 'OK':
+                term = Terminal(['bash'])
+
+        try:
+            if term:
+                term.main_loop()
+        except Exception as excep:
+            Alert('Error!', 'Error occurred in shell: {}'
+                            .format(excep)).do_alert()
+
+        self._umount_host_disk(root_part, boot_part)
+        self.error = False
+        self._action = 'return'
+
+    def repair_host(self, config):
+        """Run swupd verify --fix in the host os chroot"""
+        root_part, boot_part = self._mount_host_disk(config)
+        if self.error:
+            self._umount_host_disk(root_part, boot_part)
+            self._action = 'return'
+            return
+
+        if os.path.exists('/run/systemd/resolve/resolv.conf'):
+            try:
+                # This fixes the issue where this is actually just a broken
+                # symlink in a chroot. Removing the file allows us to copy a
+                # new file in its place.
+                os.remove('{}/etc/resolv.conf'.format(self.target_dir))
+            except:
+                # try anyways
+                pass
+
+            try:
+                shutil.copy('/run/systemd/resolve/resolv.conf',
+                            '{}/etc/resolv.conf'.format(self.target_dir))
+            except Exception as excep:
+                # try anyways
+                Alert('Error!', 'Unable to copy /etc/resolv.conf to host OS. '
+                                'This may cause repair to fail due to network '
+                                'issues. Consider manually removing the file '
+                                'using the "Shell" option if the repair '
+                                'fails').do_alert()
+
+        # save proxies if they exist in case the user did not set one in the
+        # network configuration screen
+        old_https_proxy = os.environ.get('https_proxy')
+        old_http_proxy = os.environ.get('http_proxy')
+
+        try:
+            old_root = os.open('/', os.O_RDONLY)
+            os.chroot(self.target_dir)
+        except Exception as excep:
+            Alert('Error!', 'Unable to chroot to host os').do_alert()
+            self._umount_host_disk(root_part, boot_part)
+            self._action = 'return'
+            return
+
+        # In host OS chroot
+        if old_https_proxy:
+            os.environ['https_proxy'] = old_https_proxy
+        elif old_http_proxy:
+            os.environ['http_proxy'] = old_http_proxy
+
+        watch = WatchableProcess(['swupd', 'verify', '--fix'])
+        watch.start()
+        current = 0
+        Alert('Repairing',
+              'Repairing host os on {}...'.format(root_part),
+              block=False).do_alert()
+        while not watch.done:
+            if len(watch.output) > current:
+                current = len(watch.output)
+                text = '\n'.join(watch.output[-10:])
+                Alert('Repairing', text, block=False).do_alert()
+        Alert('Repairing', '\n'.join(watch.output[-10:])).do_alert()
+
+        if not watch.poll():
+            Alert('Repairing', 'Successful repair').do_alert()
+        else:
+            Alert('Error!', 'Unable to repair host os').do_alert()
+
+        # leaving host OS chroot
+        os.chdir(old_root)
+        os.chroot('.')
+        os.close(old_root)
+
+        self._umount_host_disk(root_part, boot_part)
+        self.error = False
+        self._action = 'return'
+
+    def _find_current_disk(self):
+        """
+        Find the current disk so it can be skipped when searching for a Linux
+        root
+        """
+        cmd = ['lsblk', '-l', '-o', 'NAME,MOUNTPOINT']
+        output = subprocess.check_output(cmd).decode('utf-8')
+        for line in output.split('\n'):
+            if '/' in line:
+                return line.split()[0]
+
+        return ''
+
+    def _mount_host_disk(self, config):
+        """Search for and mount the host os disk"""
+        root_part = ''
+        boot_part = ''
+        prefix = 'ister-{}-'.format(str(config["Version"]))
+        self.target_dir = tempfile.mkdtemp(prefix=prefix)
+        disks = get_list_of_disks()
+        # search disks for root and boot partitions
+        for disk in disks:
+            if disk in self.current or root_part:
+                continue
+            part_info = get_disk_info('/dev/{}'.format(disk))
+            root_part = self._get_part(part_info,
+                                       'Linux root',
+                                       self.target_dir)
+            # only look for a boot partition on the same disk as the root
+            # partition and only if a root partition is found
+            if root_part:
+                boot_part = self._get_part(part_info,
+                                           'EFI System',
+                                           '{}/boot'.format(self.target_dir))
+
+        # error handling
+        if not root_part:
+            self.error = True
+            Alert('Error!', 'Unable to find host OS in: {}'
+                            .format(', '.join(disks))).do_alert()
+            return (root_part, boot_part)
+
+        if not boot_part:
+            Alert('Information', 'Unable to find boot partition for {}'
+                                 .format(root_part)).do_alert()
+
+        return (root_part, boot_part)
+
+    def _get_part(self, part_info, pattern, target):
+        """
+        Find partition specified by pattern and mount it at target.
+        This needs to return an empty string if it fails to find or mount the
+        pattern so that it doesn't later break subprocess calls.
+        """
+        for part in part_info['partitions']:
+            if part.get('type') and pattern in part['type']:
+                part_found = part['name']
+                try:
+                    # try to mount partition
+                    mount_res = subprocess.call(['mount',
+                                                 part_found,
+                                                 target])
+                    # only mount a linux root partition if it is Clear Linux OS
+                    if 'Linux root' in pattern:
+                        osf = '{}/usr/lib/os-release'.format(self.target_dir)
+                        with open(osf, 'r') as os_release:
+                            if 'clear-linux-os' in os_release.read():
+                                return part_found
+                        # if we have not returned at this point, unmount and
+                        # keep looking, this is not Clear Linux.
+                        subprocess.call(['umount', part_found])
+                    # for other partition types, just return the name
+                    else:
+                        return part_found
+                except:
+                    return ''
+
+        # pattern not found in partition types
+        return ''
+
+    def _umount_host_disk(self, root_part, boot_part):
+        """Unmount the os disk"""
+        subprocess.call(['umount', boot_part])
+        subprocess.call(['umount', root_part])
+        os.rmdir(self.target_dir)
+
+
 class NetworkRequirements(ProcessStep):
     """UI to verify and configure network connectivity to
     https://www.clearlinux.org for the installer"""
@@ -836,8 +1112,6 @@ class NetworkRequirements(ProcessStep):
                           .format(excep)).do_alert()
 
                 break
-
-
 
     def _static_configuration(self, _):
         """
@@ -1191,7 +1465,7 @@ class SelectDeviceStep(ProcessStep):
         super(SelectDeviceStep, self).__init__()
         self._clicked = None
         self._actions = None
-        self.disks = self._get_list_of_disks()
+        self.disks = get_list_of_disks()
         self.progress = 'Step {} of {}'.format(cur_step, tot_steps)
 
     def handler(self, config):
@@ -1233,31 +1507,6 @@ class SelectDeviceStep(ProcessStep):
                 urwid.connect_signal(button, 'click', self._item_chosen, disk)
                 button = urwid.AttrMap(button, None, focus_map='reversed')
                 self._ui_widgets.append(button)
-
-    def _get_list_of_disks(self):
-        """"Queries for the available disks discarding the inst. source"""
-        dir_path = '/sys/block'
-        disks = [device for device in os.listdir(dir_path)
-                 if 'pci' in os.readlink('{0}/{1}'.format(dir_path, device))]
-        unmounted = list()
-
-        output = subprocess.check_output([
-            '/usr/bin/lsblk', '-o',
-            'MOUNTPOINT,PARTUUID']).decode('utf-8')
-        parts = output.split('\n')
-
-        expr = re.compile(r'(\S*)\s*(\S*)')
-        for line in parts:
-            match = expr.match(line)
-            if match:
-                if match.group(1) == '/':
-                    part_uuid = match.group(2)
-
-        root_disk = os.readlink('/dev/disk/by-partuuid/{0}'.format(part_uuid))
-        for disk in disks:
-            if disk not in root_disk:
-                unmounted.append(disk)
-        return unmounted
 
 
 class SelectMultiDeviceStep(SelectDeviceStep):
@@ -1681,7 +1930,6 @@ class UserConfigurationStep(ProcessStep):
             else:
                 user['fullname'] = fname or lname
 
-
     def handler(self, config):
         if not self._ui_widgets:
             self.build_ui_widgets()
@@ -1939,6 +2187,7 @@ class Installation(object):
             self._exit(-1, 'Template file does not exist')
 
     def _init_actions(self):
+        choose_action = ChooseAction()
         telem_disclosure = TelemetryDisclosure(2, 5)
         startmenu = StartInstaller(3, 5)
         config_hostname = ConfigureHostname(7, 11)
@@ -1960,10 +2209,13 @@ class Installation(object):
                                            'installation?', 11, 11)
         run = RunInstallation()
 
-        self.start.set_action('Ok', telem_disclosure)
+        self.start.set_action('Ok', choose_action)
         self.start.set_action('Refresh', self.start)
         self.start.set_action('', self.start)
-        telem_disclosure.set_action('Previous', self.start)
+        choose_action.set_action('Install', telem_disclosure)
+        choose_action.set_action('return', choose_action)
+        choose_action.set_action('Previous', self.start)
+        telem_disclosure.set_action('Previous', choose_action)
         telem_disclosure.set_action('Next', startmenu)
         startmenu.set_action('Previous', telem_disclosure)
         startmenu.set_action('Automatic', automatic_device)

@@ -4193,7 +4193,6 @@ def gui_set_fullname_none_present():
         raise Exception("Gui set user fullname when no fullname was present")
 
 
-@run_command_wrapper
 def gui_set_hw_time():
     """
     Setting the hw clock first sets the system time then sets the hardware
@@ -4235,6 +4234,380 @@ def gui_set_hw_time():
 
     if netreq.nettime != 'Sun, Jan 01 2000 00:00:00':
         raise Exception('Date line not parsed correctly')
+
+    commands_compare_helper(commands)
+
+
+def gui_find_current_disk_success():
+    """
+    Finds the disk where root is currently mounted
+    """
+    import subprocess
+
+    global COMMAND_RESULTS
+    COMMAND_RESULTS = []
+
+    def mock_check_output(cmd):
+        COMMAND_RESULTS.extend(cmd)
+        return u"NAME MOUNTPOINT\n" \
+               "sda\n"             \
+               "sda1\n"            \
+               "sda2 [SWAP]\n"     \
+               "sda3 /\n".encode('utf-8')
+
+    commands = ["lsblk", "-l", "-o", "NAME,MOUNTPOINT"]
+    check_output_backup = subprocess.check_output
+    subprocess.check_output = mock_check_output
+    chooseact = ister_gui.ChooseAction()
+    subprocess.check_output = check_output_backup
+    if not chooseact.current:
+        raise Exception("Unable to find root disk")
+
+    commands_compare_helper(commands)
+
+
+def gui_find_current_disk_failure():
+    """
+    Returns an empty string when root disk cannot be found
+    """
+    import subprocess
+
+    global COMMAND_RESULTS
+    COMMAND_RESULTS = []
+
+    def mock_check_output(cmd):
+        COMMAND_RESULTS.extend(cmd)
+        return "NAME MOUNTPOINT\n" \
+               "sda\n"             \
+               "sda1\n"            \
+               "sda2 [SWAP]\n"     \
+               "sda3\n".encode('utf-8')
+
+    commands = ["lsblk", "-l", "-o", "NAME,MOUNTPOINT"]
+    check_output_backup = subprocess.check_output
+    subprocess.check_output = mock_check_output
+    chooseact = ister_gui.ChooseAction()
+    subprocess.check_output = check_output_backup
+    if chooseact.current:
+        raise Exception("Found root disk when there was none to be found")
+
+    commands_compare_helper(commands)
+
+
+@open_wrapper("good", "clear-linux-os")
+def gui_mount_host_disk_normal():
+    """
+    Returns target directory and os disk name and boot partition for the
+    correct disk
+    """
+    import subprocess
+    import tempfile
+    import ister_gui
+
+    global COMMAND_RESULTS
+    COMMAND_RESULTS = []
+
+    def mock_call(cmd):
+        COMMAND_RESULTS.extend(cmd)
+        return 0
+
+    def mock_mkdtemp(prefix):
+        return "/tmp/{}abcdefg123".format(prefix)
+
+    def mock_get_list_of_disks():
+        return ["sda", "sdb", "sdc"]
+
+    def mock_get_disk_info(disk):
+        if disk == "/dev/sda":
+            return {"partitions": [{"type": "EFI System", "name": "/dev/sda1"},
+                                   {"type": "", "name": "/dev/sda2"},
+                                   {"type": "Linux root", "name": "/dev/sda3"}]}
+        if disk == "/dev/sdb":
+            return {"partitions": [{"name": "/dev/sdb1"},
+                                   {"type": "SWAP", "name": "/dev/sdb2"}]}
+        if disk == "/dev/sdc":
+            return {"partitions": [{"type": "", "name": "/dev/sdc1"},
+                                   {"type": "EFI System", "name": "/dev/sdc2"},
+                                   {"type": "Linux root", "name": "/dev/sdc3"}]}
+
+    def mock_find_current_disk(_):
+        return "sda"
+
+    call_backup = subprocess.call
+    mkdtemp_backup = tempfile.mkdtemp
+    get_list_of_disks_backup = ister_gui.get_list_of_disks
+    get_disk_info_backup = ister_gui.get_disk_info
+    find_current_disk_backup = ister_gui.ChooseAction._find_current_disk
+
+    subprocess.call = mock_call
+    tempfile.mkdtemp = mock_mkdtemp
+    ister_gui.get_list_of_disks = mock_get_list_of_disks
+    ister_gui.get_disk_info = mock_get_disk_info
+    ister_gui.ChooseAction._find_current_disk = mock_find_current_disk
+
+    commands = ['mount', '/dev/sdc3', '/tmp/ister-latest-abcdefg123',
+                '/tmp/ister-latest-abcdefg123/usr/lib/os-release', 'r',
+                'read',
+                'mount', '/dev/sdc2', '/tmp/ister-latest-abcdefg123/boot']
+    chooseact = ister_gui.ChooseAction()
+    config = {"Version": "latest"}
+    os_disk, boot_part = chooseact._mount_host_disk(config)
+
+    subprocess.call = call_backup
+    tempfile.mkdtemp = mkdtemp_backup
+    ister_gui.get_list_of_disks = get_list_of_disks_backup
+    ister_gui.get_disk_info = get_disk_info_backup
+    ister_gui.ChooseAction._find_current_disk = find_current_disk_backup
+
+    if chooseact.target_dir != "/tmp/ister-latest-abcdefg123":
+        raise Exception("Target directory {} did not match expected "
+                        "/tmp/ister-latest-abcdefg123"
+                        .format(chooseact.target_dir))
+
+    if os_disk != "/dev/sdc3":
+        raise Exception("OS disk {} did not match expected "
+                        "/dev/sdc3".format(os_disk))
+
+    if boot_part != "/dev/sdc2":
+        raise Exception("OS boot partition {} did not match expected "
+                        "/dev/sdc2".format(boot_part))
+
+    commands_compare_helper(commands)
+
+
+@open_wrapper("good", "clear-linux-os")
+def gui_mount_host_disk_no_boot_on_host():
+    """
+    Returns target directory and os disk name for the correct disk. Boot
+    partition name should be empty since it does not exist on the host disk.
+    """
+    import subprocess
+    import tempfile
+    import ister_gui
+
+    global COMMAND_RESULTS
+    COMMAND_RESULTS = []
+
+    class mock_alert():
+        def __init__(self, _, __):
+            pass
+
+        def do_alert(self):
+            pass
+
+    def mock_call(cmd):
+        COMMAND_RESULTS.extend(cmd)
+        return 0
+
+    def mock_mkdtemp(prefix):
+        return "/tmp/{}abcdefg123".format(prefix)
+
+    def mock_get_list_of_disks():
+        return ["sda", "sdb", "sdc"]
+
+    def mock_get_disk_info(disk):
+        if disk == "/dev/sda":
+            return {"partitions": [{"type": "EFI System", "name": "/dev/sda1"},
+                                   {"type": "", "name": "/dev/sda2"},
+                                   {"type": "root", "name": "/dev/sda3"}]}
+        if disk == "/dev/sdb":
+            return {"partitions": [{"name": "/dev/sdb2"},
+                                   {"type": "SWAP", "name": "/dev/sdb2"}]}
+        if disk == "/dev/sdc":
+            return {"partitions": [{"type": "", "name": "/dev/sdc1"},
+                                   {"type": "Linux root", "name": "/dev/sdc3"}]}
+
+    def mock_find_current_disk(_):
+        return "sda"
+
+    call_backup = subprocess.call
+    mkdtemp_backup = tempfile.mkdtemp
+    get_list_of_disks_backup = ister_gui.get_list_of_disks
+    get_disk_info_backup = ister_gui.get_disk_info
+    find_current_disk_backup = ister_gui.ChooseAction._find_current_disk
+    alert_backup = ister_gui.Alert
+
+    subprocess.call = mock_call
+    tempfile.mkdtemp = mock_mkdtemp
+    ister_gui.get_list_of_disks = mock_get_list_of_disks
+    ister_gui.get_disk_info = mock_get_disk_info
+    ister_gui.ChooseAction._find_current_disk = mock_find_current_disk
+    ister_gui.Alert = mock_alert
+
+    commands = ['mount', '/dev/sdc3', '/tmp/ister-latest-abcdefg123',
+                '/tmp/ister-latest-abcdefg123/usr/lib/os-release', 'r', 'read']
+    chooseact = ister_gui.ChooseAction()
+    config = {"Version": "latest"}
+    os_disk, boot_part = chooseact._mount_host_disk(config)
+
+    subprocess.call = call_backup
+    tempfile.mkdtemp = mkdtemp_backup
+    ister_gui.get_list_of_disks = get_list_of_disks_backup
+    ister_gui.get_disk_info = get_disk_info_backup
+    ister_gui.ChooseAction._find_current_disk = find_current_disk_backup
+    ister_gui.Alert = alert_backup
+
+    if chooseact.target_dir != "/tmp/ister-latest-abcdefg123":
+        raise Exception("Target directory {} did not match expected "
+                        "/tmp/ister-latest-abcdefg123"
+                        .format(chooseact.target_dir))
+
+    if os_disk != "/dev/sdc3":
+        raise Exception("OS disk {} did not match expected "
+                        "/dev/sdc3".format(os_disk))
+
+    if boot_part:
+        raise Exception("OS boot partition found when it shouldn't have been")
+
+    commands_compare_helper(commands)
+
+
+@open_wrapper("good", "clear-linux-os")
+def gui_get_root_present():
+    import subprocess
+    import ister_gui
+
+    global COMMAND_RESULTS
+    COMMAND_RESULTS = []
+
+    def mock_call(cmd):
+        COMMAND_RESULTS.extend(cmd)
+
+    call_backup = subprocess.call
+    subprocess.call = mock_call
+
+    part_info = {"partitions": [{"name": "/dev/sda1"},
+                                {"type": "Linux root", "name": "/dev/sda2"}]}
+    commands = ['mount', '/dev/sda2', '/tmp/ister-latest-abcdefg123',
+                '/tmp/ister-latest-abcdefg123/usr/lib/os-release', 'r', 'read']
+    chooseact = ister_gui.ChooseAction()
+    chooseact.target_dir = "/tmp/ister-latest-abcdefg123"
+    result = chooseact._get_part(part_info, "Linux root", chooseact.target_dir)
+    subprocess.call = call_backup
+    if result is not "/dev/sda2":
+        raise Exception("OS root partition {} did not match expected /dev/sda2"
+                        .format(result))
+
+    commands_compare_helper(commands)
+
+
+@open_wrapper("good", "clear-linux-os")
+def gui_get_root_not_present():
+    import subprocess
+    import ister_gui
+
+    global COMMAND_RESULTS
+    COMMAND_RESULTS = []
+
+    def mock_call(cmd):
+        COMMAND_RESULTS.extend(cmd)
+
+    call_backup = subprocess.call
+    subprocess.call = mock_call
+
+    part_info = {"partitions": [{"name": "/dev/sda1"},
+                                {"type": "SWAP", "name": "/dev/sda2"}]}
+    commands = []
+    chooseact = ister_gui.ChooseAction()
+    chooseact.target_dir = "/tmp/ister-latest-abcdefg123"
+    result = chooseact._get_part(part_info, 'Linux root', chooseact.target_dir)
+    subprocess.call = call_backup
+    if result:
+        raise Exception("OS root partition reported as when none present"
+                        .format(result))
+
+    commands_compare_helper(commands)
+
+
+def gui_get_boot_present():
+    import subprocess
+    import ister_gui
+
+    global COMMAND_RESULTS
+    COMMAND_RESULTS = []
+
+    def mock_call(cmd):
+        COMMAND_RESULTS.extend(cmd)
+
+    call_backup = subprocess.call
+    subprocess.call = mock_call
+
+    part_info = {"partitions": [{"name": "/dev/sda1"},
+                                {"type": "EFI System", "name": "/dev/sda2"}]}
+    commands = ['mount', '/dev/sda2', '/tmp/ister-latest-abcdefg123/boot']
+    chooseact = ister_gui.ChooseAction()
+    chooseact.target_dir = "/tmp/ister-latest-abcdefg123"
+    result = chooseact._get_part(part_info,
+                                 "EFI System",
+                                 "{}/boot".format(chooseact.target_dir))
+    subprocess.call = call_backup
+    if result is not "/dev/sda2":
+        raise Exception("OS boot partition {} did not match expected /dev/sda2"
+                        .format(result))
+
+    commands_compare_helper(commands)
+
+
+def gui_get_boot_not_present():
+    import subprocess
+    import ister_gui
+
+    global COMMAND_RESULTS
+    COMMAND_RESULTS = []
+
+    def mock_call(cmd):
+        COMMAND_RESULTS.extend(cmd)
+
+    call_backup = subprocess.call
+    subprocess.call = mock_call
+
+    part_info = {"partitions": [{"name": "/dev/sda1"},
+                                {"type": "SWAP", "name": "/dev/sda2"}]}
+    commands = []
+    chooseact = ister_gui.ChooseAction()
+    chooseact.target_dir = "/tmp/ister-latest-abcdefg123"
+    result = chooseact._get_part(part_info,
+                                 "EFI System",
+                                 "{}/boot".format(chooseact.target_dir))
+    subprocess.call = call_backup
+    if result:
+        raise Exception("OS boot partition reported as {} when none present"
+                        .format(result))
+
+    commands_compare_helper(commands)
+
+
+def gui_umount_host_disk():
+    import subprocess
+    import os
+
+    global COMMAND_RESULTS
+    COMMAND_RESULTS = []
+
+    def mock_call(cmd):
+        COMMAND_RESULTS.extend(cmd)
+
+    def mock_rmdir(target_dir):
+        COMMAND_RESULTS.append(target_dir)
+
+    call_backup = subprocess.call
+    rmdir_backup = os.rmdir
+
+    subprocess.call = mock_call
+    os.rmdir = mock_rmdir
+
+    commands = ["umount",
+                "/dev/sdc2",
+                "umount",
+                "/dev/sdc3",
+                "ister-latest-abcdefg123"]
+    chooseact = ister_gui.ChooseAction()
+    chooseact.target_dir = "ister-latest-abcdefg123"
+    chooseact._umount_host_disk("/dev/sdc3",
+                                "/dev/sdc2")
+
+    subprocess.call = call_backup
+    os.rmdir = mock_rmdir
 
     commands_compare_helper(commands)
 
@@ -4454,7 +4827,16 @@ if __name__ == '__main__':
         gui_set_fullname_none_present,
         validate_proxy_url_template_good,
         validate_proxy_url_template_bad,
-        gui_set_hw_time
+        gui_set_hw_time,
+        gui_find_current_disk_success,
+        gui_find_current_disk_failure,
+        gui_mount_host_disk_normal,
+        gui_mount_host_disk_no_boot_on_host,
+        gui_get_root_present,
+        gui_get_root_not_present,
+        gui_get_boot_present,
+        gui_get_boot_not_present,
+        gui_umount_host_disk
     ]
 
     failed = run_tests(TESTS)
