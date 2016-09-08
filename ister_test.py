@@ -3920,6 +3920,8 @@ def gui_network_connection():
     time.sleep = mock_sleep
 
     netreq = ister_gui.NetworkRequirements()
+    # don't try to set hardware clock
+    netreq.nettime = 'set'
     if not netreq._network_connection():
         raise Exception("No network detected")
 
@@ -4178,6 +4180,52 @@ def gui_set_fullname_none_present():
         raise Exception("Gui set user fullname when no fullname was present")
 
 
+@run_command_wrapper
+def gui_set_hw_time():
+    """
+    Setting the hw clock first sets the system time then sets the hardware
+    clock from the system time.
+    """
+    import subprocess
+    import time
+
+    global COMMAND_RESULTS
+    COMMAND_RESULTS = []
+
+    def mock_call(cmd):
+        """mock_call wrapper"""
+        COMMAND_RESULTS.extend(cmd)
+
+    def mock_sleep(sec):
+        """mock_sleep wrapper so the tests run faster"""
+        del(sec)
+
+    call_backup = subprocess.call
+    sleep_backup = time.sleep
+
+    subprocess.call = mock_call
+    time.sleep = mock_sleep
+
+    lines = ['Date: Sun, Jan 01 2000 00:00:00 GMT\r\n']
+    commands = ['/usr/bin/date',
+                '+%a, %d %b %Y %H:%M:%S',
+                '--set=Sun, Jan 01 2000 00:00:00',
+                'hwclock',
+                '--systohc']
+
+    netreq = ister_gui.NetworkRequirements()
+    netreq.config = {}
+    netreq._set_hw_time(lines)
+
+    subprocess.call = call_backup
+    time.sleep = sleep_backup
+
+    if netreq.nettime != 'Sun, Jan 01 2000 00:00:00':
+        raise Exception('Date line not parsed correctly')
+
+    commands_compare_helper(commands)
+
+
 def run_tests(tests):
     """Run ister test suite"""
     fail = 0
@@ -4392,7 +4440,8 @@ if __name__ == '__main__':
         gui_set_fullname_lname_present,
         gui_set_fullname_none_present,
         validate_proxy_url_template_good,
-        validate_proxy_url_template_bad
+        validate_proxy_url_template_bad,
+        gui_set_hw_time
     ]
 
     failed = run_tests(TESTS)

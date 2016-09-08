@@ -676,6 +676,7 @@ class NetworkRequirements(ProcessStep):
         self.error = None
         self.config = None
         self.ifaceaddrs = None
+        self.nettime = None
 
     def handler(self, config):
         # make config an insance variable so we can copy proxy settings to it
@@ -784,16 +785,14 @@ class NetworkRequirements(ProcessStep):
             """Storage class for pycurl"""
             # pylint: disable=R0903
             def __init__(self):
-                self.buffer = ''
-                self.line = 0
+                self.buffer = []
 
             def store(self, buf):
                 """Grab curl output"""
-                self.line = self.line + 1
-                self.buffer = "{}{}: {}".format(self.buffer, self.line, buf)
+                self.buffer.append(buf.decode('utf-8'))
 
             def __str__(self):
-                return self.buffer
+                return ' '.join(self.buffer)
 
         headers = Storage()
 
@@ -809,7 +808,36 @@ class NetworkRequirements(ProcessStep):
         except Exception:
             return False
 
-        return bool('401' not in str(headers))
+        if '401' not in str(headers):
+            if not self.nettime:
+                self._set_hw_time(headers.buffer)
+            return True
+
+        return False
+
+    def _set_hw_time(self, headers):
+        for line in headers:
+            if line.startswith('Date'):
+                # remove Date: title
+                line = line.replace('Date: ', '')
+                # remove GMT and escaped chars from end of line, the date
+                # command will default to UTC
+                line = line.replace(' GMT\r\n', '')
+                self.nettime = line
+                try:
+                    subprocess.call(['/usr/bin/date',
+                                     '+%a, %d %b %Y %H:%M:%S',
+                                     '--set={}'.format(line)])
+                    subprocess.call(['hwclock', '--systohc'])
+                except Exception as excep:
+                    Alert('Error!',
+                          'Unable to set system time, this may cause failures '
+                          'with the Clear Linux OS Software Updater: {}'
+                          .format(excep)).do_alert()
+
+                break
+
+
 
     def _static_configuration(self, _):
         """
