@@ -667,7 +667,8 @@ class NetworkRequirements(ProcessStep):
         self.static_col = urwid.Columns([static_button, urwid.Divider()])
         self.reset_col = urwid.Columns([reset_button, urwid.Divider()])
         self.proxy_col = urwid.Columns([proxy_button, urwid.Divider()])
-        self.installer_proxy = urwid.Edit('installer proxy: ', '')
+        self.https_proxy = None
+        self.http_proxy = None
         self.progress = urwid.Text('Step 1 of 5')
         self.static_ip = None
         self.interface = None
@@ -713,7 +714,19 @@ class NetworkRequirements(ProcessStep):
     def build_ui_widgets(self):
         """Build ui handler
         The last urwid Divider helps the tab movement to work"""
+        if os.environ.get('https_proxy'):
+            https_text = os.environ['https_proxy']
+        else:
+            https_text = ''
+
+        if os.environ.get('http_proxy'):
+            http_text = os.environ['http_proxy']
+        else:
+            http_text = ''
+
         fmt = '{0:>25}'
+        self.https_proxy = urwid.Edit(fmt.format('HTTPS proxy: '), https_text)
+        self.http_proxy = urwid.Edit(fmt.format('HTTP proxy: '), http_text)
         wired = '* Connection to clearlinux.org: '
         wired += 'established' if self._network_connection() else \
                  'none detected, install will fail'
@@ -742,7 +755,8 @@ class NetworkRequirements(ProcessStep):
                             urwid.Divider(),
                             wired_req,
                             urwid.Divider(),
-                            self.installer_proxy,
+                            self.https_proxy,
+                            self.http_proxy,
                             urwid.Divider(),
                             self.proxy_col,
                             urwid.Divider(),
@@ -789,8 +803,6 @@ class NetworkRequirements(ProcessStep):
         curl.setopt(curl.NOBODY, 1)
         curl.setopt(curl.HEADERFUNCTION, headers.store)
         curl.setopt(curl.TIMEOUT, 1)
-        if 'Proxy' in self.config and self.config['Proxy']:
-            curl.setopt(curl.PROXY, self.config['Proxy'])
 
         try:
             curl.perform()
@@ -854,8 +866,13 @@ class NetworkRequirements(ProcessStep):
 
     def _set_proxy(self, _):
         """Set the user defined proxy for the installer in the template"""
-        if self.installer_proxy.get_edit_text():
-            self.config['Proxy'] = self.installer_proxy.get_edit_text()
+        if self.https_proxy.get_edit_text():
+            self.config['HTTPSProxy'] = self.https_proxy.get_edit_text()
+            os.environ['https_proxy'] = self.https_proxy.get_edit_text()
+
+        if self.http_proxy.get_edit_text():
+            self.config['HTTPProxy'] = self.http_proxy.get_edit_text()
+            os.environ['http_proxy'] = self.http_proxy.get_edit_text()
 
         raise urwid.ExitMainLoop()
 

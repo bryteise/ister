@@ -400,10 +400,13 @@ def copy_os(args, template, target_dir):
         run_command("mount --bind {0}/var/tmp /var/lib/swupd"
                     .format(target_dir))
     swupd_env = os.environ
-    if template.get("Proxy"):
-        swupd_env["http_proxy"] = template["Proxy"]
-        swupd_env["https_proxy"] = template["Proxy"]
-        LOG.debug("proxy: {}".format(template["Proxy"]))
+    if template.get("HTTPSProxy"):
+        swupd_env["https_proxy"] = template["HTTPSProxy"]
+        LOG.debug("https_proxy: {}".format(template["HTTPSProxy"]))
+
+    if template.get("HTTPProxy"):
+        swupd_env["http_proxy"] = template["HTTPProxy"]
+        LOG.debug("http_proxy: {}".format(template["HTTPProxy"]))
 
     run_command(swupd_command, environ=swupd_env)
 
@@ -941,6 +944,12 @@ def validate_legacybios_template(legacy):
         raise Exception("Invalid type for LegacyBios, must be True or False")
 
 
+def validate_proxy_url_template(proxy):
+    url = urlparse(proxy)
+    if not (url.scheme and url.netloc):
+        raise Exception("Invalid proxy url: {}".format(proxy))
+
+
 def validate_template(template):
     """Attempt to verify template is sane
 
@@ -976,6 +985,10 @@ def validate_template(template):
         validate_postnonchroot_template(template["PostNonChroot"])
     if template.get("LegacyBios"):
         validate_legacybios_template(template["LegacyBios"])
+    if template.get("HTTPSProxy"):
+        validate_proxy_url_template(template["HTTPSProxy"])
+    if template.get("HTTPProxy"):
+        validate_proxy_url_template(template["HTTPProxy"])
     LOG.debug("Configuration is valid:")
     LOG.debug(template)
 

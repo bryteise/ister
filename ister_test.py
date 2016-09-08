@@ -75,7 +75,9 @@ def good_virtual_disk_template():
     "PartitionMountPoints" : \
     [{"disk" : "gvdt", "partition" : 1, "mount" : "/boot"}, {"disk" : "gvdt", \
     "partition" : 3, "mount" : "/"}], \
-    "Version" : 800, "Bundles" : ["linux-kvm"]}'
+    "Version" : 800, "Bundles" : ["linux-kvm"], \
+    "HTTPSProxy" : "https://proxy.clear.com", \
+    "HTTPProxy" : "http://proxy.clear.com"}'
 
 
 def good_latest_template():
@@ -92,7 +94,9 @@ def good_latest_template():
     "PartitionMountPoints" : \
     [{"disk" : "gvdt", "partition" : 1, "mount" : "/boot"}, {"disk" : "gvdt", \
     "partition" : 3, "mount" : "/"}], \
-    "Version" : "latest", "Bundles" : ["linux-kvm"]}'
+    "Version" : "latest", "Bundles" : ["linux-kvm"], \
+    "HTTPSProxy" : "https://proxy.clear.com", \
+    "HTTPProxy" : "http://proxy.clear.com"}'
 
 
 def full_user_install_template():
@@ -1251,11 +1255,12 @@ def copy_os_proxy_good():
 --contenturl=ctest --versionurl=vtest --format=formattest --statedir=/statetest"
     commands = [swupd_cmd,
                 "https://to.clearlinux.org",
-                "https://to.clearlinux.org"]
+                "http://to.clearlinux.org"]
     template = {
         "Version": 0,
         "DestinationType": "",
-        "Proxy": "https://to.clearlinux.org"
+        "HTTPSProxy": "https://to.clearlinux.org",
+        "HTTPProxy": "http://to.clearlinux.org"
     }
     ister.copy_os(args, template, "/")
     ister.add_bundles = backup_add_bundles
@@ -2626,6 +2631,37 @@ def validate_postnonchroot_template_bad():
         raise Exception("Failed to detect missing script file")
 
 
+def validate_proxy_url_template_good():
+    ister.validate_proxy_url_template("http://proxy.clear.com")
+    ister.validate_proxy_url_template("https://proxy.clear.com")
+    ister.validate_proxy_url_template("https://example.co")
+
+
+def validate_proxy_url_template_bad():
+    error = []
+    try:
+        ister.validate_proxy_url_template("httpproxy.clear.com")
+        error.append("httpproxy.clear.com")
+    except:
+        pass
+
+    try:
+        ister.validate_proxy_url_template("not a url")
+        error.append("not a url")
+    except:
+        pass
+
+    try:
+        ister.validate_proxy_url("clear.com")
+        error.append("clear.com")
+    except:
+        pass
+
+    if error:
+        raise Exception("Incorrectly validated the following url(s): "
+                        "{}".format(", ".join(error)))
+
+
 def validate_template_good():
     """Good validate_template"""
     template = json.loads(good_virtual_disk_template())
@@ -3847,16 +3883,14 @@ def cloud_init_configs_good_no_role():
     commands_compare_helper(commands)
 
 
-def gui_network_connection_with_proxy():
+def gui_network_connection():
     """
-    Test that network connection can be detected with proxy set and successful
-    pycurl perform
+    Test that network connection can be detected with successful pycurl perform
     """
     import time
 
     actual = []
-    expected = ["https://www.clearlinux.org", 1, 1, 1,
-                "https://proxy.to.clearlinux.org:1080"]
+    expected = ["https://www.clearlinux.org", 1, 1, 1]
 
     class mock_pycurl_curl():
         """mock pycurl.Curl class"""
@@ -3866,7 +3900,6 @@ def gui_network_connection_with_proxy():
             self.NOBODY = None
             self.HEADERFUNCTION = None
             self.TIMEOUT = None
-            self.PROXY = None
 
         def setopt(self, attr, val):
             # Don't copy storage class address
@@ -3887,9 +3920,8 @@ def gui_network_connection_with_proxy():
     time.sleep = mock_sleep
 
     netreq = ister_gui.NetworkRequirements()
-    netreq.config = {"Proxy": "https://proxy.to.clearlinux.org:1080"}
     if not netreq._network_connection():
-        raise Exception("No network detected when proxy set")
+        raise Exception("No network detected")
 
     if actual != expected:
         raise Exception("pycurl.Curl options {} do not match "
@@ -3899,7 +3931,7 @@ def gui_network_connection_with_proxy():
     time.sleep = sleep_backup
 
 
-def gui_network_connection_no_proxy_when_required():
+def gui_network_connection_curl_exception():
     """
     Test that a failing pycurl perform results in failed network check with
     all pycurl opts set correctly
@@ -3941,7 +3973,7 @@ def gui_network_connection_no_proxy_when_required():
     if netreq._network_connection():
         pycurl.Curl = pycurl_backup
         time.sleep = sleep_backup
-        raise Exception("Network detected when required proxy not set")
+        raise Exception("Network detected when curl failed")
 
     pycurl.Curl = pycurl_backup
     time.sleep = sleep_backup
@@ -4038,8 +4070,9 @@ def gui_set_proxy():
     time.sleep = mock_sleep
 
     netreq = ister_gui.NetworkRequirements()
-    netreq.config = good_latest_template()
-    netreq.installer_proxy = Edit("https://to.clearlinux.org:1080")
+    netreq.config = {}
+    netreq.https_proxy = Edit("https://to.clearlinux.org:1080")
+    netreq.http_proxy = Edit("http://to.clearlinux.org:1080")
     try:
         netreq._set_proxy(None)
     except Exception:
@@ -4047,8 +4080,12 @@ def gui_set_proxy():
         pass
 
     time.sleep = sleep_backup
-    if "Proxy" in netreq.config:
-        if netreq.config["Proxy"] != "https://to.clearlinux.org:1080":
+    if "HTTPSProxy" in netreq.config:
+        if netreq.config["HTTPSProxy"] != "https://to.clearlinux.org:1080":
+            raise Exception("Proxy not set properly in config")
+
+    if "HTTPProxy" in netreq.config:
+        if netreq.config["HTTPProxy"] != "http://to.clearlinux.org:1080":
             raise Exception("Proxy not set properly in config")
 
 
@@ -4346,14 +4383,16 @@ if __name__ == '__main__':
         modify_cloud_init_service_file_bad_open,
         cloud_init_configs_good,
         cloud_init_configs_good_no_role,
-        gui_network_connection_with_proxy,
-        gui_network_connection_no_proxy_when_required,
+        gui_network_connection,
+        gui_network_connection_curl_exception,
         gui_static_configuration,
         gui_set_proxy,
         gui_set_fullname_fname_lname_present,
         gui_set_fullname_fname_present,
         gui_set_fullname_lname_present,
-        gui_set_fullname_none_present
+        gui_set_fullname_none_present,
+        validate_proxy_url_template_good,
+        validate_proxy_url_template_bad
     ]
 
     failed = run_tests(TESTS)
