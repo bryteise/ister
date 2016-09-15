@@ -60,7 +60,8 @@ LOG = None
 DEBUG = False
 
 
-def run_command(cmd, raise_exception=True, log_output=True, environ=None):
+def run_command(cmd, raise_exception=True, log_output=True, environ=None,
+                show_output=False):
     """Execute given command in a subprocess
 
     This function will raise an Exception if the command fails unless
@@ -78,9 +79,11 @@ def run_command(cmd, raise_exception=True, log_output=True, environ=None):
         for line in lines:
             decoded_line = line.decode('ascii', 'ignore').rstrip()
             output.append(decoded_line)
-            if log_output:
+            if show_output:
+                LOG.info(decoded_line)
+            elif log_output:
                 LOG.debug(decoded_line)
-        if proc.wait() != 0 and raise_exception:
+        if proc.poll() and raise_exception:
             decoded_line = proc.stderr.read().decode().rstrip()
             output.append(decoded_line)
             LOG.debug("Error {0}".format(decoded_line))
@@ -365,8 +368,10 @@ def add_bundles(template, target_dir):
     """
     bundles_dir = "/usr/share/clear/bundles/"
     os.makedirs(target_dir + bundles_dir)
-    for bundle in template["Bundles"]:
+    for index, bundle in enumerate(template["Bundles"]):
         open(target_dir + bundles_dir + bundle, "w").close()
+
+    LOG.info("Installing {} bundles (and dependencies)...".format(index + 1))
 
 
 def get_current_format():
@@ -408,7 +413,7 @@ def copy_os(args, template, target_dir):
         swupd_env["http_proxy"] = template["HTTPProxy"]
         LOG.debug("http_proxy: {}".format(template["HTTPProxy"]))
 
-    run_command(swupd_command, environ=swupd_env)
+    run_command(swupd_command, environ=swupd_env, show_output=True)
 
 
 class ChrootOpen(object):
