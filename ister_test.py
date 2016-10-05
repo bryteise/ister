@@ -3932,7 +3932,7 @@ def gui_network_connection():
     pycurl.Curl = mock_pycurl_curl
     time.sleep = mock_sleep
 
-    netreq = ister_gui.NetworkRequirements()
+    netreq = ister_gui.NetworkRequirements(0, 0)
     # don't try to set hardware clock
     netreq.nettime = 'set'
     if not netreq._network_connection():
@@ -3983,7 +3983,7 @@ def gui_network_connection_curl_exception():
     pycurl.Curl = mock_pycurl_curl
     time.sleep = mock_sleep
 
-    netreq = ister_gui.NetworkRequirements()
+    netreq = ister_gui.NetworkRequirements(0, 0)
     netreq.config = {}
     if netreq._network_connection():
         pycurl.Curl = pycurl_backup
@@ -4043,7 +4043,7 @@ def gui_static_configuration():
                 'Address=10.0.2.15\n',
                 'Gateway=10.0.2.2\n']
 
-    netreq = ister_gui.NetworkRequirements()
+    netreq = ister_gui.NetworkRequirements(0, 0)
     netreq.config = {}
     netreq.ifaceaddrs = {"enp0s1": "10.0.2.15"}
     netreq.static_ip = Edit("10.0.2.15")
@@ -4084,7 +4084,7 @@ def gui_set_proxy():
     sleep_backup = time.sleep
     time.sleep = mock_sleep
 
-    netreq = ister_gui.NetworkRequirements()
+    netreq = ister_gui.NetworkRequirements(1, 1)
     netreq.config = {}
     netreq.https_proxy = Edit("https://to.clearlinux.org:1080")
     netreq.http_proxy = Edit("http://to.clearlinux.org:1080")
@@ -4225,7 +4225,7 @@ def gui_set_hw_time():
                 'hwclock',
                 '--systohc']
 
-    netreq = ister_gui.NetworkRequirements()
+    netreq = ister_gui.NetworkRequirements(0, 0)
     netreq.config = {}
     netreq._set_hw_time(lines)
 
@@ -4258,7 +4258,7 @@ def gui_find_current_disk_success():
     commands = ["lsblk", "-l", "-o", "NAME,MOUNTPOINT"]
     check_output_backup = subprocess.check_output
     subprocess.check_output = mock_check_output
-    chooseact = ister_gui.ChooseAction()
+    chooseact = ister_gui.ChooseAction(0, 0)
     subprocess.check_output = check_output_backup
     if not chooseact.current:
         raise Exception("Unable to find root disk")
@@ -4286,7 +4286,7 @@ def gui_find_current_disk_failure():
     commands = ["lsblk", "-l", "-o", "NAME,MOUNTPOINT"]
     check_output_backup = subprocess.check_output
     subprocess.check_output = mock_check_output
-    chooseact = ister_gui.ChooseAction()
+    chooseact = ister_gui.ChooseAction(0, 0)
     subprocess.check_output = check_output_backup
     if chooseact.current:
         raise Exception("Found root disk when there was none to be found")
@@ -4349,7 +4349,7 @@ def gui_mount_host_disk_normal():
                 '/tmp/ister-latest-abcdefg123/usr/lib/os-release', 'r',
                 'read',
                 'mount', '/dev/sdc2', '/tmp/ister-latest-abcdefg123/boot']
-    chooseact = ister_gui.ChooseAction()
+    chooseact = ister_gui.ChooseAction(0, 0)
     config = {"Version": "latest"}
     os_disk, boot_part = chooseact._mount_host_disk(config)
 
@@ -4436,7 +4436,7 @@ def gui_mount_host_disk_no_boot_on_host():
 
     commands = ['mount', '/dev/sdc3', '/tmp/ister-latest-abcdefg123',
                 '/tmp/ister-latest-abcdefg123/usr/lib/os-release', 'r', 'read']
-    chooseact = ister_gui.ChooseAction()
+    chooseact = ister_gui.ChooseAction(0, 0)
     config = {"Version": "latest"}
     os_disk, boot_part = chooseact._mount_host_disk(config)
 
@@ -4480,7 +4480,7 @@ def gui_get_root_present():
                                 {"type": "Linux root", "name": "/dev/sda2"}]}
     commands = ['mount', '/dev/sda2', '/tmp/ister-latest-abcdefg123',
                 '/tmp/ister-latest-abcdefg123/usr/lib/os-release', 'r', 'read']
-    chooseact = ister_gui.ChooseAction()
+    chooseact = ister_gui.ChooseAction(0, 0)
     chooseact.target_dir = "/tmp/ister-latest-abcdefg123"
     result = chooseact._get_part(part_info, "Linux root", chooseact.target_dir)
     subprocess.call = call_backup
@@ -4508,7 +4508,7 @@ def gui_get_root_not_present():
     part_info = {"partitions": [{"name": "/dev/sda1"},
                                 {"type": "SWAP", "name": "/dev/sda2"}]}
     commands = []
-    chooseact = ister_gui.ChooseAction()
+    chooseact = ister_gui.ChooseAction(0, 0)
     chooseact.target_dir = "/tmp/ister-latest-abcdefg123"
     result = chooseact._get_part(part_info, 'Linux root', chooseact.target_dir)
     subprocess.call = call_backup
@@ -4535,7 +4535,7 @@ def gui_get_boot_present():
     part_info = {"partitions": [{"name": "/dev/sda1"},
                                 {"type": "EFI System", "name": "/dev/sda2"}]}
     commands = ['mount', '/dev/sda2', '/tmp/ister-latest-abcdefg123/boot']
-    chooseact = ister_gui.ChooseAction()
+    chooseact = ister_gui.ChooseAction(0, 0)
     chooseact.target_dir = "/tmp/ister-latest-abcdefg123"
     result = chooseact._get_part(part_info,
                                  "EFI System",
@@ -4564,7 +4564,7 @@ def gui_get_boot_not_present():
     part_info = {"partitions": [{"name": "/dev/sda1"},
                                 {"type": "SWAP", "name": "/dev/sda2"}]}
     commands = []
-    chooseact = ister_gui.ChooseAction()
+    chooseact = ister_gui.ChooseAction(0, 0)
     chooseact.target_dir = "/tmp/ister-latest-abcdefg123"
     result = chooseact._get_part(part_info,
                                  "EFI System",
@@ -4601,7 +4601,7 @@ def gui_umount_host_disk():
                 "umount",
                 "/dev/sdc3",
                 "ister-latest-abcdefg123"]
-    chooseact = ister_gui.ChooseAction()
+    chooseact = ister_gui.ChooseAction(0, 0)
     chooseact.target_dir = "ister-latest-abcdefg123"
     chooseact._umount_host_disk("/dev/sdc3",
                                 "/dev/sdc2")

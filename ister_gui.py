@@ -672,9 +672,59 @@ class ConditionalStep(ProcessStep):
         return True
 
 
+class SplashScreen(ProcessStep):
+    # pylint: disable=R0902
+    """
+    First screen to display information about Clear Linux OS and this installer
+    """
+    def __init__(self):
+        super(SplashScreen, self).__init__()
+        greeting = "The Clear Linux Project for Intel Architecture is a "     \
+                   "distribution built for various Cloud use cases. We want " \
+                   "to showcase the best of Intel Architecture technology "   \
+                   "and performance, from low-level kernel features to "      \
+                   "complex applications that span across the entire OS "     \
+                   "stack. We're putting emphasis on Power and Performance "  \
+                   "optimizations throughout the operating system as a "      \
+                   "whole.\n\n"                                               \
+                   "** More information can be found at clearlinux.org **"
+        previous = "You can return to a < Previous > screen at any time."
+        self.greet_col = urwid.Columns([urwid.Text(greeting), urwid.Divider()])
+        self.previous = urwid.Text(previous)
+
+    def handler(self, config):
+        """Handles all the work for the current UI"""
+        if not self._ui_widgets:
+            self.build_ui_widgets()
+
+        if not self._ui:
+            self.build_ui()
+
+        if self._ui:
+            self._action = self.run_ui()
+
+        return self._action
+
+    def run_ui(self):
+        return self._ui.do_form()
+
+    def build_ui_widgets(self):
+        """Build ui handler
+        The last urwid Divider helps to tab movement to work"""
+        self._ui_widgets = [self.greet_col,
+                            urwid.Divider(),
+                            self.previous,
+                            urwid.Divider()]
+
+    def build_ui(self):
+        self._ui = SimpleForm(
+                u'Clear Linux OS for Intel Architecture Installer',
+                self._ui_widgets, buttons=["Next"])
+
+
 class ChooseAction(ProcessStep):
     """UI to select installation path (Install, Shell, or Repair)"""
-    def __init__(self):
+    def __init__(self, cur_step, tot_steps):
         super(ChooseAction, self).__init__()
         self.choices = {
             'Install': 'Install - Install Clear Linux OS',
@@ -685,9 +735,10 @@ class ChooseAction(ProcessStep):
         self.error = False
         self.current = self._find_current_disk()
         self.target_dir = None
+        self.progress = urwid.Text('Step {} of {}'.format(cur_step, tot_steps))
 
     def build_ui_widgets(self):
-        self._ui_widgets = []
+        self._ui_widgets = [self.progress]
         for key in sorted(self.choices):
             button = urwid.Button(self.choices[key])
             urwid.connect_signal(button, 'click', self._item_chosen, key)
@@ -924,7 +975,7 @@ class NetworkRequirements(ProcessStep):
     """UI to verify and configure network connectivity to
     https://www.clearlinux.org for the installer"""
     # pylint: disable=R0902
-    def __init__(self):
+    def __init__(self, cur_step, tot_steps):
         # allow time to start network unit on boot
         time.sleep(.8)
         super(NetworkRequirements, self).__init__()
@@ -945,7 +996,7 @@ class NetworkRequirements(ProcessStep):
         self.proxy_col = urwid.Columns([proxy_button, urwid.Divider()])
         self.https_proxy = None
         self.http_proxy = None
-        self.progress = urwid.Text('Step 1 of 5')
+        self.progress = urwid.Text('Step {} of {}'.format(cur_step, tot_steps))
         self.static_ip = None
         self.interface = None
         self.gateway = None
@@ -1048,7 +1099,9 @@ class NetworkRequirements(ProcessStep):
 
     def build_ui(self):
         self._ui = SimpleForm(u'Network Requirements',
-                              self._ui_widgets, buttons=["Refresh", "Ok"])
+                              self._ui_widgets, buttons=["Previous",
+                                                         "Refresh",
+                                                         "Next"])
 
     def run_ui(self):
         return self._ui.do_form()
@@ -2165,7 +2218,7 @@ class Installation(object):
         # args unused for now
         del args
         self._steps = list()
-        self.start = NetworkRequirements()
+        self.start = SplashScreen()
         self._init_actions()
         self.current_w = None
         self.logger = logging.getLogger('ister_gui')
@@ -2187,34 +2240,37 @@ class Installation(object):
             self._exit(-1, 'Template file does not exist')
 
     def _init_actions(self):
-        choose_action = ChooseAction()
-        telem_disclosure = TelemetryDisclosure(2, 5)
-        startmenu = StartInstaller(3, 5)
-        config_hostname = ConfigureHostname(7, 11)
-        confirm_disk_wipe = ConfirmDiskWipe(5, 5)
-        confirm_disk_wipe2 = ConfirmDiskWipe(6, 11)
-        part_menu = PartitioningMenu(4, 11)
-        automatic_device = SelectDeviceStep(4, 5)
-        manual_part_device = SelectMultiDeviceStep(5, 11)
-        manual_nopart_device = SelectDeviceStep(5, 11)
+        network_requirements = NetworkRequirements(1, 6)
+        choose_action = ChooseAction(2, 6)
+        telem_disclosure = TelemetryDisclosure(3, 6)
+        startmenu = StartInstaller(4, 6)
+        config_hostname = ConfigureHostname(8, 12)
+        confirm_disk_wipe = ConfirmDiskWipe(6, 6)
+        confirm_disk_wipe2 = ConfirmDiskWipe(7, 12)
+        part_menu = PartitioningMenu(5, 12)
+        automatic_device = SelectDeviceStep(5, 6)
+        manual_part_device = SelectMultiDeviceStep(6, 12)
+        manual_nopart_device = SelectDeviceStep(6, 12)
         terminal_cgdisk = TerminalStep()
-        set_mount_points = MountPointsStep(6, 11)
-        bundle_selector = BundleSelectorStep(8, 11)
-        confirm_user = ConfirmUserMenu(9, 11)
-        user_configuration = UserConfigurationStep(9, 11)
-        confirm_dhcp = ConfirmDHCPMenu(10, 11)
-        static_ip_config = StaticIpStep(10, 11)
+        set_mount_points = MountPointsStep(7, 12)
+        bundle_selector = BundleSelectorStep(9, 12)
+        confirm_user = ConfirmUserMenu(10, 12)
+        user_configuration = UserConfigurationStep(10, 12)
+        confirm_dhcp = ConfirmDHCPMenu(11, 12)
+        static_ip_config = StaticIpStep(11, 12)
         confirm_installation = ConfirmStep('Attention!', 'Setup is complete. '
                                            'Do you want to begin '
-                                           'installation?', 11, 11)
+                                           'installation?', 12, 12)
         run = RunInstallation()
 
-        self.start.set_action('Ok', choose_action)
-        self.start.set_action('Refresh', self.start)
-        self.start.set_action('', self.start)
+        self.start.set_action('Next', network_requirements)
+        network_requirements.set_action('Next', choose_action)
+        network_requirements.set_action('Refresh', network_requirements)
+        network_requirements.set_action('Previous', self.start)
+        network_requirements.set_action('', network_requirements)
         choose_action.set_action('Install', telem_disclosure)
         choose_action.set_action('return', choose_action)
-        choose_action.set_action('Previous', self.start)
+        choose_action.set_action('Previous', network_requirements)
         telem_disclosure.set_action('Previous', choose_action)
         telem_disclosure.set_action('Next', startmenu)
         startmenu.set_action('Previous', telem_disclosure)
