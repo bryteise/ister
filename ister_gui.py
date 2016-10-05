@@ -71,7 +71,9 @@ PALETTE = [
     ('p3', 'white', 'dark cyan'),
     ('p4', 'white', 'dark magenta'),
     ('reversed', 'white', ''),
-    ('I say', 'black,bold', 'light gray', 'bold')]
+    ('I say', 'black,bold', 'light gray', 'bold'),
+    ('success', 'dark green', 'light gray'),
+    ('warn', 'dark red', 'light gray')]
 
 MIN_WIDTH = 80
 MIN_HEIGHT = 24
@@ -1056,9 +1058,14 @@ class NetworkRequirements(ProcessStep):
         self.https_proxy = urwid.Edit(fmt.format('HTTPS proxy: '), https_text)
         self.http_proxy = urwid.Edit(fmt.format('HTTP proxy: '), http_text)
         wired = '* Connection to clearlinux.org: '
-        wired += 'established' if self._network_connection() else \
-                 'none detected, install will fail'
-        wired_req = urwid.Text(wired)
+        if self._network_connection():
+            wired_req = urwid.Text(['* Connection to clearlinux.org: ',
+                                    ('success', 'established')])
+        else:
+            wired_req = urwid.Text(['* Connection to clearlinux.org: ',
+                                    ('warn', 'none detected, '),
+                                    'install will fail'])
+
         interface_ip = self._find_interface_ip()
         interface_msg = 'Interface: '
         ip_msg = 'IP address: '
