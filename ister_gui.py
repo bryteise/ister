@@ -1269,8 +1269,8 @@ class TelemetryDisclosure(ProcessStep):
                            '\n\n' \
                            'See http://clearlinux.org/features/telemetry ' \
                            'for more information.\n\n'
-        self._msg_suffix = 'Install the telemetrics-client bundle later if '\
-                           'you change your mind.'
+        self._msg_suffix = 'Install the telemetrics bundle later if you '\
+                           'change your mind.'
         self.progress = urwid.Text('Step {} of {}'.format(cur_step, tot_steps))
         self.message = urwid.Text(self._msg_prefix + self._msg_suffix)
         self.accept = urwid.CheckBox('Yes.',
@@ -1845,10 +1845,20 @@ class BundleSelectorStep(ProcessStep):
                                                               tot_steps))
 
     def handler(self, config):
-        if not self._ui_widgets:
-            self.build_ui_widgets()
-        if not self._ui:
-            self.build_ui()
+        if 'telemetrics' in config['Bundles']:
+            self.required_bundles.append(
+                    {'name': 'telemetrics',
+                     'desc': 'Collects anonymous reports to improve '
+                             'system stability (opted in)'})
+        else:
+            self.required_bundles = [
+                    bundle for bundle in self.required_bundles
+                    if not (bundle.get('name') == 'telemetrics')]
+
+        # build widgets and ui each time in case user went back and opted out
+        # of telemetrics
+        self.build_ui_widgets()
+        self.build_ui()
         self._action = self.run_ui()
         for widget in self._ui_widgets[2:]:
             if isinstance(widget, urwid.Columns):
