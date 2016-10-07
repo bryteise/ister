@@ -1026,10 +1026,13 @@ class NetworkRequirements(ProcessStep):
         try:
             ipaddress.ip_address(self.static_ip.get_edit_text())
         except Exception as err:
-            self.error = 'The configuration for "ip" is invalid {}'.format(err)
-            # an empty action signals to refresh the page
-            self._action = ''
-        if self.interface.get_edit_text() not in self.ifaceaddrs.keys():
+            if self._action not in ['Next', 'Previous']:
+                self.error = 'The configuration for "ip" is invalid {}'\
+                             .format(err)
+                # an empty action signals to refresh the page
+                self._action = ''
+        if self.interface.get_edit_text() not in self.ifaceaddrs.keys() \
+                and self._action not in ['Next', 'Previous']:
             self.error = 'Interface "{}" not detected'\
                          .format(self.interface.get_edit_text())
             # an empty action signals to refresh the page
