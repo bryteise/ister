@@ -73,7 +73,8 @@ PALETTE = [
     ('reversed', 'white', ''),
     ('I say', 'black,bold', 'light gray', 'bold'),
     ('success', 'dark green', 'light gray'),
-    ('warn', 'dark red', 'light gray')]
+    ('warn', 'dark red', 'light gray'),
+    ('button', 'dark blue', 'light gray')]
 
 MIN_WIDTH = 80
 MIN_HEIGHT = 24
@@ -194,7 +195,7 @@ class Alert(object):
         for label in self._labels:
             button = urwid.Button(label)
             urwid.connect_signal(button, 'click', self._on_click)
-            button = urwid.AttrMap(button, None, focus_map='reversed')
+            button = urwid.AttrMap(button, 'button', focus_map='reversed')
             buttons.append(urwid.Padding(button, 'center', len(label) + 4))
 
         # Add to frame
@@ -275,7 +276,7 @@ class ButtonMenu(object):
         for choice in choices:
             button = urwid.Button(choice)
             urwid.connect_signal(button, 'click', self._item_chosen, choice)
-            button = urwid.AttrMap(button, None, focus_map='reversed')
+            button = urwid.AttrMap(button, 'button', focus_map='reversed')
             self._menu.append(button)
 
         self._lb = urwid.ListBox(urwid.SimpleFocusListWalker(self._menu))
@@ -493,7 +494,7 @@ class SimpleForm(object):
         for label in self.button_labels:
             button = urwid.Button(label)
             urwid.connect_signal(button, 'click', self._on_click)
-            button = urwid.AttrMap(button, None, focus_map='reversed')
+            button = urwid.AttrMap(button, 'button', focus_map='reversed')
             buttons.append(urwid.Padding(button, 'center', width=12))
 
         # Add to frame
@@ -744,7 +745,7 @@ class ChooseAction(ProcessStep):
         for key in sorted(self.choices):
             button = urwid.Button(self.choices[key])
             urwid.connect_signal(button, 'click', self._item_chosen, key)
-            button = urwid.AttrMap(button, None, focus_map='reversed')
+            button = urwid.AttrMap(button, 'button', focus_map='reversed')
             self._ui_widgets.append(button)
 
     def _item_chosen(self, _, choice):
@@ -987,11 +988,11 @@ class NetworkRequirements(ProcessStep):
                                     on_press=self._reset_network)
         proxy_button = urwid.Button('Set installer proxy settings',
                                     on_press=self._set_proxy)
-        static_button = urwid.AttrMap(static_button, None,
+        static_button = urwid.AttrMap(static_button, 'button',
                                       focus_map='reversed')
-        reset_button = urwid.AttrMap(reset_button, None,
+        reset_button = urwid.AttrMap(reset_button, 'button',
                                      focus_map='reversed')
-        proxy_button = urwid.AttrMap(proxy_button, None,
+        proxy_button = urwid.AttrMap(proxy_button, 'button',
                                      focus_map='reversed')
         self.static_col = urwid.Columns([static_button, urwid.Divider()])
         self.reset_col = urwid.Columns([reset_button, urwid.Divider()])
@@ -1336,7 +1337,7 @@ class StartInstaller(ProcessStep):
         for choice in self.choices:
             button = urwid.Button(choice)
             urwid.connect_signal(button, 'click', self._item_chosen, choice)
-            button = urwid.AttrMap(button, None, focus_map='reversed')
+            button = urwid.AttrMap(button, 'button', focus_map='reversed')
             self._ui_widgets.append(button)
 
     def _item_chosen(self, _, choice):
@@ -1482,7 +1483,7 @@ class PartitioningMenu(ProcessStep):
         for key in sorted(self.choices):
             button = urwid.Button(self.choices[key])
             urwid.connect_signal(button, 'click', self._item_chosen, key)
-            button = urwid.AttrMap(button, None, focus_map='reversed')
+            button = urwid.AttrMap(button, 'button', focus_map='reversed')
             self._ui_widgets.append(button)
 
     def _item_chosen(self, _, choice):
@@ -1565,7 +1566,7 @@ class SelectDeviceStep(ProcessStep):
             for disk in self.disks:
                 button = urwid.Button(disk)
                 urwid.connect_signal(button, 'click', self._item_chosen, disk)
-                button = urwid.AttrMap(button, None, focus_map='reversed')
+                button = urwid.AttrMap(button, 'button', focus_map='reversed')
                 self._ui_widgets.append(button)
 
 
@@ -1729,7 +1730,7 @@ class MountPointsStep(ProcessStep):
             for part in choices:
                 button = urwid.Button(part)
                 urwid.connect_signal(button, 'click', self._item_chosen, part)
-                button = urwid.AttrMap(button, None, focus_map='reversed')
+                button = urwid.AttrMap(button, 'button', focus_map='reversed')
                 self._ui_widgets.append(button)
 
     def _save_config(self, config, mount_d):
@@ -1917,7 +1918,7 @@ class ConfirmUserMenu(ProcessStep):
         for key in sorted(self.choices):
             button = urwid.Button(self.choices[key])
             urwid.connect_signal(button, 'click', self._item_chosen, key)
-            button = urwid.AttrMap(button, None, focus_map='reversed')
+            button = urwid.AttrMap(button, 'button', focus_map='reversed')
             self._ui_widgets.append(button)
 
     def _item_chosen(self, _, choice):
@@ -2077,7 +2078,7 @@ class ConfirmDHCPMenu(ProcessStep):
         for key in sorted(self.choices):
             button = urwid.Button(self.choices[key])
             urwid.connect_signal(button, 'click', self._item_chosen, key)
-            button = urwid.AttrMap(button, None, focus_map='reversed')
+            button = urwid.AttrMap(button, 'button', focus_map='reversed')
             self._ui_widgets.append(button)
 
     def _item_chosen(self, _, choice):
