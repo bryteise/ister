@@ -74,7 +74,8 @@ PALETTE = [
     ('I say', 'black,bold', 'light gray', 'bold'),
     ('success', 'dark green', 'light gray'),
     ('warn', 'dark red', 'light gray'),
-    ('button', 'dark blue', 'light gray')]
+    ('button', 'dark blue', 'light gray'),
+    ('ex', 'dark gray', 'light gray')]
 
 MIN_WIDTH = 80
 MIN_HEIGHT = 24
@@ -1057,6 +1058,10 @@ class NetworkRequirements(ProcessStep):
 
         fmt = '{0:>25}'
         self.https_proxy = urwid.Edit(fmt.format('HTTPS proxy: '), https_text)
+        self.https_col = urwid.Columns(
+                [self.https_proxy,
+                 urwid.Text(('ex', 'example: https://proxy.url.com:123'),
+                            align='center')])
         self.http_proxy = urwid.Edit(fmt.format('HTTP proxy: '), http_text)
         wired = '* Connection to clearlinux.org: '
         if self._network_connection():
@@ -1091,7 +1096,7 @@ class NetworkRequirements(ProcessStep):
                             urwid.Divider(),
                             wired_req,
                             urwid.Divider(),
-                            self.https_proxy,
+                            self.https_col,
                             self.http_proxy,
                             urwid.Divider(),
                             self.proxy_col,

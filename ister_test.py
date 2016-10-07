@@ -3903,7 +3903,7 @@ def gui_network_connection():
     import time
 
     actual = []
-    expected = ["https://www.clearlinux.org", 1, 1, 1]
+    expected = ["https://www.clearlinux.org", 1, 1, 3]
 
     class mock_pycurl_curl():
         """mock pycurl.Curl class"""
@@ -3954,7 +3954,7 @@ def gui_network_connection_curl_exception():
     import time
 
     actual = []
-    expected = ["https://www.clearlinux.org", 1, 1, 1]
+    expected = ["https://www.clearlinux.org", 1, 1, 3]
 
     class mock_pycurl_curl():
         """mock pycurl.Curl class"""
