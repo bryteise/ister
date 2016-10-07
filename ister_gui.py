@@ -1839,8 +1839,10 @@ class BundleSelectorStep(ProcessStep):
             kernel,
             {'name': 'os-core-update',
              'desc': 'Required to update the system'},
-            {'name': 'os-utils',
-             'desc': 'A core set of OS utilities'}])
+            {'name': 'network-basic',
+             'desc': 'Run network utilities and modify network settings'},
+            {'name': 'sysadmin-basic',
+             'desc': 'Run common utilities useful for managing a system'}])
         if cur_step and tot_steps:
             self.progress = urwid.Text('Step {} of {}'.format(cur_step,
                                                               tot_steps))
