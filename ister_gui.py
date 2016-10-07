@@ -1269,7 +1269,9 @@ class TelemetryDisclosure(ProcessStep):
                            'identifiable information is collected.' \
                            '\n\n' \
                            'See http://clearlinux.org/features/telemetry ' \
-                           'for more information.\n\n'
+                           'for more information.\n\n' \
+                           'Intel\'s privacy policy can be found at ' \
+                           'http://www.intel.com/privacy.\n\n'
         self._msg_suffix = 'Install the telemetrics bundle later if you '\
                            'change your mind.'
         self.progress = urwid.Text('Step {} of {}'.format(cur_step, tot_steps))
