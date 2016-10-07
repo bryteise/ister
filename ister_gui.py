@@ -1138,7 +1138,7 @@ class NetworkRequirements(ProcessStep):
         curl.setopt(curl.HEADER, 1)
         curl.setopt(curl.NOBODY, 1)
         curl.setopt(curl.HEADERFUNCTION, headers.store)
-        curl.setopt(curl.TIMEOUT, 1)
+        curl.setopt(curl.TIMEOUT, 3)
 
         try:
             curl.perform()
