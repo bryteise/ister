@@ -980,21 +980,27 @@ class NetworkRequirements(ProcessStep):
     https://www.clearlinux.org for the installer"""
     # pylint: disable=R0902
     def __init__(self, cur_step, tot_steps):
-        # allow time to start network unit on boot
-        time.sleep(.8)
         super(NetworkRequirements, self).__init__()
-        static_button = urwid.Button('Set static ip configuration',
-                                     on_press=self._static_configuration)
-        reset_button = urwid.Button('Reset network to default configuration',
-                                    on_press=self._reset_network)
-        proxy_button = urwid.Button('Set installer proxy settings',
+        self.proxy_header = urwid.Text('Proxy Settings')
+        proxy_button = urwid.Button('Set proxies',
                                     on_press=self._set_proxy)
-        static_button = urwid.AttrMap(static_button, 'button',
-                                      focus_map='reversed')
-        reset_button = urwid.AttrMap(reset_button, 'button',
-                                     focus_map='reversed')
         proxy_button = urwid.AttrMap(proxy_button, 'button',
                                      focus_map='reversed')
+        proxy_button = urwid.Padding(proxy_button, left=8)
+
+        self.static_header = urwid.Text('Static IP Configuration')
+        static_button = urwid.Button('Set static ip configuration',
+                                     on_press=self._static_configuration)
+        static_button = urwid.AttrMap(static_button, 'button',
+                                      focus_map='reversed')
+        static_button = urwid.Padding(static_button, left=8)
+
+        reset_button = urwid.Button('Reset network to default configuration',
+                                    on_press=self._reset_network)
+        reset_button = urwid.AttrMap(reset_button, 'button',
+                                     focus_map='reversed')
+        reset_button = urwid.Padding(reset_button, left=8)
+
         self.static_col = urwid.Columns([static_button, urwid.Divider()])
         self.reset_col = urwid.Columns([reset_button, urwid.Divider()])
         self.proxy_col = urwid.Columns([proxy_button, urwid.Divider()])
@@ -1008,6 +1014,7 @@ class NetworkRequirements(ProcessStep):
         self.config = None
         self.ifaceaddrs = None
         self.nettime = None
+        self.static_set = False
 
     def handler(self, config):
         # make config an insance variable so we can copy proxy settings to it
@@ -1059,7 +1066,7 @@ class NetworkRequirements(ProcessStep):
         else:
             http_text = ''
 
-        fmt = '{0:>25}'
+        fmt = '{0:>20}'
         self.https_proxy = urwid.Edit(fmt.format('HTTPS proxy: '), https_text)
         self.https_col = urwid.Columns(
                 [self.https_proxy,
@@ -1099,19 +1106,24 @@ class NetworkRequirements(ProcessStep):
                             urwid.Divider(),
                             wired_req,
                             urwid.Divider(),
+                            self.proxy_header,
+                            urwid.Divider(),
                             self.https_col,
                             self.http_proxy,
                             urwid.Divider(),
                             self.proxy_col,
+                            urwid.Divider(),
+                            self.static_header,
                             urwid.Divider(),
                             self.interface,
                             self.static_ip,
                             self.gateway,
                             urwid.Divider(),
                             self.static_col,
-                            urwid.Divider(),
-                            self.reset_col,
                             urwid.Divider()]
+
+        if self.static_set:
+            self._ui_widgets.extend([self.reset_col, urwid.Divider()])
 
     def build_ui(self):
         self._ui = SimpleForm(u'Network Requirements',
@@ -1215,6 +1227,7 @@ class NetworkRequirements(ProcessStep):
         except Exception as err:
             Alert('Error!', err).do_alert()
 
+        self.static_set = True
         raise urwid.ExitMainLoop()
 
     def _reset_network(self, _):
@@ -1229,10 +1242,12 @@ class NetworkRequirements(ProcessStep):
             subprocess.call(['/usr/bin/systemctl', 'restart',
                              'systemd-networkd', 'systemd-resolved'])
         except:
+            self.static_set = False
             raise urwid.ExitMainLoop()
 
         # give the network a chance to start up again
         time.sleep(.1)
+        self.static_set = False
         raise urwid.ExitMainLoop()
 
     def _set_proxy(self, _):
