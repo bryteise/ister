@@ -4036,12 +4036,20 @@ def gui_static_configuration():
     os.makedirs = mock_makedirs
     time.sleep = mock_sleep
 
+    # we will be running the function twice, once without then once with DNS
     commands = ['/etc/systemd/network/10-en-static.network', 'w',
                 '[Match]\n',
                 'Name=enp0s1\n\n',
                 '[Network]\n',
                 'Address=10.0.2.15\n',
-                'Gateway=10.0.2.2\n']
+                'Gateway=10.0.2.2\n',
+                '/etc/systemd/network/10-en-static.network', 'w',
+                '[Match]\n',
+                'Name=enp0s1\n\n',
+                '[Network]\n',
+                'Address=10.0.2.15\n',
+                'Gateway=10.0.2.2\n',
+                'DNS=10.0.2.3\n']
 
     netreq = ister_gui.NetworkRequirements(0, 0)
     netreq.config = {}
@@ -4051,15 +4059,23 @@ def gui_static_configuration():
     netreq.gateway = Edit("10.0.2.2")
     try:
         netreq._static_configuration(None)
-    except Exception:
+    except:
         # this method always exits with an exception (urwid.ExitMainLoop)
         pass
+
+    # set dns and run _static_configuration again
+    netreq.dns = Edit("10.0.2.3")
+    try:
+        netreq._static_configuration(None)
+    except:
+        # this method always exits with an exception (urwid.ExitMainLoop)
+        pass
+
+    commands_compare_helper(commands)
 
     subprocess.call = call_backup
     os.makedirs = makedirs_backup
     time.sleep = sleep_backup
-
-    commands_compare_helper(commands)
 
 
 def gui_set_proxy():

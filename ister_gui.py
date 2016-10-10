@@ -1010,6 +1010,7 @@ class NetworkRequirements(ProcessStep):
         self.static_ip = None
         self.interface = None
         self.gateway = None
+        self.dns = None
         self.error = None
         self.config = None
         self.ifaceaddrs = None
@@ -1102,6 +1103,7 @@ class NetworkRequirements(ProcessStep):
             gateway = 'none found'
 
         self.gateway = urwid.Edit(fmt.format('Gateway: '), gateway)
+        self.dns = urwid.Edit(fmt.format('DNS (optional): '))
         self._ui_widgets = [self.progress,
                             urwid.Divider(),
                             wired_req,
@@ -1118,6 +1120,7 @@ class NetworkRequirements(ProcessStep):
                             self.interface,
                             self.static_ip,
                             self.gateway,
+                            self.dns,
                             urwid.Divider(),
                             self.static_col,
                             urwid.Divider()]
@@ -1214,12 +1217,14 @@ class NetworkRequirements(ProcessStep):
         if not os.path.exists(path):
             os.makedirs(path)
 
-        with open(path + "10-en-static.network", "w") as nfile:
-            nfile.write("[Match]\n")
-            nfile.write("Name={}\n\n".format(self.interface.get_edit_text()))
-            nfile.write("[Network]\n")
-            nfile.write("Address={0}\n".format(self.static_ip.get_edit_text()))
-            nfile.write("Gateway={0}\n".format(self.gateway.get_edit_text()))
+        with open(path + '10-en-static.network', 'w') as nfile:
+            nfile.write('[Match]\n')
+            nfile.write('Name={}\n\n'.format(self.interface.get_edit_text()))
+            nfile.write('[Network]\n')
+            nfile.write('Address={}\n'.format(self.static_ip.get_edit_text()))
+            nfile.write('Gateway={}\n'.format(self.gateway.get_edit_text()))
+            if self.dns.get_edit_text():
+                nfile.write('DNS={}\n'.format(self.dns.get_edit_text()))
 
         try:
             subprocess.call(['/usr/bin/systemctl', 'restart',
