@@ -70,11 +70,11 @@ PALETTE = [
     ('p2', 'white', 'dark green'),
     ('p3', 'white', 'dark cyan'),
     ('p4', 'white', 'dark magenta'),
-    ('reversed', 'white', ''),
+    ('reversed', 'light cyan', 'black'),
     ('I say', 'black,bold', 'dark gray', 'bold'),
     ('success', 'dark green', 'dark gray'),
     ('warn', 'dark red', 'dark gray'),
-    ('button', 'dark blue', 'dark gray'),
+    ('button', 'light cyan', 'dark gray'),
     ('ex', 'dark gray', 'dark gray')]
 
 MIN_WIDTH = 80
