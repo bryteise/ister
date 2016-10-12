@@ -1925,7 +1925,7 @@ class BundleSelectorStep(ProcessStep):
         self._ui_widgets.extend([urwid.Divider(),
                                  urwid.Text('--- required ---')])
         for bundle in self.required_bundles:
-            text_name = urwid.Text(' X  {0}'.format(bundle['name']))
+            text_name = urwid.Text('    {0}'.format(bundle['name']))
             text_desc = urwid.Text(bundle['desc'])
             column = urwid.Columns([text_name, ('weight', 2, text_desc)])
             self._ui_widgets.append(column)
