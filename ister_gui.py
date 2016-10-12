@@ -170,6 +170,15 @@ def get_list_of_disks():
     return unmounted
 
 
+def ister_button(message, on_press=None, user_data=None,
+                 align='left', left=0, right=0):
+    width = len(message) + 4
+    button = urwid.Button(message, on_press=on_press, user_data=user_data)
+    button = urwid.AttrMap(button, 'button', focus_map='reversed')
+    return urwid.Padding(button, align=align, width=width,
+                         left=left, right=right)
+
+
 class Alert(object):
     """Class to display alerts or confirm boxes"""
     # pylint: disable=R0902
@@ -194,10 +203,10 @@ class Alert(object):
     def _add_nav_bar(self):
         buttons = list()
         for label in self._labels:
-            button = urwid.Button(label)
-            urwid.connect_signal(button, 'click', self._on_click)
-            button = urwid.AttrMap(button, 'button', focus_map='reversed')
-            buttons.append(urwid.Padding(button, 'center', len(label) + 4))
+            button = ister_button(label,
+                                  on_press=self._on_click,
+                                  align='center')
+            buttons.append(button)
 
         # Add to frame
         nav = NavBar(buttons)
@@ -275,9 +284,9 @@ class ButtonMenu(object):
                                 ('pack', urwid.Divider())]
         self._menu = []
         for choice in choices:
-            button = urwid.Button(choice)
-            urwid.connect_signal(button, 'click', self._item_chosen, choice)
-            button = urwid.AttrMap(button, 'button', focus_map='reversed')
+            button = ister_button(choice,
+                                  on_press=self._item_chosen,
+                                  user_data=choice)
             self._menu.append(button)
 
         self._lb = urwid.ListBox(urwid.SimpleFocusListWalker(self._menu))
@@ -493,10 +502,10 @@ class SimpleForm(object):
         buttons = []
 
         for label in self.button_labels:
-            button = urwid.Button(label)
-            urwid.connect_signal(button, 'click', self._on_click)
-            button = urwid.AttrMap(button, 'button', focus_map='reversed')
-            buttons.append(urwid.Padding(button, 'center', width=12))
+            button = ister_button(label,
+                                  on_press=self._on_click,
+                                  align='center')
+            buttons.append(button)
 
         # Add to frame
         self.nav = NavBar(buttons)
@@ -598,7 +607,7 @@ class IpEdit(urwid.Edit):
 
 
 class ProcessStep(object):
-    """Defines a step tu be run by the installation handler"""
+    """Defines a step to be run by the installation handler"""
     def __init__(self):
         self._ui = None
         self._ui_widgets = None
@@ -744,9 +753,9 @@ class ChooseAction(ProcessStep):
     def build_ui_widgets(self):
         self._ui_widgets = [self.progress]
         for key in sorted(self.choices):
-            button = urwid.Button(self.choices[key])
-            urwid.connect_signal(button, 'click', self._item_chosen, key)
-            button = urwid.AttrMap(button, 'button', focus_map='reversed')
+            button = ister_button(self.choices[key],
+                                  on_press=self._item_chosen,
+                                  user_data=key)
             self._ui_widgets.append(button)
 
     def _item_chosen(self, _, choice):
@@ -981,29 +990,27 @@ class NetworkRequirements(ProcessStep):
     # pylint: disable=R0902
     def __init__(self, cur_step, tot_steps):
         super(NetworkRequirements, self).__init__()
+        left = 8  # padding desired left of buttons, modifiable
+
+        # configure proxy section
         self.proxy_header = urwid.Text('Proxy Settings')
-        proxy_button = urwid.Button('Set proxies',
-                                    on_press=self._set_proxy)
-        proxy_button = urwid.AttrMap(proxy_button, 'button',
-                                     focus_map='reversed')
-        proxy_button = urwid.Padding(proxy_button, left=8)
+        self.proxy_button = ister_button('Set proxy configuration',
+                                         on_press=self._set_proxy,
+                                         left=left)
 
+        # configure static ip settings section
         self.static_header = urwid.Text('Static IP Configuration')
-        static_button = urwid.Button('Set static ip configuration',
-                                     on_press=self._static_configuration)
-        static_button = urwid.AttrMap(static_button, 'button',
-                                      focus_map='reversed')
-        static_button = urwid.Padding(static_button, left=8)
+        self.static_button = ister_button('Set static IP configuration',
+                                          on_press=self._static_configuration,
+                                          left=left)
 
-        reset_button = urwid.Button('Reset network to default configuration',
-                                    on_press=self._reset_network)
-        reset_button = urwid.AttrMap(reset_button, 'button',
-                                     focus_map='reversed')
-        reset_button = urwid.Padding(reset_button, left=8)
+        # configure reset button
+        self.reset_button = ister_button(
+                'Reset network to default configuration',
+                on_press=self._reset_network,
+                left=left)
 
-        self.static_col = urwid.Columns([static_button, urwid.Divider()])
-        self.reset_col = urwid.Columns([reset_button, urwid.Divider()])
-        self.proxy_col = urwid.Columns([proxy_button, urwid.Divider()])
+        # initiate necessary instance variables
         self.https_proxy = None
         self.http_proxy = None
         self.progress = urwid.Text('Step {} of {}'.format(cur_step, tot_steps))
@@ -1113,7 +1120,7 @@ class NetworkRequirements(ProcessStep):
                             self.https_col,
                             self.http_proxy,
                             urwid.Divider(),
-                            self.proxy_col,
+                            self.proxy_button,
                             urwid.Divider(),
                             self.static_header,
                             urwid.Divider(),
@@ -1122,11 +1129,11 @@ class NetworkRequirements(ProcessStep):
                             self.gateway,
                             self.dns,
                             urwid.Divider(),
-                            self.static_col,
+                            self.static_button,
                             urwid.Divider()]
 
         if self.static_set:
-            self._ui_widgets.extend([self.reset_col, urwid.Divider()])
+            self._ui_widgets.extend([self.reset_button, urwid.Divider()])
 
     def build_ui(self):
         self._ui = SimpleForm(u'Network Requirements',
@@ -1365,9 +1372,9 @@ class StartInstaller(ProcessStep):
     def build_ui_widgets(self):
         self._ui_widgets = [self.progress, urwid.Divider()]
         for choice in self.choices:
-            button = urwid.Button(choice)
-            urwid.connect_signal(button, 'click', self._item_chosen, choice)
-            button = urwid.AttrMap(button, 'button', focus_map='reversed')
+            button = ister_button(choice,
+                                  on_press=self._item_chosen,
+                                  user_data=choice)
             self._ui_widgets.append(button)
 
     def _item_chosen(self, _, choice):
@@ -1511,9 +1518,9 @@ class PartitioningMenu(ProcessStep):
     def build_ui_widgets(self):
         self._ui_widgets = [self.progress, urwid.Divider()]
         for key in sorted(self.choices):
-            button = urwid.Button(self.choices[key])
-            urwid.connect_signal(button, 'click', self._item_chosen, key)
-            button = urwid.AttrMap(button, 'button', focus_map='reversed')
+            button = ister_button(self.choices[key],
+                                  on_press=self._item_chosen,
+                                  user_data=key)
             self._ui_widgets.append(button)
 
     def _item_chosen(self, _, choice):
@@ -1594,9 +1601,9 @@ class SelectDeviceStep(ProcessStep):
             self._ui_widgets.append(widget)
         else:
             for disk in self.disks:
-                button = urwid.Button(disk)
-                urwid.connect_signal(button, 'click', self._item_chosen, disk)
-                button = urwid.AttrMap(button, 'button', focus_map='reversed')
+                button = ister_button(disk,
+                                      on_press=self._item_chosen,
+                                      user_data=disk)
                 self._ui_widgets.append(button)
 
 
@@ -1758,9 +1765,9 @@ class MountPointsStep(ProcessStep):
                                                             "Format?"))
             self._ui_widgets.append(wgt)
             for part in choices:
-                button = urwid.Button(part)
-                urwid.connect_signal(button, 'click', self._item_chosen, part)
-                button = urwid.AttrMap(button, 'button', focus_map='reversed')
+                button = ister_button(part,
+                                      on_press=self._item_chosen,
+                                      user_data=part)
                 self._ui_widgets.append(button)
 
     def _save_config(self, config, mount_d):
@@ -1950,9 +1957,9 @@ class ConfirmUserMenu(ProcessStep):
     def build_ui_widgets(self):
         self._ui_widgets = [self.progress, urwid.Divider()]
         for key in sorted(self.choices):
-            button = urwid.Button(self.choices[key])
-            urwid.connect_signal(button, 'click', self._item_chosen, key)
-            button = urwid.AttrMap(button, 'button', focus_map='reversed')
+            button = ister_button(self.choices[key],
+                                  on_press=self._item_chosen,
+                                  user_data=key)
             self._ui_widgets.append(button)
 
     def _item_chosen(self, _, choice):
@@ -2110,9 +2117,9 @@ class ConfirmDHCPMenu(ProcessStep):
     def build_ui_widgets(self):
         self._ui_widgets = [self.progress, urwid.Divider()]
         for key in sorted(self.choices):
-            button = urwid.Button(self.choices[key])
-            urwid.connect_signal(button, 'click', self._item_chosen, key)
-            button = urwid.AttrMap(button, 'button', focus_map='reversed')
+            button = ister_button(self.choices[key],
+                                  on_press=self._item_chosen,
+                                  user_data=key)
             self._ui_widgets.append(button)
 
     def _item_chosen(self, _, choice):
