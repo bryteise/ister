@@ -1878,12 +1878,14 @@ class BundleSelectorStep(ProcessStep):
                                                               tot_steps))
 
     def handler(self, config):
-        if 'telemetrics' in config['Bundles']:
+        telem_present = any(bundle['name'] == 'telemetrics'
+                            for bundle in self.required_bundles)
+        if 'telemetrics' in config['Bundles'] and not telem_present:
             self.required_bundles.append(
                     {'name': 'telemetrics',
                      'desc': 'Collects anonymous reports to improve '
                              'system stability (opted in)'})
-        else:
+        elif 'telemetrics' not in config['Bundles']:
             self.required_bundles = [
                     bundle for bundle in self.required_bundles
                     if not (bundle.get('name') == 'telemetrics')]
