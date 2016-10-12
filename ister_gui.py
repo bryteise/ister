@@ -64,18 +64,18 @@ import ister
 
 PALETTE = [
     ('header', 'white', 'dark red', 'bold'),
-    ('banner', 'black', 'light gray'),
-    ('bg', 'black', 'dark blue'),
+    ('banner', 'white', 'dark gray'),
+    ('bg', 'black', 'black'),
     ('p1', 'white', 'dark red'),
     ('p2', 'white', 'dark green'),
     ('p3', 'white', 'dark cyan'),
     ('p4', 'white', 'dark magenta'),
     ('reversed', 'white', ''),
-    ('I say', 'black,bold', 'light gray', 'bold'),
-    ('success', 'dark green', 'light gray'),
-    ('warn', 'dark red', 'light gray'),
-    ('button', 'dark blue', 'light gray'),
-    ('ex', 'dark gray', 'light gray')]
+    ('I say', 'black,bold', 'dark gray', 'bold'),
+    ('success', 'dark green', 'dark gray'),
+    ('warn', 'dark red', 'dark gray'),
+    ('button', 'dark blue', 'dark gray'),
+    ('ex', 'dark gray', 'dark gray')]
 
 MIN_WIDTH = 80
 MIN_HEIGHT = 24
