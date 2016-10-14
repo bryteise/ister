@@ -75,7 +75,8 @@ PALETTE = [
     ('success', 'dark green', 'dark gray'),
     ('warn', 'dark red', 'dark gray'),
     ('button', 'light cyan', 'dark gray'),
-    ('ex', 'dark gray', 'dark gray')]
+    ('ex', 'dark gray', 'dark gray'),
+    ('penguin', 'dark cyan', 'dark gray')]
 
 MIN_WIDTH = 80
 MIN_HEIGHT = 24
@@ -692,18 +693,32 @@ class SplashScreen(ProcessStep):
     """
     def __init__(self):
         super(SplashScreen, self).__init__()
-        greeting = "The Clear Linux Project for Intel Architecture is a "     \
-                   "distribution built for various Cloud use cases. We want " \
-                   "to showcase the best of Intel Architecture technology "   \
-                   "and performance, from low-level kernel features to "      \
-                   "complex applications that span across the entire OS "     \
-                   "stack. We're putting emphasis on Power and Performance "  \
-                   "optimizations throughout the operating system as a "      \
-                   "whole.\n\n"                                               \
-                   "** More information can be found at clearlinux.org **"
-        previous = "You can return to a < Previous > screen at any time."
-        self.greet_col = urwid.Columns([urwid.Text(greeting), urwid.Divider()])
-        self.previous = urwid.Text(previous)
+        greeting = "\n\n\n"                                              \
+                   "Visit clearlinux.org to learn more about the Clear " \
+                   "Linux Project for Intel Architecture.\n\n\n"         \
+                   "Use TAB or ARROW keys to navigate, press ENTER to "  \
+                   "select."                                             \
+                   "\n\n\n"                                              \
+                   "You can return to a \n\n< Previous >\n\nscreen at "  \
+                   "any time."
+        penguin = '      -os+-`\n'         \
+                  '   `:shysosso/.`\n'     \
+                  '  -yhhhhhyo//++o/-`\n'  \
+                  '  /ydddhhddo  ````.`\n' \
+                  '  ooydddddmm/\n'        \
+                  ' .ooohdddmmmm:\n'       \
+                  ' :ssoshddmNNNm.\n'      \
+                  ' +ssssshdmNNNNd`\n'     \
+                  ' syysssshdNNMMNy\n'     \
+                  '.yyyyyysydNMNNNN:\n'    \
+                  ':hhhyyyyyhmNNNNh`\n'    \
+                  'ohhhhhhhhhdNNNh`\n'     \
+                  'hdmmmmmmmmmNNd`\n'      \
+                  '`:oymmNNNNNNd.\n'       \
+                  '    `-+ymdo-\n'
+        greeting = urwid.Padding(urwid.Text(greeting), right=10)
+        penguin = urwid.Padding(urwid.Text(('penguin', penguin)), left=15)
+        self.greet_col = urwid.Columns([penguin, greeting])
 
     def handler(self, config):
         """Handles all the work for the current UI"""
@@ -725,8 +740,6 @@ class SplashScreen(ProcessStep):
         """Build ui handler
         The last urwid Divider helps to tab movement to work"""
         self._ui_widgets = [self.greet_col,
-                            urwid.Divider(),
-                            self.previous,
                             urwid.Divider()]
 
     def build_ui(self):
