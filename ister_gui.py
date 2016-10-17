@@ -1167,7 +1167,7 @@ class NetworkRequirements(ProcessStep):
         curl.setopt(curl.URL, 'https://www.clearlinux.org')
         curl.setopt(curl.HEADER, 1)
         curl.setopt(curl.NOBODY, 1)
-        curl.setopt(curl.HEADERFUNCTION, headers.store)
+        curl.setopt(curl.WRITEFUNCTION, headers.store)
         curl.setopt(curl.TIMEOUT, 3)
 
         try:
