@@ -75,7 +75,7 @@ PALETTE = [
     ('success', 'dark green', 'dark gray'),
     ('warn', 'dark red', 'dark gray'),
     ('button', 'light cyan', 'dark gray'),
-    ('ex', 'dark gray', 'dark gray')]
+    ('ex', 'light gray', 'dark gray')]
 
 MIN_WIDTH = 80
 MIN_HEIGHT = 24
@@ -999,7 +999,7 @@ class NetworkRequirements(ProcessStep):
                                          left=left)
 
         # configure static ip settings section
-        self.static_header = urwid.Text('Static IP Configuration')
+        self.static_header = urwid.Text('Static IP Configuration (optional)')
         self.static_button = ister_button('Set static IP configuration',
                                           on_press=self._static_configuration,
                                           left=left)
@@ -1010,19 +1010,30 @@ class NetworkRequirements(ProcessStep):
                 on_press=self._reset_network,
                 left=left)
 
+        # configure detected network settings section
+        self.detected_header = urwid.Text('Detected network configuration')
+
         # initiate necessary instance variables
+        self.progress = urwid.Text('Step {} of {}'.format(cur_step, tot_steps))
+        self.interface_msg = 'Interface: '
+        self.ip_msg = 'IP address: '
         self.https_proxy = None
         self.http_proxy = None
-        self.progress = urwid.Text('Step {} of {}'.format(cur_step, tot_steps))
-        self.static_ip = None
         self.interface = None
-        self.gateway = None
-        self.dns = None
         self.error = None
         self.config = None
         self.ifaceaddrs = None
         self.nettime = None
         self.static_set = False
+        self.static_check = False
+        self.set_static_edits()
+
+    def set_static_edits(self):
+        fmt = '{0:>20}'
+        self.interface_e = urwid.Edit(fmt.format(self.interface_msg))
+        self.static_ip_e = urwid.Edit(fmt.format(self.ip_msg))
+        self.gateway_e = urwid.Edit(fmt.format('Gateway: '))
+        self.dns_e = urwid.Edit(fmt.format('DNS (optional): '))
 
     def handler(self, config):
         # make config an insance variable so we can copy proxy settings to it
@@ -1038,20 +1049,36 @@ class NetworkRequirements(ProcessStep):
             return self._action
 
         self.error = ''
-        try:
-            ipaddress.ip_address(self.static_ip.get_edit_text())
-        except Exception as err:
-            if self._action not in ['Next', 'Previous']:
-                self.error = 'The configuration for "ip" is invalid {}'\
-                             .format(err)
+
+        if self.static_check:
+            try:
+                ipaddress.ip_address(self.gateway_e.get_edit_text())
+            except Exception as err:
+                if self._action not in ['Next', 'Previous']:
+                    self.error = 'The configuration for "gateway" is invalid '\
+                                 '{}'.format(err)
+                    # an empty action signals to refresh the page
+                    self._action = ''
+                    self.static_check = False
+
+            try:
+                ipaddress.ip_address(self.static_ip_e.get_edit_text())
+            except Exception as err:
+                if self._action not in ['Next', 'Previous']:
+                    self.error = 'The configuration for "ip" is invalid {}'\
+                                 .format(err)
+                    # an empty action signals to refresh the page
+                    self._action = ''
+                    self.static_check = False
+
+            # this will overwrite the ip error if it was created
+            if self.interface_e.get_edit_text() not in self.ifaceaddrs.keys() \
+                    and self._action not in ['Next', 'Previous']:
+                self.error = 'Interface "{}" not detected'\
+                             .format(self.interface_e.get_edit_text())
                 # an empty action signals to refresh the page
                 self._action = ''
-        if self.interface.get_edit_text() not in self.ifaceaddrs.keys() \
-                and self._action not in ['Next', 'Previous']:
-            self.error = 'Interface "{}" not detected'\
-                         .format(self.interface.get_edit_text())
-            # an empty action signals to refresh the page
-            self._action = ''
+                self.static_check = False
 
         if not self.error:
             config = self.config
@@ -1091,8 +1118,6 @@ class NetworkRequirements(ProcessStep):
                                     'install will fail'])
 
         interface_ip = self._find_interface_ip()
-        interface_msg = 'Interface: '
-        ip_msg = 'IP address: '
         if interface_ip:
             interface_res = interface_ip[0]
             ip_res = interface_ip[1]
@@ -1100,17 +1125,21 @@ class NetworkRequirements(ProcessStep):
             interface_res = 'none found'
             ip_res = 'none found'
 
-        self.interface = urwid.Edit(fmt.format(interface_msg),
-                                    interface_res)
-        self.static_ip = urwid.Edit(fmt.format(ip_msg), ip_res)
+        self.interface = urwid.Text(fmt.format(self.interface_msg) + interface_res)
+        self.static_ip = urwid.Text(fmt.format(self.ip_msg) + ip_res)
         # pylint: disable=E1103
         try:
             gateway = netifaces.gateways()['default'][netifaces.AF_INET][0]
         except Exception:
             gateway = 'none found'
 
-        self.gateway = urwid.Edit(fmt.format('Gateway: '), gateway)
-        self.dns = urwid.Edit(fmt.format('DNS (optional): '))
+        self.gateway = urwid.Text(fmt.format('Gateway: ') + gateway)
+        netconfig_title = urwid.Columns([self.static_header,
+                                         self.detected_header])
+        netconfig_iface = urwid.Columns([self.interface_e, self.interface])
+        netconfig_ip = urwid.Columns([self.static_ip_e, self.static_ip])
+        netconfig_gateway = urwid.Columns([self.gateway_e, self.gateway])
+        netconfig_dns = urwid.Columns([self.dns_e, urwid.Divider()])
         self._ui_widgets = [self.progress,
                             urwid.Divider(),
                             wired_req,
@@ -1122,12 +1151,12 @@ class NetworkRequirements(ProcessStep):
                             urwid.Divider(),
                             self.proxy_button,
                             urwid.Divider(),
-                            self.static_header,
+                            netconfig_title,
                             urwid.Divider(),
-                            self.interface,
-                            self.static_ip,
-                            self.gateway,
-                            self.dns,
+                            netconfig_iface,
+                            netconfig_ip,
+                            netconfig_gateway,
+                            netconfig_dns,
                             urwid.Divider(),
                             self.static_button,
                             urwid.Divider()]
@@ -1209,15 +1238,18 @@ class NetworkRequirements(ProcessStep):
         Writes the configuration on /etc/systemd/network/10-en-static.network
         """
         try:
-            ipaddress.ip_address(self.static_ip.get_edit_text())
+            ipaddress.ip_address(self.static_ip_e.get_edit_text())
+            ipaddress.ip_address(self.gateway_e.get_edit_text())
         except:
             # the main loop is waiting on this method to exit so it can report
             # the error
+            self.static_check = True
             raise urwid.ExitMainLoop()
 
-        if self.interface.get_edit_text() not in self.ifaceaddrs.keys():
+        if self.interface_e.get_edit_text() not in self.ifaceaddrs.keys():
             # the main loop is waiting on this method to exit so it can report
             # the error
+            self.static_check = True
             raise urwid.ExitMainLoop()
 
         path = '/etc/systemd/network/'
@@ -1226,12 +1258,12 @@ class NetworkRequirements(ProcessStep):
 
         with open(path + '10-en-static.network', 'w') as nfile:
             nfile.write('[Match]\n')
-            nfile.write('Name={}\n\n'.format(self.interface.get_edit_text()))
+            nfile.write('Name={}\n\n'.format(self.interface_e.get_edit_text()))
             nfile.write('[Network]\n')
-            nfile.write('Address={}\n'.format(self.static_ip.get_edit_text()))
-            nfile.write('Gateway={}\n'.format(self.gateway.get_edit_text()))
-            if self.dns.get_edit_text():
-                nfile.write('DNS={}\n'.format(self.dns.get_edit_text()))
+            nfile.write('Address={}\n'.format(self.static_ip_e.get_edit_text()))
+            nfile.write('Gateway={}\n'.format(self.gateway_e.get_edit_text()))
+            if self.dns_e.get_edit_text():
+                nfile.write('DNS={}\n'.format(self.dns_e.get_edit_text()))
 
         try:
             subprocess.call(['/usr/bin/systemctl', 'restart',
@@ -1239,6 +1271,7 @@ class NetworkRequirements(ProcessStep):
         except Exception as err:
             Alert('Error!', err).do_alert()
 
+        self.static_check = True
         self.static_set = True
         raise urwid.ExitMainLoop()
 
@@ -1255,11 +1288,14 @@ class NetworkRequirements(ProcessStep):
                              'systemd-networkd', 'systemd-resolved'])
         except:
             self.static_set = False
+            self.static_check = False
             raise urwid.ExitMainLoop()
 
         # give the network a chance to start up again
         time.sleep(.1)
         self.static_set = False
+        self.static_check = False
+        self.set_static_edits()
         raise urwid.ExitMainLoop()
 
     def _set_proxy(self, _):

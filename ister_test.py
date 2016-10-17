@@ -3911,7 +3911,7 @@ def gui_network_connection():
             self.URL = None
             self.HEADER = None
             self.NOBODY = None
-            self.HEADERFUNCTION = None
+            self.WRITEFUNCTION = None
             self.TIMEOUT = None
 
         def setopt(self, attr, val):
@@ -3962,7 +3962,7 @@ def gui_network_connection_curl_exception():
             self.URL = None
             self.HEADER = None
             self.NOBODY = None
-            self.HEADERFUNCTION = None
+            self.WRITEFUNCTION = None
             self.TIMEOUT = None
 
         def setopt(self, attr, val):
@@ -4054,9 +4054,9 @@ def gui_static_configuration():
     netreq = ister_gui.NetworkRequirements(0, 0)
     netreq.config = {}
     netreq.ifaceaddrs = {"enp0s1": "10.0.2.15"}
-    netreq.static_ip = Edit("10.0.2.15")
-    netreq.interface = Edit("enp0s1")
-    netreq.gateway = Edit("10.0.2.2")
+    netreq.static_ip_e = Edit("10.0.2.15")
+    netreq.interface_e = Edit("enp0s1")
+    netreq.gateway_e = Edit("10.0.2.2")
     try:
         netreq._static_configuration(None)
     except:
@@ -4064,7 +4064,7 @@ def gui_static_configuration():
         pass
 
     # set dns and run _static_configuration again
-    netreq.dns = Edit("10.0.2.3")
+    netreq.dns_e = Edit("10.0.2.3")
     try:
         netreq._static_configuration(None)
     except:
