@@ -462,7 +462,8 @@ class SimpleForm(object):
     Prompt for input for one or more fields """
     # pylint: disable=R0902
     # pylint: disable=R0903
-    def __init__(self, title, fields, buttons=["Previous", "Next"]):
+    def __init__(self, title, fields, buttons=["Previous", "Next"],
+                 align_title='left'):
         self._title = title
         self._questions = fields
         self._answers = dict()
@@ -474,7 +475,7 @@ class SimpleForm(object):
 
         # Build the forum
         self._frame = [('pack', urwid.Divider()),
-                       ('pack', urwid.Text(title)),
+                       ('pack', urwid.Text(title, align=align_title)),
                        ('pack', urwid.Divider())]
 
         self._form_body = FormBody(fields)
@@ -701,9 +702,11 @@ class SplashScreen(ProcessStep):
                    "optimizations throughout the operating system as a "      \
                    "whole.\n\n"                                               \
                    "** More information can be found at clearlinux.org **"
+        navigate = "Use TAB or ARROW keys to navigate, press ENTER to select"
         previous = "You can return to a < Previous > screen at any time."
-        self.greet_col = urwid.Columns([urwid.Text(greeting), urwid.Divider()])
-        self.previous = urwid.Text(previous)
+        self.greeting = urwid.Padding(urwid.Text(greeting), left=20, right=20)
+        self.navigate = urwid.Padding(urwid.Text(navigate), left=20, right=20)
+        self.previous = urwid.Padding(urwid.Text(previous), left=20, right=20)
 
     def handler(self, config):
         """Handles all the work for the current UI"""
@@ -724,7 +727,11 @@ class SplashScreen(ProcessStep):
     def build_ui_widgets(self):
         """Build ui handler
         The last urwid Divider helps to tab movement to work"""
-        self._ui_widgets = [self.greet_col,
+        self._ui_widgets = [self.greeting,
+                            urwid.Divider(),
+                            urwid.Divider(),
+                            urwid.Divider(),
+                            self.navigate,
                             urwid.Divider(),
                             self.previous,
                             urwid.Divider()]
@@ -732,7 +739,7 @@ class SplashScreen(ProcessStep):
     def build_ui(self):
         self._ui = SimpleForm(
                 u'Clear Linux OS for Intel Architecture Installer',
-                self._ui_widgets, buttons=["Next"])
+                self._ui_widgets, buttons=["Next"], align_title='center')
 
 
 class ChooseAction(ProcessStep):
