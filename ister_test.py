@@ -4057,6 +4057,7 @@ def gui_static_configuration():
     netreq.static_ip_e = Edit("10.0.2.15")
     netreq.interface_e = Edit("enp0s1")
     netreq.gateway_e = Edit("10.0.2.2")
+    netreq.static_ready = True
     try:
         netreq._static_configuration(None)
     except:

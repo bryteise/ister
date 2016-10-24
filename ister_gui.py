@@ -1003,6 +1003,10 @@ class NetworkRequirements(ProcessStep):
         self.static_button = ister_button('Set static IP configuration',
                                           on_press=self._static_configuration,
                                           left=left)
+        # go back two original widgets (through both Padding and AttrMap) to
+        # set the label of the button.
+        self.static_button.original_widget.original_widget.set_label(
+                ('ex', 'Set static IP configuration'))
 
         # configure reset button
         self.reset_button = ister_button(
@@ -1026,6 +1030,8 @@ class NetworkRequirements(ProcessStep):
         self.nettime = None
         self.static_set = False
         self.static_check = False
+        self.static_ready = False
+        self.static_edits = {}
         self.set_static_edits()
 
     def set_static_edits(self):
@@ -1034,9 +1040,38 @@ class NetworkRequirements(ProcessStep):
         self.static_ip_e = urwid.Edit(fmt.format(self.ip_msg))
         self.gateway_e = urwid.Edit(fmt.format('Gateway: '))
         self.dns_e = urwid.Edit(fmt.format('DNS (optional): '))
+        urwid.connect_signal(self.interface_e, 'change', self._activate_button)
+        urwid.connect_signal(self.static_ip_e, 'change', self._activate_button)
+        urwid.connect_signal(self.gateway_e, 'change', self._activate_button)
+        urwid.connect_signal(self.dns_e, 'change', self._activate_button)
+
+    def _activate_button(self, edit, new_text):
+        self.static_edits[edit] = new_text
+
+        # wait for all three required fields to be set updating the button
+        # label with the new 'button' palette
+        # `key` below is an object with a unique caption, so check against the
+        # caption string.
+        reqd_found = 0
+        for key in self.static_edits:
+            if 'Interface' in key.caption and self.static_edits[key]:
+                reqd_found += 1
+            if 'IP address' in key.caption and self.static_edits[key]:
+                reqd_found += 1
+            if 'Gateway' in key.caption and self.static_edits[key]:
+                reqd_found += 1
+
+        if reqd_found >= 3:
+            self.static_ready = True
+            self.static_button.original_widget.original_widget.set_label(
+                    ('button', 'Set static IP configuration'))
+        else:
+            self.static_ready = False
+            self.static_button.original_widget.original_widget.set_label(
+                    ('ex', 'Set static IP configuration'))
 
     def handler(self, config):
-        # make config an insance variable so we can copy proxy settings to it
+        # make config an instance variable so we can copy proxy settings to it
         self.config = config
 
         # normally much of this would belong in __init__, but we want it
@@ -1237,6 +1272,9 @@ class NetworkRequirements(ProcessStep):
         """
         Writes the configuration on /etc/systemd/network/10-en-static.network
         """
+        if not self.static_ready:
+            return
+
         try:
             ipaddress.ip_address(self.static_ip_e.get_edit_text())
             ipaddress.ip_address(self.gateway_e.get_edit_text())
