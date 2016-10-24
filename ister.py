@@ -409,10 +409,6 @@ def copy_os(args, template, target_dir):
         swupd_env["https_proxy"] = template["HTTPSProxy"]
         LOG.debug("https_proxy: {}".format(template["HTTPSProxy"]))
 
-    if template.get("HTTPProxy"):
-        swupd_env["http_proxy"] = template["HTTPProxy"]
-        LOG.debug("http_proxy: {}".format(template["HTTPProxy"]))
-
     run_command(swupd_command, environ=swupd_env, show_output=True)
 
 

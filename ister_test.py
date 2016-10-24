@@ -76,8 +76,7 @@ def good_virtual_disk_template():
     [{"disk" : "gvdt", "partition" : 1, "mount" : "/boot"}, {"disk" : "gvdt", \
     "partition" : 3, "mount" : "/"}], \
     "Version" : 800, "Bundles" : ["linux-kvm"], \
-    "HTTPSProxy" : "https://proxy.clear.com", \
-    "HTTPProxy" : "http://proxy.clear.com"}'
+    "HTTPSProxy" : "https://proxy.clear.com"}'
 
 
 def good_latest_template():
@@ -95,8 +94,7 @@ def good_latest_template():
     [{"disk" : "gvdt", "partition" : 1, "mount" : "/boot"}, {"disk" : "gvdt", \
     "partition" : 3, "mount" : "/"}], \
     "Version" : "latest", "Bundles" : ["linux-kvm"], \
-    "HTTPSProxy" : "https://proxy.clear.com", \
-    "HTTPProxy" : "http://proxy.clear.com"}'
+    "HTTPSProxy" : "https://proxy.clear.com"}'
 
 
 def full_user_install_template():
@@ -131,8 +129,7 @@ def run_command_wrapper(func):
                 COMMAND_RESULTS.append(False)
             if environ:
                 https_proxy = environ.get("https_proxy")
-                http_proxy = environ.get("http_proxy")
-                COMMAND_RESULTS.extend([https_proxy, http_proxy])
+                COMMAND_RESULTS.append(https_proxy)
             if show_output:
                 COMMAND_RESULTS.append(True)
         global COMMAND_RESULTS
@@ -498,7 +495,7 @@ def run_command_bad():
 @run_command_wrapper
 def run_command_with_env():
     """run_command with environment variable passed"""
-    command = ["true", os.getenv("https_proxy"), os.getenv("http_proxy")]
+    command = ["true", os.getenv("https_proxy")]
     ister.run_command("true", environ=os.environ)
     commands_compare_helper(command)
 
@@ -1233,7 +1230,6 @@ def copy_os_good():
 --contenturl=ctest --versionurl=vtest --format=formattest --statedir=/statetest"
     commands = [swupd_cmd,
                 os.getenv("https_proxy"),
-                os.getenv("http_proxy"),
                 True]
     ister.copy_os(args, {"Version": 0, "DestinationType": ""}, "/")
     ister.add_bundles = backup_add_bundles
@@ -1260,13 +1256,11 @@ def copy_os_proxy_good():
 --contenturl=ctest --versionurl=vtest --format=formattest --statedir=/statetest"
     commands = [swupd_cmd,
                 "https://to.clearlinux.org",
-                "http://to.clearlinux.org",
                 True]
     template = {
         "Version": 0,
         "DestinationType": "",
-        "HTTPSProxy": "https://to.clearlinux.org",
-        "HTTPProxy": "http://to.clearlinux.org"
+        "HTTPSProxy": "https://to.clearlinux.org"
     }
     ister.copy_os(args, template, "/")
     ister.add_bundles = backup_add_bundles
@@ -1296,7 +1290,6 @@ def copy_os_format_good():
 --contenturl=ctest --versionurl=vtest --format=test --statedir=/statetest"
     commands = [swupd_cmd,
                 os.getenv("https_proxy"),
-                os.getenv("http_proxy"),
                 True]
     ister.copy_os(args, {"Version": 0, "DestinationType": ""}, "/")
     ister.add_bundles = backup_add_bundles
@@ -1326,7 +1319,6 @@ def copy_os_which_good():
     swupd_cmd = "stdbuf -o 0 {0}".format(swupd_cmd)
     commands = [swupd_cmd,
                 os.getenv("https_proxy"),
-                os.getenv("http_proxy"),
                 True]
     ister.copy_os(args, {"Version": 0, "DestinationType": ""}, "/")
     ister.add_bundles = backup_add_bundles
@@ -1362,7 +1354,6 @@ def copy_os_physical_good():
                 "mount --bind //var/tmp /var/lib/swupd",
                 swupd_cmd,
                 os.getenv("https_proxy"),
-                os.getenv("http_proxy"),
                 True]
     ister.copy_os(args, {"Version": 0, "DestinationType": "physical"}, "/")
     ister.add_bundles = backup_add_bundles
@@ -4102,8 +4093,7 @@ def gui_set_proxy():
 
     netreq = ister_gui.NetworkRequirements(1, 1)
     netreq.config = {}
-    netreq.https_proxy = Edit("https://to.clearlinux.org:1080")
-    netreq.http_proxy = Edit("http://to.clearlinux.org:1080")
+    netreq.https_proxy = Edit("http://to.clearlinux.org:1080")
     try:
         netreq._set_proxy(None)
     except Exception:
@@ -4112,11 +4102,7 @@ def gui_set_proxy():
 
     time.sleep = sleep_backup
     if "HTTPSProxy" in netreq.config:
-        if netreq.config["HTTPSProxy"] != "https://to.clearlinux.org:1080":
-            raise Exception("Proxy not set properly in config")
-
-    if "HTTPProxy" in netreq.config:
-        if netreq.config["HTTPProxy"] != "http://to.clearlinux.org:1080":
+        if netreq.config["HTTPSProxy"] != "http://to.clearlinux.org:1080":
             raise Exception("Proxy not set properly in config")
 
 

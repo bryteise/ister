@@ -850,10 +850,9 @@ class ChooseAction(ProcessStep):
                                 'using the "Shell" option if the repair '
                                 'fails').do_alert()
 
-        # save proxies if they exist in case the user did not set one in the
+        # save proxy if it exist in case the user did not set one in the
         # network configuration screen
         old_https_proxy = os.environ.get('https_proxy')
-        old_http_proxy = os.environ.get('http_proxy')
 
         try:
             old_root = os.open('/', os.O_RDONLY)
@@ -867,8 +866,6 @@ class ChooseAction(ProcessStep):
         # In host OS chroot
         if old_https_proxy:
             os.environ['https_proxy'] = old_https_proxy
-        elif old_http_proxy:
-            os.environ['http_proxy'] = old_http_proxy
 
         watch = WatchableProcess(['swupd', 'verify', '--fix'])
         watch.start()
@@ -1018,7 +1015,6 @@ class NetworkRequirements(ProcessStep):
         self.interface_msg = 'Interface: '
         self.ip_msg = 'IP address: '
         self.https_proxy = None
-        self.http_proxy = None
         self.interface = None
         self.error = None
         self.config = None
@@ -1096,18 +1092,12 @@ class NetworkRequirements(ProcessStep):
         else:
             https_text = ''
 
-        if os.environ.get('http_proxy'):
-            http_text = os.environ['http_proxy']
-        else:
-            http_text = ''
-
         fmt = '{0:>20}'
         self.https_proxy = urwid.Edit(fmt.format('HTTPS proxy: '), https_text)
         self.https_col = urwid.Columns(
                 [self.https_proxy,
-                 urwid.Text(('ex', 'example: https://proxy.url.com:123'),
+                 urwid.Text(('ex', 'example: http://proxy.url.com:123'),
                             align='center')])
-        self.http_proxy = urwid.Edit(fmt.format('HTTP proxy: '), http_text)
         wired = '* Connection to clearlinux.org: '
         if self._network_connection():
             wired_req = urwid.Text(['* Connection to clearlinux.org: ',
@@ -1147,7 +1137,6 @@ class NetworkRequirements(ProcessStep):
                             self.proxy_header,
                             urwid.Divider(),
                             self.https_col,
-                            self.http_proxy,
                             urwid.Divider(),
                             self.proxy_button,
                             urwid.Divider(),
@@ -1303,10 +1292,6 @@ class NetworkRequirements(ProcessStep):
         if self.https_proxy.get_edit_text():
             self.config['HTTPSProxy'] = self.https_proxy.get_edit_text()
             os.environ['https_proxy'] = self.https_proxy.get_edit_text()
-
-        if self.http_proxy.get_edit_text():
-            self.config['HTTPProxy'] = self.http_proxy.get_edit_text()
-            os.environ['http_proxy'] = self.http_proxy.get_edit_text()
 
         raise urwid.ExitMainLoop()
 
