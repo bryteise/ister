@@ -4235,8 +4235,8 @@ def gui_set_hw_time():
     subprocess.call = call_backup
     time.sleep = sleep_backup
 
-    if netreq.nettime != 'Sun, Jan 01 2000 00:00:00':
-        raise Exception('Date line not parsed correctly')
+    if not netreq.nettime:
+        raise Exception('Date not set')
 
     commands_compare_helper(commands)
 

@@ -1023,24 +1023,20 @@ class NetworkRequirements(ProcessStep):
 
         # initiate necessary instance variables
         self.progress = urwid.Text('Step {} of {}'.format(cur_step, tot_steps))
-        self.interface_msg = 'Interface: '
-        self.ip_msg = 'IP address: '
         self.https_proxy = None
-        self.interface = None
-        self.error = None
         self.config = None
         self.ifaceaddrs = None
-        self.nettime = None
+        self.nettime = False
         self.static_set = False
-        self.static_check = False
         self.static_ready = False
         self.static_edits = {}
         self.set_static_edits()
+        self.reset= False
 
     def set_static_edits(self):
         fmt = '{0:>20}'
-        self.interface_e = urwid.Edit(fmt.format(self.interface_msg))
-        self.static_ip_e = urwid.Edit(fmt.format(self.ip_msg))
+        self.interface_e = urwid.Edit(fmt.format('Interface: '))
+        self.static_ip_e = urwid.Edit(fmt.format('IP address: '))
         self.gateway_e = urwid.Edit(fmt.format('Gateway: '))
         self.dns_e = urwid.Edit(fmt.format('DNS (optional): '))
         urwid.connect_signal(self.interface_e, 'change', self._activate_button)
@@ -1049,20 +1045,59 @@ class NetworkRequirements(ProcessStep):
         urwid.connect_signal(self.dns_e, 'change', self._activate_button)
 
     def _activate_button(self, edit, new_text):
+        # on a reset, these need to be manually cleared
+        if self.reset:
+            for key in self.static_edits:
+                self.static_edits[key] = ''
+            self.reset = False
+
         self.static_edits[edit] = new_text
 
         # wait for all three required fields to be set updating the button
         # label with the new 'button' palette
         # `key` below is an object with a unique caption, so check against the
         # caption string.
+        # Additionally, validate the edit text for valid interface/ip format,
+        # make the caption green on a valid format.
         reqd_found = 0
         for key in self.static_edits:
             if 'Interface' in key.caption and self.static_edits[key]:
-                reqd_found += 1
+                if self.static_edits[key] in self.ifaceaddrs.keys():
+                    reqd_found += 1
+                    self.interface_e.set_caption(
+                            ('success', '{0:>20}'.format('Interface: ')))
+                else:
+                    self.interface_e.set_caption(
+                            '{0:>20}'.format('Interface: '))
+
             if 'IP address' in key.caption and self.static_edits[key]:
-                reqd_found += 1
+                try:
+                    ipaddress.ip_address(self.static_edits[key])
+                    reqd_found += 1
+                    self.static_ip_e.set_caption(
+                            ('success', '{0:>20}'.format('IP address: ')))
+                except:
+                    self.static_ip_e.set_caption(
+                            '{0:>20}'.format('IP address: '))
+
             if 'Gateway' in key.caption and self.static_edits[key]:
-                reqd_found += 1
+                try:
+                    ipaddress.ip_address(self.static_edits[key])
+                    reqd_found += 1
+                    self.gateway_e.set_caption(
+                            ('success', '{0:>20}'.format('Gateway: ')))
+                except:
+                    self.gateway_e.set_caption(('{0:>20}'.format('Gateway: ')))
+
+            if 'DNS' in key.caption and self.static_edits[key]:
+                try:
+                    ipaddress.ip_address(self.static_edits[key])
+                    self.dns_e.set_caption(
+                            ('success', '{0:>20}'.format('DNS (optional): ')))
+                except:
+                    self.dns_e.set_caption(
+                            '{0:>20}'.format('DNS (optional): '))
+                    reqd_found -= 1
 
         if reqd_found >= 3:
             self.static_ready = True
@@ -1086,45 +1121,19 @@ class NetworkRequirements(ProcessStep):
             # re-build the widgets
             return self._action
 
-        self.error = ''
-
-        if self.static_check:
-            try:
-                ipaddress.ip_address(self.gateway_e.get_edit_text())
-            except Exception as err:
-                if self._action not in ['Next', 'Previous']:
-                    self.error = 'The configuration for "gateway" is invalid '\
-                                 '{}'.format(err)
-                    # an empty action signals to refresh the page
-                    self._action = ''
-                    self.static_check = False
-
-            try:
-                ipaddress.ip_address(self.static_ip_e.get_edit_text())
-            except Exception as err:
-                if self._action not in ['Next', 'Previous']:
-                    self.error = 'The configuration for "ip" is invalid {}'\
-                                 .format(err)
-                    # an empty action signals to refresh the page
-                    self._action = ''
-                    self.static_check = False
-
-            # this will overwrite the ip error if it was created
-            if self.interface_e.get_edit_text() not in self.ifaceaddrs.keys() \
-                    and self._action not in ['Next', 'Previous']:
-                self.error = 'Interface "{}" not detected'\
-                             .format(self.interface_e.get_edit_text())
-                # an empty action signals to refresh the page
-                self._action = ''
-                self.static_check = False
-
-        if not self.error:
-            config = self.config
-            return self._action
+        if self.static_ready:
+            # go back two original widgets (through both Padding and AttrMap)
+            # to set the label of the button.
+            self.static_button.original_widget.original_widget.set_label(
+                    ('button', 'Set static IP configuration'))
         else:
-            Alert('Error!', self.error).do_alert()
-            self.error = ''
-            return self._action
+            self.static_button.original_widget.original_widget.set_label(
+                    ('ex', 'Set static IP configuration'))
+
+        # proxy settings may have been added during the self.run_ui() step,
+        # copy our config instance back to the config.
+        config = self.config
+        return self._action
 
     def build_ui_widgets(self):
         """Build ui handler
@@ -1157,20 +1166,20 @@ class NetworkRequirements(ProcessStep):
             interface_res = 'none found'
             ip_res = 'none found'
 
-        self.interface = urwid.Text(fmt.format(self.interface_msg) + interface_res)
-        self.static_ip = urwid.Text(fmt.format(self.ip_msg) + ip_res)
+        interface = urwid.Text(fmt.format('Interface: ') + interface_res)
+        static_ip = urwid.Text(fmt.format('IP address: ') + ip_res)
         # pylint: disable=E1103
         try:
             gateway = netifaces.gateways()['default'][netifaces.AF_INET][0]
         except Exception:
             gateway = 'none found'
 
-        self.gateway = urwid.Text(fmt.format('Gateway: ') + gateway)
+        gateway = urwid.Text(fmt.format('Gateway: ') + gateway)
         netconfig_title = urwid.Columns([self.static_header,
                                          self.detected_header])
-        netconfig_iface = urwid.Columns([self.interface_e, self.interface])
-        netconfig_ip = urwid.Columns([self.static_ip_e, self.static_ip])
-        netconfig_gateway = urwid.Columns([self.gateway_e, self.gateway])
+        netconfig_iface = urwid.Columns([self.interface_e, interface])
+        netconfig_ip = urwid.Columns([self.static_ip_e, static_ip])
+        netconfig_gateway = urwid.Columns([self.gateway_e, gateway])
         netconfig_dns = urwid.Columns([self.dns_e, urwid.Divider()])
         self._ui_widgets = [self.progress,
                             urwid.Divider(),
@@ -1250,7 +1259,7 @@ class NetworkRequirements(ProcessStep):
                 # remove GMT and escaped chars from end of line, the date
                 # command will default to UTC
                 line = line.replace(' GMT\r\n', '')
-                self.nettime = line
+                self.nettime = True
                 try:
                     subprocess.call(['/usr/bin/date',
                                      '+%a, %d %b %Y %H:%M:%S',
@@ -1277,13 +1286,11 @@ class NetworkRequirements(ProcessStep):
         except:
             # the main loop is waiting on this method to exit so it can report
             # the error
-            self.static_check = True
             raise urwid.ExitMainLoop()
 
         if self.interface_e.get_edit_text() not in self.ifaceaddrs.keys():
             # the main loop is waiting on this method to exit so it can report
             # the error
-            self.static_check = True
             raise urwid.ExitMainLoop()
 
         path = '/etc/systemd/network/'
@@ -1305,7 +1312,6 @@ class NetworkRequirements(ProcessStep):
         except Exception as err:
             Alert('Error!', err).do_alert()
 
-        self.static_check = True
         self.static_set = True
         raise urwid.ExitMainLoop()
 
@@ -1322,13 +1328,13 @@ class NetworkRequirements(ProcessStep):
                              'systemd-networkd', 'systemd-resolved'])
         except:
             self.static_set = False
-            self.static_check = False
             raise urwid.ExitMainLoop()
 
         # give the network a chance to start up again
         time.sleep(.1)
+        self.static_ready = False
         self.static_set = False
-        self.static_check = False
+        self.reset = True
         self.set_static_edits()
         raise urwid.ExitMainLoop()
 
