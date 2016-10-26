@@ -1031,7 +1031,7 @@ class NetworkRequirements(ProcessStep):
         self.static_ready = False
         self.static_edits = {}
         self.set_static_edits()
-        self.reset= False
+        self.reset = False
 
     def set_static_edits(self):
         fmt = '{0:>20}'
@@ -1343,6 +1343,9 @@ class NetworkRequirements(ProcessStep):
         if self.https_proxy.get_edit_text():
             self.config['HTTPSProxy'] = self.https_proxy.get_edit_text()
             os.environ['https_proxy'] = self.https_proxy.get_edit_text()
+        else:
+            self.config.pop('HTTPSProxy', None)
+            os.environ.pop('https_proxy', None)
 
         raise urwid.ExitMainLoop()
 
