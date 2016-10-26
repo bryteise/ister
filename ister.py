@@ -371,6 +371,8 @@ def add_bundles(template, target_dir):
     for index, bundle in enumerate(template["Bundles"]):
         open(target_dir + bundles_dir + bundle, "w").close()
 
+    # pylint: disable=undefined-loop-variable
+    # since we never reach this point with an empty Bundles list
     LOG.info("Installing {} bundles (and dependencies)...".format(index + 1))
 
 
@@ -722,7 +724,7 @@ in PartitionLayout".format(disk, part))
         raise Exception("Mulitple files for virtual disk \
 destination is unsupported")
     if not has_efi and template["DestinationType"] != "virtual" and \
-       template.get("LegacyBios") != True:
+       template.get("LegacyBios") is not True:
         raise Exception("No EFI partition defined")
 
     for key in disk_to_parts:
@@ -812,7 +814,7 @@ PartitionMountPoints not found in FilesystemTypes"
     if not has_rootfs:
         raise Exception("Missing rootfs mount")
     if not has_boot and template["DestinationType"] != "virtual" and \
-       template.get("LegacyBios") != True:
+       template.get("LegacyBios") is not True:
         raise Exception("Missing boot mount")
 
 
@@ -868,7 +870,7 @@ def validate_user_template(users):
             uids[uid] = uid
 
         if sudo is not None:
-            if type(sudo) != bool:
+            if not isinstance(sudo, bool):
                 raise Exception("Invalid sudo option")
             if sudo and not key and (password is None or password == ""):
                 raise Exception("Missing password for user entry: {0}"
@@ -941,11 +943,15 @@ def validate_legacybios_template(legacy):
 
     This function will raise an Exception on finding an error.
     """
-    if type(legacy) != bool:
+    if not isinstance(legacy, bool):
         raise Exception("Invalid type for LegacyBios, must be True or False")
 
 
 def validate_proxy_url_template(proxy):
+    """Attempt to verify the proxy setting is valid
+
+    This function will raise an Exception on finding an error.
+    """
     url = urlparse(proxy)
     if not (url.scheme and url.netloc):
         raise Exception("Invalid proxy url: {}".format(proxy))
@@ -972,9 +978,9 @@ def validate_template(template):
     validate_type_template(template)
     validate_disk_template(template)
     version = template["Version"]
-    if type(version) == int and version <= 0:
+    if isinstance(version, int) and version <= 0:
         raise Exception("Invalid version number")
-    if type(version) == str and version != "latest":
+    if isinstance(version, str) and version != "latest":
         raise Exception("Invalid version string (must be 'latest')")
     if template.get("Users"):
         validate_user_template(template["Users"])

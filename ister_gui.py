@@ -52,10 +52,10 @@ import sys
 import pprint
 import time
 import ipaddress
-import netifaces
-import pycurl
 import tempfile
 import shutil
+import netifaces
+import pycurl
 
 # pylint: disable=E0401
 import urwid
@@ -170,8 +170,14 @@ def get_list_of_disks():
     return unmounted
 
 
+# pylint: disable=too-many-arguments
+# six is reasonable since this function in turn calls three other functions
 def ister_button(message, on_press=None, user_data=None,
                  align='left', left=0, right=0):
+    """
+    Wrapper for ister_gui button creation since these are the steps nearly
+    always taken
+    """
     width = len(message) + 4
     button = urwid.Button(message, on_press=on_press, user_data=user_data)
     button = urwid.AttrMap(button, 'button', focus_map='reversed')
@@ -738,12 +744,13 @@ class SplashScreen(ProcessStep):
 
     def build_ui(self):
         self._ui = SimpleForm(
-                u'Clear Linux OS for Intel Architecture Installer',
-                self._ui_widgets, buttons=["Next"], align_title='center')
+            u'Clear Linux OS for Intel Architecture Installer',
+            self._ui_widgets, buttons=["Next"], align_title='center')
 
 
 class ChooseAction(ProcessStep):
     """UI to select installation path (Install, Shell, or Repair)"""
+    # pylint: disable=R0902
     def __init__(self, cur_step, tot_steps):
         super(ChooseAction, self).__init__()
         self.choices = {
@@ -822,7 +829,7 @@ class ChooseAction(ProcessStep):
                 term.main_loop()
         except Exception as excep:
             Alert('Error!', 'Error occurred in shell: {}'
-                            .format(excep)).do_alert()
+                  .format(excep)).do_alert()
 
         self._umount_host_disk(root_part, boot_part)
         self.error = False
@@ -842,14 +849,14 @@ class ChooseAction(ProcessStep):
                 # symlink in a chroot. Removing the file allows us to copy a
                 # new file in its place.
                 os.remove('{}/etc/resolv.conf'.format(self.target_dir))
-            except:
+            except Exception:
                 # try anyways
                 pass
 
             try:
                 shutil.copy('/run/systemd/resolve/resolv.conf',
                             '{}/etc/resolv.conf'.format(self.target_dir))
-            except Exception as excep:
+            except Exception:
                 # try anyways
                 Alert('Error!', 'Unable to copy /etc/resolv.conf to host OS. '
                                 'This may cause repair to fail due to network '
@@ -864,7 +871,7 @@ class ChooseAction(ProcessStep):
         try:
             old_root = os.open('/', os.O_RDONLY)
             os.chroot(self.target_dir)
-        except Exception as excep:
+        except Exception:
             Alert('Error!', 'Unable to chroot to host os').do_alert()
             self._umount_host_disk(root_part, boot_part)
             self._action = 'return'
@@ -940,12 +947,12 @@ class ChooseAction(ProcessStep):
         if not root_part:
             self.error = True
             Alert('Error!', 'Unable to find host OS in: {}'
-                            .format(', '.join(disks))).do_alert()
+                  .format(', '.join(disks))).do_alert()
             return (root_part, boot_part)
 
         if not boot_part:
             Alert('Information', 'Unable to find boot partition for {}'
-                                 .format(root_part)).do_alert()
+                  .format(root_part)).do_alert()
 
         return (root_part, boot_part)
 
@@ -960,9 +967,7 @@ class ChooseAction(ProcessStep):
                 part_found = part['name']
                 try:
                     # try to mount partition
-                    mount_res = subprocess.call(['mount',
-                                                 part_found,
-                                                 target])
+                    subprocess.call(['mount', part_found, target])
                     # only mount a linux root partition if it is Clear Linux OS
                     if 'Linux root' in pattern:
                         osf = '{}/usr/lib/os-release'.format(self.target_dir)
@@ -975,7 +980,7 @@ class ChooseAction(ProcessStep):
                     # for other partition types, just return the name
                     else:
                         return part_found
-                except:
+                except Exception:
                     return ''
 
         # pattern not found in partition types
@@ -1010,13 +1015,13 @@ class NetworkRequirements(ProcessStep):
         # go back two original widgets (through both Padding and AttrMap) to
         # set the label of the button.
         self.static_button.original_widget.original_widget.set_label(
-                ('ex', 'Set static IP configuration'))
+            ('ex', 'Set static IP configuration'))
 
         # configure reset button
         self.reset_button = ister_button(
-                'Reset network to default configuration',
-                on_press=self._reset_network,
-                left=left)
+            'Reset network to default configuration',
+            on_press=self._reset_network,
+            left=left)
 
         # configure detected network settings section
         self.detected_header = urwid.Text('Detected network configuration')
@@ -1034,6 +1039,7 @@ class NetworkRequirements(ProcessStep):
         self.reset = False
 
     def set_static_edits(self):
+        """Set the edit captions for the static configuration section"""
         fmt = '{0:>20}'
         self.interface_e = urwid.Edit(fmt.format('Interface: '))
         self.static_ip_e = urwid.Edit(fmt.format('IP address: '))
@@ -1045,6 +1051,7 @@ class NetworkRequirements(ProcessStep):
         urwid.connect_signal(self.dns_e, 'change', self._activate_button)
 
     def _activate_button(self, edit, new_text):
+        # pylint: disable=too-many-branches
         # on a reset, these need to be manually cleared
         if self.reset:
             for key in self.static_edits:
@@ -1065,48 +1072,48 @@ class NetworkRequirements(ProcessStep):
                 if self.static_edits[key] in self.ifaceaddrs.keys():
                     reqd_found += 1
                     self.interface_e.set_caption(
-                            ('success', '{0:>20}'.format('Interface: ')))
+                        ('success', '{0:>20}'.format('Interface: ')))
                 else:
                     self.interface_e.set_caption(
-                            '{0:>20}'.format('Interface: '))
+                        '{0:>20}'.format('Interface: '))
 
             if 'IP address' in key.caption and self.static_edits[key]:
                 try:
                     ipaddress.ip_address(self.static_edits[key])
                     reqd_found += 1
                     self.static_ip_e.set_caption(
-                            ('success', '{0:>20}'.format('IP address: ')))
-                except:
+                        ('success', '{0:>20}'.format('IP address: ')))
+                except Exception:
                     self.static_ip_e.set_caption(
-                            '{0:>20}'.format('IP address: '))
+                        '{0:>20}'.format('IP address: '))
 
             if 'Gateway' in key.caption and self.static_edits[key]:
                 try:
                     ipaddress.ip_address(self.static_edits[key])
                     reqd_found += 1
                     self.gateway_e.set_caption(
-                            ('success', '{0:>20}'.format('Gateway: ')))
-                except:
+                        ('success', '{0:>20}'.format('Gateway: ')))
+                except Exception:
                     self.gateway_e.set_caption(('{0:>20}'.format('Gateway: ')))
 
             if 'DNS' in key.caption and self.static_edits[key]:
                 try:
                     ipaddress.ip_address(self.static_edits[key])
                     self.dns_e.set_caption(
-                            ('success', '{0:>20}'.format('DNS (optional): ')))
-                except:
+                        ('success', '{0:>20}'.format('DNS (optional): ')))
+                except Exception:
                     self.dns_e.set_caption(
-                            '{0:>20}'.format('DNS (optional): '))
+                        '{0:>20}'.format('DNS (optional): '))
                     reqd_found -= 1
 
         if reqd_found >= 3:
             self.static_ready = True
             self.static_button.original_widget.original_widget.set_label(
-                    ('button', 'Set static IP configuration'))
+                ('button', 'Set static IP configuration'))
         else:
             self.static_ready = False
             self.static_button.original_widget.original_widget.set_label(
-                    ('ex', 'Set static IP configuration'))
+                ('ex', 'Set static IP configuration'))
 
     def handler(self, config):
         # make config an instance variable so we can copy proxy settings to it
@@ -1125,10 +1132,10 @@ class NetworkRequirements(ProcessStep):
             # go back two original widgets (through both Padding and AttrMap)
             # to set the label of the button.
             self.static_button.original_widget.original_widget.set_label(
-                    ('button', 'Set static IP configuration'))
+                ('button', 'Set static IP configuration'))
         else:
             self.static_button.original_widget.original_widget.set_label(
-                    ('ex', 'Set static IP configuration'))
+                ('ex', 'Set static IP configuration'))
 
         # proxy settings may have been added during the self.run_ui() step,
         # copy our config instance back to the config.
@@ -1145,11 +1152,10 @@ class NetworkRequirements(ProcessStep):
 
         fmt = '{0:>20}'
         self.https_proxy = urwid.Edit(fmt.format('HTTPS proxy: '), https_text)
-        self.https_col = urwid.Columns(
-                [self.https_proxy,
-                 urwid.Text(('ex', 'example: http://proxy.url.com:123'),
-                            align='center')])
-        wired = '* Connection to clearlinux.org: '
+        https_col = urwid.Columns(
+            [self.https_proxy,
+             urwid.Text(('ex', 'example: http://proxy.url.com:123'),
+                        align='center')])
         if self._network_connection():
             wired_req = urwid.Text(['* Connection to clearlinux.org: ',
                                     ('success', 'established')])
@@ -1187,7 +1193,7 @@ class NetworkRequirements(ProcessStep):
                             urwid.Divider(),
                             self.proxy_header,
                             urwid.Divider(),
-                            self.https_col,
+                            https_col,
                             urwid.Divider(),
                             self.proxy_button,
                             urwid.Divider(),
@@ -1301,7 +1307,8 @@ class NetworkRequirements(ProcessStep):
             nfile.write('[Match]\n')
             nfile.write('Name={}\n\n'.format(self.interface_e.get_edit_text()))
             nfile.write('[Network]\n')
-            nfile.write('Address={}\n'.format(self.static_ip_e.get_edit_text()))
+            nfile.write('Address={}\n'.format(
+                self.static_ip_e.get_edit_text()))
             nfile.write('Gateway={}\n'.format(self.gateway_e.get_edit_text()))
             if self.dns_e.get_edit_text():
                 nfile.write('DNS={}\n'.format(self.dns_e.get_edit_text()))
@@ -1964,13 +1971,13 @@ class BundleSelectorStep(ProcessStep):
                             for bundle in self.required_bundles)
         if 'telemetrics' in config['Bundles'] and not telem_present:
             self.required_bundles.append(
-                    {'name': 'telemetrics',
-                     'desc': 'Collects anonymous reports to improve '
-                             'system stability (opted in)'})
+                {'name': 'telemetrics',
+                 'desc': 'Collects anonymous reports to improve '
+                         'system stability (opted in)'})
         elif 'telemetrics' not in config['Bundles']:
             self.required_bundles = [
-                    bundle for bundle in self.required_bundles
-                    if not (bundle.get('name') == 'telemetrics')]
+                bundle for bundle in self.required_bundles
+                if not bundle.get('name') == 'telemetrics']
 
         # build widgets and ui each time in case user went back and opted out
         # of telemetrics

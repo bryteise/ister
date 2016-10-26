@@ -42,6 +42,12 @@
 # Mock functions almost by definition do not make use of their inputs.
 # Fine if they don't use them
 # pylint: disable=W0613
+# We don't need docstrings for many of these methods, especially when they are
+# just mock methods anyways
+# pylint: disable=missing-docstring
+# Don't worry about protected access warnings since we want our unit tests to
+# test those methods
+# pylint: disable=protected-access
 
 
 import functools
@@ -1226,8 +1232,9 @@ def copy_os_good():
     args.versionurl = "vtest"
     args.format = "formattest"
     args.statedir = "/statetest"
-    swupd_cmd = "swupd verify --install --path=/ --manifest=0 \
---contenturl=ctest --versionurl=vtest --format=formattest --statedir=/statetest"
+    swupd_cmd = "swupd verify --install --path=/ --manifest=0 "              \
+                "--contenturl=ctest --versionurl=vtest --format=formattest " \
+                "--statedir=/statetest"
     commands = [swupd_cmd,
                 os.getenv("https_proxy"),
                 True]
@@ -1252,8 +1259,9 @@ def copy_os_proxy_good():
     args.versionurl = "vtest"
     args.format = "formattest"
     args.statedir = "/statetest"
-    swupd_cmd = "swupd verify --install --path=/ --manifest=0 \
---contenturl=ctest --versionurl=vtest --format=formattest --statedir=/statetest"
+    swupd_cmd = "swupd verify --install --path=/ --manifest=0 "              \
+                "--contenturl=ctest --versionurl=vtest --format=formattest " \
+                "--statedir=/statetest"
     commands = [swupd_cmd,
                 "https://to.clearlinux.org",
                 True]
@@ -1286,8 +1294,9 @@ def copy_os_format_good():
     args.versionurl = "vtest"
     args.format = None
     args.statedir = "/statetest"
-    swupd_cmd = "swupd verify --install --path=/ --manifest=0 \
---contenturl=ctest --versionurl=vtest --format=test --statedir=/statetest"
+    swupd_cmd = "swupd verify --install --path=/ --manifest=0 "        \
+                "--contenturl=ctest --versionurl=vtest --format=test " \
+                "--statedir=/statetest"
     commands = [swupd_cmd,
                 os.getenv("https_proxy"),
                 True]
@@ -1314,8 +1323,9 @@ def copy_os_which_good():
     args.versionurl = "vtest"
     args.format = "formattest"
     args.statedir = "/statetest"
-    swupd_cmd = "swupd verify --install --path=/ --manifest=0 \
---contenturl=ctest --versionurl=vtest --format=formattest --statedir=/statetest"
+    swupd_cmd = "swupd verify --install --path=/ --manifest=0 "              \
+                "--contenturl=ctest --versionurl=vtest --format=formattest " \
+                "--statedir=/statetest"
     swupd_cmd = "stdbuf -o 0 {0}".format(swupd_cmd)
     commands = [swupd_cmd,
                 os.getenv("https_proxy"),
@@ -1343,8 +1353,9 @@ def copy_os_physical_good():
     args.versionurl = "vtest"
     args.format = "formattest"
     args.statedir = "/statetest"
-    swupd_cmd = "swupd verify --install --path=/ --manifest=0 \
---contenturl=ctest --versionurl=vtest --format=formattest --statedir=/statetest"
+    swupd_cmd = "swupd verify --install --path=/ --manifest=0 "              \
+                "--contenturl=ctest --versionurl=vtest --format=formattest " \
+                "--statedir=/statetest"
     commands = ["/var/lib/swupd",
                 0,
                 True,
@@ -2656,7 +2667,7 @@ def validate_proxy_url_template_bad():
         pass
 
     try:
-        ister.validate_proxy_url("clear.com")
+        ister.validate_proxy_url_template("clear.com")
         error.append("clear.com")
     except:
         pass
@@ -3915,7 +3926,7 @@ def gui_network_connection():
 
     def mock_sleep(sec):
         """mock_sleep wrapper so the tests run faster"""
-        del(sec)
+        del sec
 
     pycurl_backup = pycurl.Curl
     sleep_backup = time.sleep
@@ -3966,7 +3977,7 @@ def gui_network_connection_curl_exception():
 
     def mock_sleep(sec):
         """mock_sleep wrapper so the tests run faster"""
-        del(sec)
+        del sec
 
     pycurl_backup = pycurl.Curl
     sleep_backup = time.sleep
@@ -4009,15 +4020,15 @@ def gui_static_configuration():
 
     def mock_call(cmd):
         """mock_call wrapper"""
-        del(cmd)
+        del cmd
 
     def mock_makedirs(path):
         """mock_makedirs wrapper"""
-        del(path)
+        del path
 
     def mock_sleep(sec):
         """mock_sleep wrapper so the tests run faster"""
-        del(sec)
+        del sec
 
     call_backup = subprocess.call
     makedirs_backup = os.makedirs
@@ -4087,7 +4098,7 @@ def gui_set_proxy():
 
     def mock_sleep(sec):
         """mock_sleep wrapper so the tests run faster"""
-        del(sec)
+        del sec
 
     sleep_backup = time.sleep
     time.sleep = mock_sleep
@@ -4213,7 +4224,7 @@ def gui_set_hw_time():
 
     def mock_sleep(sec):
         """mock_sleep wrapper so the tests run faster"""
-        del(sec)
+        del sec
 
     call_backup = subprocess.call
     sleep_backup = time.sleep
@@ -4303,9 +4314,8 @@ def gui_mount_host_disk_normal():
     Returns target directory and os disk name and boot partition for the
     correct disk
     """
+    # pylint: disable=too-many-locals
     import subprocess
-    import tempfile
-    import ister_gui
 
     global COMMAND_RESULTS
     COMMAND_RESULTS = []
@@ -4324,14 +4334,16 @@ def gui_mount_host_disk_normal():
         if disk == "/dev/sda":
             return {"partitions": [{"type": "EFI System", "name": "/dev/sda1"},
                                    {"type": "", "name": "/dev/sda2"},
-                                   {"type": "Linux root", "name": "/dev/sda3"}]}
+                                   {"type": "Linux root",
+                                    "name": "/dev/sda3"}]}
         if disk == "/dev/sdb":
             return {"partitions": [{"name": "/dev/sdb1"},
                                    {"type": "SWAP", "name": "/dev/sdb2"}]}
         if disk == "/dev/sdc":
             return {"partitions": [{"type": "", "name": "/dev/sdc1"},
                                    {"type": "EFI System", "name": "/dev/sdc2"},
-                                   {"type": "Linux root", "name": "/dev/sdc3"}]}
+                                   {"type": "Linux root",
+                                    "name": "/dev/sdc3"}]}
 
     def mock_find_current_disk(_):
         return "sda"
@@ -4384,9 +4396,8 @@ def gui_mount_host_disk_no_boot_on_host():
     Returns target directory and os disk name for the correct disk. Boot
     partition name should be empty since it does not exist on the host disk.
     """
+    # pylint: disable=too-many-locals
     import subprocess
-    import tempfile
-    import ister_gui
 
     global COMMAND_RESULTS
     COMMAND_RESULTS = []
@@ -4418,7 +4429,8 @@ def gui_mount_host_disk_no_boot_on_host():
                                    {"type": "SWAP", "name": "/dev/sdb2"}]}
         if disk == "/dev/sdc":
             return {"partitions": [{"type": "", "name": "/dev/sdc1"},
-                                   {"type": "Linux root", "name": "/dev/sdc3"}]}
+                                   {"type": "Linux root",
+                                    "name": "/dev/sdc3"}]}
 
     def mock_find_current_disk(_):
         return "sda"
@@ -4468,7 +4480,6 @@ def gui_mount_host_disk_no_boot_on_host():
 @open_wrapper("good", "clear-linux-os")
 def gui_get_root_present():
     import subprocess
-    import ister_gui
 
     global COMMAND_RESULTS
     COMMAND_RESULTS = []
@@ -4497,7 +4508,6 @@ def gui_get_root_present():
 @open_wrapper("good", "clear-linux-os")
 def gui_get_root_not_present():
     import subprocess
-    import ister_gui
 
     global COMMAND_RESULTS
     COMMAND_RESULTS = []
@@ -4516,7 +4526,7 @@ def gui_get_root_not_present():
     result = chooseact._get_part(part_info, 'Linux root', chooseact.target_dir)
     subprocess.call = call_backup
     if result:
-        raise Exception("OS root partition reported as when none present"
+        raise Exception("OS root partition reported as {} when none present"
                         .format(result))
 
     commands_compare_helper(commands)
@@ -4524,7 +4534,6 @@ def gui_get_root_not_present():
 
 def gui_get_boot_present():
     import subprocess
-    import ister_gui
 
     global COMMAND_RESULTS
     COMMAND_RESULTS = []
@@ -4553,7 +4562,6 @@ def gui_get_boot_present():
 
 def gui_get_boot_not_present():
     import subprocess
-    import ister_gui
 
     global COMMAND_RESULTS
     COMMAND_RESULTS = []
@@ -4582,7 +4590,6 @@ def gui_get_boot_not_present():
 
 def gui_umount_host_disk():
     import subprocess
-    import os
 
     global COMMAND_RESULTS
     COMMAND_RESULTS = []
@@ -4610,7 +4617,7 @@ def gui_umount_host_disk():
                                 "/dev/sdc2")
 
     subprocess.call = call_backup
-    os.rmdir = mock_rmdir
+    os.rmdir = rmdir_backup
 
     commands_compare_helper(commands)
 
