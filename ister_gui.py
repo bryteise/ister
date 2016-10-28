@@ -1683,10 +1683,28 @@ class SelectDeviceStep(ProcessStep):
             self._ui_widgets.append(widget)
         else:
             for disk in self.disks:
-                button = ister_button(disk,
+                header = urwid.Text('/dev/{}'.format(disk))
+                info = ''
+                disk_info = get_disk_info('/dev/{}'.format(disk))
+                if not disk_info["partitions"]:
+                    info += 'no partitions found'
+                else:
+                    for part in disk_info["partitions"]:
+                        # leave space between part name and size so long
+                        # partition names such as mmcblk1p1 don't bump into the
+                        # partition size
+                        info += '{0:10} {1:6}{2:28}\n'.format(part["name"],
+                                                              part["size"],
+                                                              part["type"])
+
+                info = urwid.Padding(urwid.Text(info), left=8)
+                button = ister_button('Install to /dev/{}'.format(disk),
                                       on_press=self._item_chosen,
                                       user_data=disk)
-                self._ui_widgets.append(button)
+                self._ui_widgets.extend([header,
+                                         info,
+                                         button,
+                                         urwid.Divider()])
 
 
 class SelectMultiDeviceStep(SelectDeviceStep):
