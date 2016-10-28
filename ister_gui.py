@@ -2461,7 +2461,7 @@ class Installation(object):
                 title = 'Error!'
             alert = Alert(title, message)
             alert.do_alert()
-        if self.args['dry_run']:
+        if self.args['dry_run'] or self.args['exit_after']:
             exit()
         if reboot:
             subprocess.call('reboot')
@@ -2572,6 +2572,9 @@ def handle_options():
     parser.add_argument("-d", "--dry-run", action="store_true",
                         help="Dry run the UI locally in test mode, no poweroff"
                         "on exit, no install performed.")
+    parser.add_argument("-e", "--exit-after", action="store_true",
+                        help="Do not reboot or poweroff after install, helpful"
+                             " for letting unit files handle the post action")
     args = parser.parse_args()
     return args
 

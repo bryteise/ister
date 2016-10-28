@@ -28,20 +28,21 @@ def handle_options():
 
     return args
 
-def validate_installer(args):
 
+def spin_up_installer():
     print(">>> Spinning new installer into ./installer-val.img")
     if os.path.isfile('./installer-val.img'):
         os.remove('./installer-val.img')
     cp = subprocess.run(['qemu-img', 'create', 'installer-val.img', '2G'])
     cp = subprocess.run(['sudo', 'python3', 'ister.py', '-t',
-                        'installer-config-vm.json', '-f', 'staging',
-                        '-u',
-                        'http://clearlinux-sandbox.jf.intel.com/update/'])
+        'installer-config-vm.json'])
     cp.check_returncode()
 
+
+def validate_installer(args, expectfile, unitfile):
     print(">>> Configuring installer-val.img to be driven by expect using new ister and gui")
-    cp = subprocess.run(['sudo', './update_gui_expect.sh', 'installer-val.img'])
+    cp = subprocess.run(['sudo', './update_gui_expect.sh', 'installer-val.img',
+                         expectfile, unitfile])
     cp.check_returncode()
 
     print(">>> Create target image for install")
@@ -51,7 +52,13 @@ def validate_installer(args):
     cp.check_returncode()
 
     print(">>> Booting installer-val.img against installer-target.img")
-    cp = subprocess.run(['sudo', 'qemu-system-x86_64', '-enable-kvm', '-m', '1024', '-vnc', '0.0.0.0:0', '-cpu', 'host', '-drive', 'file=installer-target.img,if=virtio,aio=threads', '-drive', 'file=installer-val.img,if=virtio,aio=threads', '-net', 'nic,model=virtio', '-net', 'user,hostfwd=tcp::2233-:22', '-smp', '2', '-bios', args.bios])
+    cp = subprocess.run(['sudo', 'qemu-system-x86_64', '-enable-kvm', '-m',
+                         '1024', '-vnc', '0.0.0.0:0', '-cpu', 'host', '-drive',
+                         'file=installer-target.img,if=virtio,aio=threads',
+                         '-drive', 'file=installer-val.img,if=virtio,aio=threads',
+                         '-net', 'nic,model=virtio', '-net',
+                         'user,hostfwd=tcp::2233-:22', '-smp', '2',
+                         '-bios', args.bios])
     cp.check_returncode()
 
     print(">>> Installing boot canary into installer-target.mg")
@@ -59,16 +66,24 @@ def validate_installer(args):
     cp.check_returncode()
 
     print(">>> Booting installer-target.img")
-    cp = subprocess.run(['sudo', 'qemu-system-x86_64', '-enable-kvm', '-m', '1024', '-vnc', '0.0.0.0:0', '-cpu', 'host', '-drive', 'file=installer-target.img,if=virtio,aio=threads', '-net', 'nic,model=virtio', '-net', 'user,hostfwd=tcp::2233-:22', '-smp', '2', '-bios', args.bios])
+    cp = subprocess.run(['sudo', 'qemu-system-x86_64', '-enable-kvm', '-m',
+                         '1024', '-vnc', '0.0.0.0:0', '-cpu', 'host', '-drive',
+                         'file=installer-target.img,if=virtio,aio=threads',
+                         '-net', 'nic,model=virtio', '-net',
+                         'user,hostfwd=tcp::2233-:22', '-smp', '2',
+                         '-bios', args.bios])
     cp.check_returncode()
 
     # Check for boot canary
     cp = subprocess.run(['sudo', './check-canary.sh', 'installer-target.img'])
 
     if cp.returncode == 0:
-        print(">>> SUCCESS! Boot Canary detected!")
+        status = ">>> SUCCESS! Boot Canary detected!"
     else:
-        print(">>> Failure: installer-target.img failed to boot")
+        status = ">>> Failure: installer-target.img failed to boot"
+
+    print(status)
+    return status
 
 
 def main():
@@ -76,7 +91,11 @@ def main():
     """
     args = handle_options()
     try:
-        validate_installer(args)
+        spin_up_installer()
+        autostatus = validate_installer(args, 'autoinstall.expect', 'ister-expect.service')
+        manstatus = validate_installer(args, 'maninstall.expect', 'ister-manexpect.service')
+        print('\nAutomatic Installation', autostatus)
+        print('Manual Installation   ', manstatus)
     except Exception as exep:
         print("Failed: {}".format(exep))
         sys.exit(-1)

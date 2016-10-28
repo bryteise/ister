@@ -6,7 +6,7 @@
                           { "disk" : "installer-val.img", "partition" : 2, "type" : "ext4" } ],
     "PartitionMountPoints" : [ { "disk" : "installer-val.img", "partition" : 1, "mount" : "/boot" },
 			       { "disk" : "installer-val.img", "partition" : 2, "mount" : "/" } ],
-    "Version": 6000,
+    "Version": "latest",
     "Bundles": ["kernel-native", "os-installer", "os-core-update", "os-core", "os-core-dev", "bootloader"],
     "PostNonChroot": ["./vm-installation-image-post-update-version.py"]
 }
