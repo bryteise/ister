@@ -2545,7 +2545,8 @@ class Installation(object):
         Alert(title, text).do_alert()
 
         if not watch.poll():
-            message = 'Successful installation, the system will be rebooted'
+            message = ('Successful installation, the system will be rebooted\n'
+                       'please remove installation media after restart')
             Alert(title, message).do_alert()
             self._exit(0, reboot=True)
         else:
