@@ -19,6 +19,8 @@ def handle_options():
                         help='More verbose output.')
     parser.add_argument('-b' , '--bios', action='store', default=None,
                         help='Use specified bios file for qemu')
+    parser.add_argument('-V' , '--vnc', action='store', default=0,
+                        help='Use specified vnc port number')
     args = parser.parse_args()
 
     if args.bios is None:
@@ -53,7 +55,7 @@ def validate_installer(args, expectfile, unitfile):
 
     print(">>> Booting installer-val.img against installer-target.img")
     cp = subprocess.run(['sudo', 'qemu-system-x86_64', '-enable-kvm', '-m',
-                         '1024', '-vnc', '0.0.0.0:0', '-cpu', 'host', '-drive',
+                         '1024', '-vnc', '0.0.0.0:{}'.format(args.vnc), '-cpu', 'host', '-drive',
                          'file=installer-target.img,if=virtio,aio=threads',
                          '-drive', 'file=installer-val.img,if=virtio,aio=threads',
                          '-net', 'nic,model=virtio', '-net',
@@ -67,7 +69,7 @@ def validate_installer(args, expectfile, unitfile):
 
     print(">>> Booting installer-target.img")
     cp = subprocess.run(['sudo', 'qemu-system-x86_64', '-enable-kvm', '-m',
-                         '1024', '-vnc', '0.0.0.0:0', '-cpu', 'host', '-drive',
+                         '1024', '-vnc', '0.0.0.0:{}'.format(args.vnc), '-cpu', 'host', '-drive',
                          'file=installer-target.img,if=virtio,aio=threads',
                          '-net', 'nic,model=virtio', '-net',
                          'user,hostfwd=tcp::2233-:22', '-smp', '2',
