@@ -4043,13 +4043,13 @@ def gui_static_configuration():
                 '[Match]\n',
                 'Name=enp0s1\n\n',
                 '[Network]\n',
-                'Address=10.0.2.15\n',
+                'Address=10.0.2.15/24\n',
                 'Gateway=10.0.2.2\n',
                 '/etc/systemd/network/10-en-static.network', 'w',
                 '[Match]\n',
                 'Name=enp0s1\n\n',
                 '[Network]\n',
-                'Address=10.0.2.15\n',
+                'Address=10.0.2.15/24\n',
                 'Gateway=10.0.2.2\n',
                 'DNS=10.0.2.3\n']
 
@@ -4057,6 +4057,7 @@ def gui_static_configuration():
     netreq.config = {}
     netreq.ifaceaddrs = {"enp0s1": "10.0.2.15"}
     netreq.static_ip_e = Edit("10.0.2.15")
+    netreq.mask_e = Edit("255.255.255.0")
     netreq.interface_e = Edit("enp0s1")
     netreq.gateway_e = Edit("10.0.2.2")
     netreq.static_ready = True
