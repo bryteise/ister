@@ -170,6 +170,20 @@ def get_list_of_disks():
     return unmounted
 
 
+def compute_mask(mask_ip):
+    pows = [pow(2, idx) for idx in range(0, 8)]
+    pows.reverse()
+    mask = 0
+    for octet in mask_ip.split('.'):
+        _tmp = int(octet)
+        idx = 0
+        while _tmp > 0:
+            _tmp -= pows[idx]
+            idx += 1
+        mask += idx
+    return mask
+
+
 # pylint: disable=too-many-arguments
 # six is reasonable since this function in turn calls three other functions
 def ister_button(message, on_press=None, user_data=None,
@@ -1043,10 +1057,12 @@ class NetworkRequirements(ProcessStep):
         fmt = '{0:>20}'
         self.interface_e = urwid.Edit(fmt.format('Interface: '))
         self.static_ip_e = urwid.Edit(fmt.format('IP address: '))
+        self.mask_e = urwid.Edit(fmt.format('Subnet mask: '))
         self.gateway_e = urwid.Edit(fmt.format('Gateway: '))
         self.dns_e = urwid.Edit(fmt.format('DNS (optional): '))
         urwid.connect_signal(self.interface_e, 'change', self._activate_button)
         urwid.connect_signal(self.static_ip_e, 'change', self._activate_button)
+        urwid.connect_signal(self.mask_e, 'change', self._activate_button)
         urwid.connect_signal(self.gateway_e, 'change', self._activate_button)
         urwid.connect_signal(self.dns_e, 'change', self._activate_button)
 
@@ -1060,7 +1076,7 @@ class NetworkRequirements(ProcessStep):
 
         self.static_edits[edit] = new_text
 
-        # wait for all three required fields to be set updating the button
+        # wait for all four required fields to be set updating the button
         # label with the new 'button' palette
         # `key` below is an object with a unique caption, so check against the
         # caption string.
@@ -1087,6 +1103,15 @@ class NetworkRequirements(ProcessStep):
                     self.static_ip_e.set_caption(
                         '{0:>20}'.format('IP address: '))
 
+            if 'Subnet mask' in key.caption and self.static_edits[key]:
+                try:
+                    ipaddress.ip_address(self.static_edits[key])
+                    reqd_found += 1
+                    self.mask_e.set_caption(
+                        ('success', '{0:>20}'.format('Subnet mask: ')))
+                except Exception:
+                    self.mask_e.set_caption('{0:>20}'.format('Subnet mask: '))
+
             if 'Gateway' in key.caption and self.static_edits[key]:
                 try:
                     ipaddress.ip_address(self.static_edits[key])
@@ -1106,7 +1131,7 @@ class NetworkRequirements(ProcessStep):
                         '{0:>20}'.format('DNS (optional): '))
                     reqd_found -= 1
 
-        if reqd_found >= 3:
+        if reqd_found >= 4:
             self.static_ready = True
             self.static_button.original_widget.original_widget.set_label(
                 ('button', 'Set static IP configuration'))
@@ -1168,12 +1193,15 @@ class NetworkRequirements(ProcessStep):
         if interface_ip:
             interface_res = interface_ip[0]
             ip_res = interface_ip[1]
+            mask_res = interface_ip[2]
         else:
             interface_res = 'none found'
+            mask_res = 'none found'
             ip_res = 'none found'
 
         interface = urwid.Text(fmt.format('Interface: ') + interface_res)
         static_ip = urwid.Text(fmt.format('IP address: ') + ip_res)
+        mask = urwid.Text(fmt.format('Subnet mask: ') + mask_res)
         # pylint: disable=E1103
         try:
             gateway = netifaces.gateways()['default'][netifaces.AF_INET][0]
@@ -1185,6 +1213,7 @@ class NetworkRequirements(ProcessStep):
                                          self.detected_header])
         netconfig_iface = urwid.Columns([self.interface_e, interface])
         netconfig_ip = urwid.Columns([self.static_ip_e, static_ip])
+        netconfig_mask = urwid.Columns([self.mask_e, mask])
         netconfig_gateway = urwid.Columns([self.gateway_e, gateway])
         netconfig_dns = urwid.Columns([self.dns_e, urwid.Divider()])
         self._ui_widgets = [self.progress,
@@ -1201,6 +1230,7 @@ class NetworkRequirements(ProcessStep):
                             urwid.Divider(),
                             netconfig_iface,
                             netconfig_ip,
+                            netconfig_mask,
                             netconfig_gateway,
                             netconfig_dns,
                             urwid.Divider(),
@@ -1307,8 +1337,9 @@ class NetworkRequirements(ProcessStep):
             nfile.write('[Match]\n')
             nfile.write('Name={}\n\n'.format(self.interface_e.get_edit_text()))
             nfile.write('[Network]\n')
-            nfile.write('Address={}\n'.format(
-                self.static_ip_e.get_edit_text()))
+            nfile.write('Address={}/{}\n'.format(
+                self.static_ip_e.get_edit_text(),
+                compute_mask(self.mask_e.get_edit_text())))
             nfile.write('Gateway={}\n'.format(self.gateway_e.get_edit_text()))
             if self.dns_e.get_edit_text():
                 nfile.write('DNS={}\n'.format(self.dns_e.get_edit_text()))
@@ -1360,6 +1391,7 @@ class NetworkRequirements(ProcessStep):
         """Find active interface and ip address"""
         # pylint: disable=E1103
         addrs = {}
+        mask = ''
         af_inet = netifaces.AF_INET
         for if_name in netifaces.interfaces():
             ifaddrs = netifaces.ifaddresses(if_name)
@@ -1367,11 +1399,12 @@ class NetworkRequirements(ProcessStep):
                 ip_addrs = ifaddrs[af_inet][0]
                 if ip_addrs['addr'] and '127.0.' not in ip_addrs['addr']:
                     addrs[if_name] = ip_addrs['addr']
+                    mask = ip_addrs['netmask']
 
         self.ifaceaddrs = addrs
         for interface in addrs:
             if interface.startswith('e'):
-                return (interface, addrs[interface])
+                return (interface, addrs[interface], mask)
 
 
 class TelemetryDisclosure(ProcessStep):
@@ -2258,24 +2291,15 @@ class StaticIpStep(ProcessStep):
     def __init__(self, cur_step, tot_steps):
         super(StaticIpStep, self).__init__()
         fmt = '{0:30}'
-        self.edit_ip = IpEdit(fmt.format('Enter ip address:'))
-        self.edit_mask = IpEdit(fmt.format('Enter mask:'))
+        self.edit_ip = IpEdit(fmt.format('Enter IP address:'))
+        self.edit_mask = IpEdit(fmt.format('Enter subnet mask:'))
         self.edit_gateway = IpEdit(fmt.format('Enter gateway:'))
         self.edit_dns = IpEdit(fmt.format('Enter DNS (optional):'))
         self.progress = urwid.Text('Step {} of {}'.format(cur_step, tot_steps))
         self.subtitle = urwid.Text('Static IP configuration')
 
     def _save_config(self, config):
-        pows = [pow(2, idx) for idx in range(0, 8)]
-        pows.reverse()
-        mask = 0
-        for octet in self.edit_mask.get_edit_text().split('.'):
-            _tmp = int(octet)
-            idx = 0
-            while _tmp > 0:
-                _tmp -= pows[idx]
-                idx += 1
-            mask += idx
+        mask = compute_mask(self.edit_mask.get_edit_text())
         tmp = dict()
         tmp['address'] = '{0}/{1}'.format(self.edit_ip.get_edit_text(), mask)
         tmp['gateway'] = self.edit_gateway.get_edit_text()
