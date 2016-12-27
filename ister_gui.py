@@ -51,9 +51,9 @@ import threading
 import sys
 import pprint
 import time
-import ipaddress
 import tempfile
 import shutil
+import ipaddress
 import netifaces
 import pycurl
 
@@ -171,17 +171,8 @@ def get_list_of_disks():
 
 
 def compute_mask(mask_ip):
-    pows = [pow(2, idx) for idx in range(0, 8)]
-    pows.reverse()
-    mask = 0
-    for octet in mask_ip.split('.'):
-        _tmp = int(octet)
-        idx = 0
-        while _tmp > 0:
-            _tmp -= pows[idx]
-            idx += 1
-        mask += idx
-    return mask
+    """Compute the /<mask> notation from mask IP"""
+    return sum([bin(int(x)).count("1") for x in mask_ip.split(".")])
 
 
 # pylint: disable=too-many-arguments
@@ -1007,50 +998,99 @@ class ChooseAction(ProcessStep):
         os.rmdir(self.target_dir)
 
 
-class NetworkRequirements(ProcessStep):
-    """UI to verify and configure network connectivity to
-    https://www.clearlinux.org for the installer"""
+class NetworkControl(object):
+    """
+    Record state of network configuration and create validated network
+    configuration widgets. These widgets allow the user to define a static IP
+    configuration with validated input while displaying the current detected
+    settings on the installer for reference.
+    """
     # pylint: disable=R0902
-    def __init__(self, cur_step, tot_steps):
-        super(NetworkRequirements, self).__init__()
-        left = 8  # padding desired left of buttons, modifiable
-
-        # configure proxy section
-        self.proxy_header = urwid.Text('Proxy Settings')
-        self.proxy_button = ister_button('Set proxy configuration',
-                                         on_press=self._set_proxy,
-                                         left=left)
-
+    def __init__(self, target, allow_reset=False, header=None, iface=True):
+        left = 8
+        self.target = target
+        self.widgets = []
         # configure static ip settings section
-        self.static_header = urwid.Text('Static IP Configuration (optional)')
+        if header:
+            self.static_header = urwid.Text(header)
+        else:
+            self.static_header = urwid.Text('Static IP Configuration')
+
         self.static_button = ister_button('Set static IP configuration',
-                                          on_press=self._static_configuration,
+                                          on_press=self.target,
                                           left=left)
         # go back two original widgets (through both Padding and AttrMap) to
         # set the label of the button.
         self.static_button.original_widget.original_widget.set_label(
             ('ex', 'Set static IP configuration'))
-
         # configure reset button
-        self.reset_button = ister_button(
-            'Reset network to default configuration',
-            on_press=self._reset_network,
-            left=left)
-
+        if allow_reset:
+            self.reset_button = ister_button(
+                'Reset network to default configuration',
+                on_press=self._reset_network,
+                left=left)
         # configure detected network settings section
-        self.detected_header = urwid.Text('Detected network configuration')
-
-        # initiate necessary instance variables
-        self.progress = urwid.Text('Step {} of {}'.format(cur_step, tot_steps))
-        self.https_proxy = None
-        self.config = None
+        self.detected_header = urwid.Text('Detected network configuration on '
+                                          'installer image')
         self.ifaceaddrs = None
-        self.nettime = False
+        self.allow_iface = iface
         self.static_set = False
         self.static_ready = False
         self.static_edits = {}
         self.set_static_edits()
+        self.update_widgets()
         self.reset = False
+
+    def update_widgets(self):
+        """
+        Update widgets with latest network information that can be found
+        """
+        interface_ip = self.find_interface_ip()
+        if interface_ip:
+            interface_res = interface_ip[0]
+            ip_res = interface_ip[1]
+            mask_res = interface_ip[2]
+        else:
+            interface_res = 'none found'
+            mask_res = 'none found'
+            ip_res = 'none found'
+
+        dns_res = self.find_dns()
+        if not dns_res:
+            dns_res = 'none found'
+
+        fmt = '{0:>20}'
+        interface = urwid.Text(fmt.format('Interface: ') + interface_res)
+        static_ip = urwid.Text(fmt.format('IP address: ') + ip_res)
+        mask = urwid.Text(fmt.format('Subnet mask: ') + mask_res)
+        dns = urwid.Text(fmt.format('DNS: ') + dns_res)
+        # pylint: disable=E1103
+        try:
+            gateway = netifaces.gateways()['default'][netifaces.AF_INET][0]
+        except Exception:
+            gateway = 'none found'
+
+        gateway = urwid.Text(fmt.format('Gateway: ') + gateway)
+        self.title = urwid.Columns([self.static_header,
+                                    self.detected_header])
+        self.iface = urwid.Columns([self.interface_e, interface])
+        self.static_ip = urwid.Columns([self.static_ip_e, static_ip])
+        self.mask = urwid.Columns([self.mask_e, mask])
+        self.gateway = urwid.Columns([self.gateway_e, gateway])
+        self.dns = urwid.Columns([self.dns_e, dns])
+
+        self.widgets = [self.title,
+                        urwid.Divider()]
+        if self.allow_iface:
+            self.widgets.append(self.iface)
+
+        self.widgets.extend([self.static_ip,
+                             self.mask,
+                             self.gateway,
+                             self.dns,
+                             urwid.Divider(),
+                             self.static_button,
+                             urwid.Divider()])
 
     def set_static_edits(self):
         """Set the edit captions for the static configuration section"""
@@ -1059,12 +1099,43 @@ class NetworkRequirements(ProcessStep):
         self.static_ip_e = urwid.Edit(fmt.format('IP address: '))
         self.mask_e = urwid.Edit(fmt.format('Subnet mask: '))
         self.gateway_e = urwid.Edit(fmt.format('Gateway: '))
-        self.dns_e = urwid.Edit(fmt.format('DNS (optional): '))
+        self.dns_e = urwid.Edit(fmt.format('DNS: '))
         urwid.connect_signal(self.interface_e, 'change', self._activate_button)
         urwid.connect_signal(self.static_ip_e, 'change', self._activate_button)
         urwid.connect_signal(self.mask_e, 'change', self._activate_button)
         urwid.connect_signal(self.gateway_e, 'change', self._activate_button)
         urwid.connect_signal(self.dns_e, 'change', self._activate_button)
+
+    def find_interface_ip(self):
+        """Find active interface and ip address"""
+        # pylint: disable=E1103
+        addrs = {}
+        mask = ''
+        af_inet = netifaces.AF_INET
+        for if_name in netifaces.interfaces():
+            ifaddrs = netifaces.ifaddresses(if_name)
+            if af_inet in ifaddrs:
+                addrs = ifaddrs[af_inet][0]
+                if addrs['addr'] and not addrs['addr'].startswith('127'):
+                    addrs[if_name] = addrs['addr']
+                    mask = addrs['netmask']
+
+        self.ifaceaddrs = addrs
+        for interface in addrs:
+            if interface.startswith('e'):
+                return (interface, addrs[interface], mask)
+
+    def find_dns(self):
+        """Find active DNS server by searching /etc/resolv.conf if it exists"""
+        content = ''
+        if os.path.exists('/etc/resolv.conf'):
+            with open('/etc/resolv.conf', 'r') as resolv:
+                content = resolv.readlines()
+
+        # just report the first nameserver
+        for line in content:
+            if 'nameserver' in line:
+                return line.split(' ')[1].strip()
 
     def _activate_button(self, edit, new_text):
         # pylint: disable=too-many-branches
@@ -1076,7 +1147,7 @@ class NetworkRequirements(ProcessStep):
 
         self.static_edits[edit] = new_text
 
-        # wait for all four required fields to be set updating the button
+        # wait for all required fields to be set updating the button
         # label with the new 'button' palette
         # `key` below is an object with a unique caption, so check against the
         # caption string.
@@ -1125,13 +1196,17 @@ class NetworkRequirements(ProcessStep):
                 try:
                     ipaddress.ip_address(self.static_edits[key])
                     self.dns_e.set_caption(
-                        ('success', '{0:>20}'.format('DNS (optional): ')))
+                        ('success', '{0:>20}'.format('DNS: ')))
+                    reqd_found += 1
                 except Exception:
                     self.dns_e.set_caption(
-                        '{0:>20}'.format('DNS (optional): '))
-                    reqd_found -= 1
+                        '{0:>20}'.format('DNS: '))
 
-        if reqd_found >= 4:
+        # increment reqd_found to reach when interface is not needed
+        if not self.allow_iface:
+            reqd_found += 1
+
+        if reqd_found >= 5:
             self.static_ready = True
             self.static_button.original_widget.original_widget.set_label(
                 ('button', 'Set static IP configuration'))
@@ -1140,9 +1215,59 @@ class NetworkRequirements(ProcessStep):
             self.static_button.original_widget.original_widget.set_label(
                 ('ex', 'Set static IP configuration'))
 
+    def _reset_network(self, _):
+        """Reset the network to original configuration by removing static
+        network file and restarting network services"""
+        try:
+            os.remove('/etc/systemd/network/10-en-static.network')
+        except FileNotFoundError:
+            pass
+
+        try:
+            subprocess.call(['/usr/bin/systemctl', 'restart',
+                             'systemd-networkd', 'systemd-resolved'])
+        except:
+            self.static_set = False
+            raise urwid.ExitMainLoop()
+
+        # give the network a chance to start up again
+        time.sleep(.1)
+        self.static_ready = False
+        self.static_set = False
+        self.reset = True
+        self.set_static_edits()
+        raise urwid.ExitMainLoop()
+
+
+
+class NetworkRequirements(ProcessStep):
+    """UI to verify and configure network connectivity to
+    https://www.clearlinux.org for the installer"""
+    # pylint: disable=R0902
+    def __init__(self, cur_step, tot_steps):
+        super(NetworkRequirements, self).__init__()
+        left = 8  # padding desired left of buttons, modifiable
+        # configure proxy section
+        self.proxy_header = urwid.Text('Proxy Settings')
+        self.proxy_button = ister_button('Set proxy configuration',
+                                         on_press=self._set_proxy,
+                                         left=left)
+        # initiate necessary instance variables
+        self.progress = urwid.Text('Step {} of {}'.format(cur_step, tot_steps))
+        self.https_proxy = None
+        self.config = None
+        self.nettime = False
+        self.static_set = False
+        self.reset = False
+        self.netcontrol = None
+
     def handler(self, config):
         # make config an instance variable so we can copy proxy settings to it
         self.config = config
+        self.netcontrol = NetworkControl(target=self._static_configuration,
+                                         allow_reset=True,
+                                         header='Static IP Configuration '
+                                                '(optional)')
 
         # normally much of this would belong in __init__, but we want it
         # refreshed every time the user refreshes/returns to the screen
@@ -1153,18 +1278,13 @@ class NetworkRequirements(ProcessStep):
             # re-build the widgets
             return self._action
 
-        if self.static_ready:
-            # go back two original widgets (through both Padding and AttrMap)
-            # to set the label of the button.
-            self.static_button.original_widget.original_widget.set_label(
-                ('button', 'Set static IP configuration'))
-        else:
-            self.static_button.original_widget.original_widget.set_label(
-                ('ex', 'Set static IP configuration'))
-
         # proxy settings may have been added during the self.run_ui() step,
         # copy our config instance back to the config.
         config = self.config
+        # we lose the netcontrol state when refreshing this page, save the
+        # static_set variable to a local one to display the reset_network
+        # button if need be.
+        self.static_set = self.netcontrol.static_set
         return self._action
 
     def build_ui_widgets(self):
@@ -1189,33 +1309,6 @@ class NetworkRequirements(ProcessStep):
                                     ('warn', 'none detected, '),
                                     'install will fail'])
 
-        interface_ip = self._find_interface_ip()
-        if interface_ip:
-            interface_res = interface_ip[0]
-            ip_res = interface_ip[1]
-            mask_res = interface_ip[2]
-        else:
-            interface_res = 'none found'
-            mask_res = 'none found'
-            ip_res = 'none found'
-
-        interface = urwid.Text(fmt.format('Interface: ') + interface_res)
-        static_ip = urwid.Text(fmt.format('IP address: ') + ip_res)
-        mask = urwid.Text(fmt.format('Subnet mask: ') + mask_res)
-        # pylint: disable=E1103
-        try:
-            gateway = netifaces.gateways()['default'][netifaces.AF_INET][0]
-        except Exception:
-            gateway = 'none found'
-
-        gateway = urwid.Text(fmt.format('Gateway: ') + gateway)
-        netconfig_title = urwid.Columns([self.static_header,
-                                         self.detected_header])
-        netconfig_iface = urwid.Columns([self.interface_e, interface])
-        netconfig_ip = urwid.Columns([self.static_ip_e, static_ip])
-        netconfig_mask = urwid.Columns([self.mask_e, mask])
-        netconfig_gateway = urwid.Columns([self.gateway_e, gateway])
-        netconfig_dns = urwid.Columns([self.dns_e, urwid.Divider()])
         self._ui_widgets = [self.progress,
                             urwid.Divider(),
                             wired_req,
@@ -1225,20 +1318,11 @@ class NetworkRequirements(ProcessStep):
                             https_col,
                             urwid.Divider(),
                             self.proxy_button,
-                            urwid.Divider(),
-                            netconfig_title,
-                            urwid.Divider(),
-                            netconfig_iface,
-                            netconfig_ip,
-                            netconfig_mask,
-                            netconfig_gateway,
-                            netconfig_dns,
-                            urwid.Divider(),
-                            self.static_button,
                             urwid.Divider()]
-
+        self._ui_widgets.extend(self.netcontrol.widgets)
         if self.static_set:
-            self._ui_widgets.extend([self.reset_button, urwid.Divider()])
+            self._ui_widgets.extend([self.netcontrol.reset_button,
+                                     urwid.Divider()])
 
     def build_ui(self):
         self._ui = SimpleForm(u'Network Requirements',
@@ -1313,18 +1397,18 @@ class NetworkRequirements(ProcessStep):
         """
         Writes the configuration on /etc/systemd/network/10-en-static.network
         """
-        if not self.static_ready:
+        if not self.netcontrol.static_ready:
             return
 
         try:
-            ipaddress.ip_address(self.static_ip_e.get_edit_text())
-            ipaddress.ip_address(self.gateway_e.get_edit_text())
+            ipaddress.ip_address(self.netcontrol.static_ip_e.get_edit_text())
+            ipaddress.ip_address(self.netcontrol.gateway_e.get_edit_text())
         except:
             # the main loop is waiting on this method to exit so it can report
             # the error
             raise urwid.ExitMainLoop()
 
-        if self.interface_e.get_edit_text() not in self.ifaceaddrs.keys():
+        if self.netcontrol.interface_e.get_edit_text() not in self.netcontrol.ifaceaddrs.keys():
             # the main loop is waiting on this method to exit so it can report
             # the error
             raise urwid.ExitMainLoop()
@@ -1335,14 +1419,14 @@ class NetworkRequirements(ProcessStep):
 
         with open(path + '10-en-static.network', 'w') as nfile:
             nfile.write('[Match]\n')
-            nfile.write('Name={}\n\n'.format(self.interface_e.get_edit_text()))
+            nfile.write('Name={}\n\n'.format(self.netcontrol.interface_e.get_edit_text()))
             nfile.write('[Network]\n')
             nfile.write('Address={}/{}\n'.format(
-                self.static_ip_e.get_edit_text(),
-                compute_mask(self.mask_e.get_edit_text())))
-            nfile.write('Gateway={}\n'.format(self.gateway_e.get_edit_text()))
-            if self.dns_e.get_edit_text():
-                nfile.write('DNS={}\n'.format(self.dns_e.get_edit_text()))
+                self.netcontrol.static_ip_e.get_edit_text(),
+                compute_mask(self.netcontrol.mask_e.get_edit_text())))
+            nfile.write('Gateway={}\n'.format(self.netcontrol.gateway_e.get_edit_text()))
+            if self.netcontrol.dns_e.get_edit_text():
+                nfile.write('DNS={}\n'.format(self.netcontrol.dns_e.get_edit_text()))
 
         try:
             subprocess.call(['/usr/bin/systemctl', 'restart',
@@ -1350,30 +1434,7 @@ class NetworkRequirements(ProcessStep):
         except Exception as err:
             Alert('Error!', err).do_alert()
 
-        self.static_set = True
-        raise urwid.ExitMainLoop()
-
-    def _reset_network(self, _):
-        """Reset the network to original configuration by removing static
-        network file and restarting network services"""
-        try:
-            os.remove('/etc/systemd/network/10-en-static.network')
-        except FileNotFoundError:
-            pass
-
-        try:
-            subprocess.call(['/usr/bin/systemctl', 'restart',
-                             'systemd-networkd', 'systemd-resolved'])
-        except:
-            self.static_set = False
-            raise urwid.ExitMainLoop()
-
-        # give the network a chance to start up again
-        time.sleep(.1)
-        self.static_ready = False
-        self.static_set = False
-        self.reset = True
-        self.set_static_edits()
+        self.netcontrol.static_set = True
         raise urwid.ExitMainLoop()
 
     def _set_proxy(self, _):
@@ -1386,25 +1447,6 @@ class NetworkRequirements(ProcessStep):
             os.environ.pop('https_proxy', None)
 
         raise urwid.ExitMainLoop()
-
-    def _find_interface_ip(self):
-        """Find active interface and ip address"""
-        # pylint: disable=E1103
-        addrs = {}
-        mask = ''
-        af_inet = netifaces.AF_INET
-        for if_name in netifaces.interfaces():
-            ifaddrs = netifaces.ifaddresses(if_name)
-            if af_inet in ifaddrs:
-                ip_addrs = ifaddrs[af_inet][0]
-                if ip_addrs['addr'] and '127.0.' not in ip_addrs['addr']:
-                    addrs[if_name] = ip_addrs['addr']
-                    mask = ip_addrs['netmask']
-
-        self.ifaceaddrs = addrs
-        for interface in addrs:
-            if interface.startswith('e'):
-                return (interface, addrs[interface], mask)
 
 
 class TelemetryDisclosure(ProcessStep):
@@ -2284,6 +2326,11 @@ class ConfirmDHCPMenu(ProcessStep):
         if self._clicked:
             self._action = self._clicked
 
+        # remove the Static_IP field if it was set but the user decided to use
+        # DHCP instead
+        if self._action == 'dhcp':
+            config.pop('Static_IP', None)
+
         return self._action
 
 
@@ -2292,76 +2339,86 @@ class StaticIpStep(ProcessStep):
     """UI to gather the static ip configuration"""
     def __init__(self, cur_step, tot_steps):
         super(StaticIpStep, self).__init__()
-        fmt = '{0:30}'
-        self.edit_ip = IpEdit(fmt.format('Enter IP address:'))
-        self.edit_mask = IpEdit(fmt.format('Enter subnet mask:'))
-        self.edit_gateway = IpEdit(fmt.format('Enter gateway:'))
-        self.edit_dns = IpEdit(fmt.format('Enter DNS (optional):'))
+        self.netcontrol = None
         self.progress = urwid.Text('Step {} of {}'.format(cur_step, tot_steps))
-        self.subtitle = urwid.Text('Static IP configuration')
+        self.static_ip_s = ''
+        self.mask_s = ''
+        self.gateway_s = ''
+        self.dns_s = ''
+        self.config = {}
 
-    def _save_config(self, config):
-        mask = compute_mask(self.edit_mask.get_edit_text())
+    def _save_config(self, _):
+        """Save static IP configuration to config dict"""
         tmp = dict()
-        tmp['address'] = '{0}/{1}'.format(self.edit_ip.get_edit_text(), mask)
-        tmp['gateway'] = self.edit_gateway.get_edit_text()
-        tmp['dns'] = self.edit_dns.get_edit_text()
-        config['Static_IP'] = tmp
+        tmp['address'] = '{}/{}'.format(
+            self.netcontrol.static_ip_e.get_edit_text(),
+            compute_mask(self.netcontrol.mask_e.get_edit_text()))
+        tmp['gateway'] = self.netcontrol.gateway_e.get_edit_text()
+        tmp['dns'] = self.netcontrol.dns_e.get_edit_text()
+        self.config['Static_IP'] = tmp
+        raise urwid.ExitMainLoop()
 
     def handler(self, config):
-        if not self._ui_widgets:
-            self.build_ui_widgets()
-        if not self._ui:
-            self.build_ui()
-        while True:
-            self._action = self.run_ui()
-            if self._action == 'Previous':
-                return self._action
-            check = [(self.edit_ip, 'ip'),
-                     (self.edit_mask, 'mask'),
-                     (self.edit_gateway, 'gateway')]
-            values = dict()
-            error = ''
-            for edit, field in check:
-                text = edit.get_edit_text()
-                values[text] = values.get(text, 0) + 1
-                try:
-                    ipaddress.ip_address(text)
-                except Exception:
-                    error = ('The configuration for "{0}" is invalid'
-                             .format(field))
-                    break
-            if error == '':
-                for key in values:
-                    if values[key] != 1:
-                        error = 'Repeated values'
-                        break
-            if error == '' and self.edit_dns.get_edit_text() != '':
-                try:
-                    ipaddress.ip_address(self.edit_dns.get_edit_text())
-                except Exception:
-                    error = 'The configuration for "dns" is invalid'
-            if error == '':
-                self._save_config(config)
-                return self._action
-            Alert('Error!', error).do_alert()
+        self.config = config
+        self.netcontrol = NetworkControl(allow_reset=True,
+                                         target=self._save_config,
+                                         iface=False)
+        if config.get('Static_IP'):
+            self.setup_saved(config)
+        else:
+            self.clear_saved()
+
+        self.setup_netcontrol()
+        self.build_ui_widgets()
+        self.build_ui()
+        self._action = self.run_ui()
+        config = self.config
+        return self._action
+
+    def setup_saved(self, config):
+        """
+        Record pre-existing configration for pre-population of fields and
+        confirmation message
+        """
+        static_config = config['Static_IP']
+        ip_config = ipaddress.ip_interface(static_config.get('address'))
+        self.static_ip_s = str(ip_config.ip)
+        self.mask_s = str(ip_config.netmask)
+        self.gateway_s = static_config.get('gateway')
+        self.dns_s = static_config.get('dns')
+
+    def clear_saved(self):
+        """Clear saved information if it is no longer present in config"""
+        self.static_ip_s = ''
+        self.mask_s = ''
+        self.gateway_s = ''
+        self.dns_s = ''
+
+    def setup_netcontrol(self):
+        """Pre-populate edit fields with saved data if available"""
+        self.netcontrol.static_ip_e.set_edit_text(self.static_ip_s)
+        self.netcontrol.mask_e.set_edit_text(self.mask_s)
+        self.netcontrol.gateway_e.set_edit_text(self.gateway_s)
+        self.netcontrol.dns_e.set_edit_text(self.dns_s)
 
     def run_ui(self):
         return self._ui.do_form()
 
     def build_ui_widgets(self):
+        fmt = '{0:>20}'
         self._ui_widgets = [self.progress,
-                            urwid.Divider(),
-                            self.subtitle,
-                            urwid.Divider(),
-                            self.edit_ip,
-                            urwid.Divider(),
-                            self.edit_mask,
-                            urwid.Divider(),
-                            self.edit_gateway,
-                            urwid.Divider(),
-                            self.edit_dns,
                             urwid.Divider()]
+        self._ui_widgets.extend(self.netcontrol.widgets)
+
+        if self.static_ip_s:
+            self._ui_widgets.extend(
+                [urwid.Divider(),
+                 urwid.Text('Saved Configuration'),
+                 urwid.Divider(),
+                 urwid.Text(fmt.format('IP address: ') + self.static_ip_s),
+                 urwid.Text(fmt.format('Subnet mask: ') + self.mask_s),
+                 urwid.Text(fmt.format('Gateway: ') + self.gateway_s),
+                 urwid.Text(fmt.format('DNS: ') + self.dns_s)])
 
     def build_ui(self):
         self._ui = SimpleForm(u'Network configuration', self._ui_widgets)
@@ -2491,6 +2548,7 @@ class Installation(object):
         confirm_dhcp.set_action('staticip', static_ip_config)
         confirm_dhcp.set_action('Previous', confirm_user)
         static_ip_config.set_action('Previous', confirm_dhcp)
+        static_ip_config.set_action('', static_ip_config)
         static_ip_config.set_action('Next', confirm_installation)
         confirm_installation.set_action('No', confirm_dhcp)
         confirm_installation.set_action('Yes', run)
