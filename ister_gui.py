@@ -1980,11 +1980,11 @@ class BundleSelectorStep(ProcessStep):
         super(BundleSelectorStep, self).__init__()
         self.bundles = [{'name': 'editors',
                          'desc': 'Popular text editors (terminal-based)'},
-                        {'name': 'os-clr-on-clr',
-                         'desc': 'Fills out dev tools for os development'},
+                        {'name': 'user-basic',
+                         'desc': 'Captures most console work flows'},
                         {'name': 'devtools-basic',
-                         'desc': 'gcc and minimal R, go, hpc, perl, python,'
-                                 ' ruby'},
+                         'desc': 'gcc and minimal R, go, hpc, perl, python, '
+                                 'ruby'},
                         {'name': 'sysadmin',
                          'desc': 'Tools sys-admins commonly use'},
                         {'name': 'net-utils',
