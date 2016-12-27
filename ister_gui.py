@@ -644,7 +644,7 @@ class ProcessStep(object):
         if action in self.action_map:
             return self.action_map[action]
         else:
-            tmp = Alert(u'Error!', 'Not implemented yet')
+            tmp = Alert(u'Error!', '"{}" not implemented yet'.format(action))
             tmp.do_alert()
             return self
 
@@ -693,7 +693,7 @@ class ConditionalStep(ProcessStep):
                     return targets[1]
             return targets[0]
         else:
-            tmp = Alert(u'Error!', 'Not implemented yet')
+            tmp = Alert(u'Error!', '"{}" not implemented yet'.format(action))
             tmp.do_alert()
             return self
 
@@ -1731,7 +1731,7 @@ class SelectDeviceStep(ProcessStep):
                                                               part["type"])
 
                 info = urwid.Padding(urwid.Text(info), left=8)
-                button = ister_button('Install to /dev/{}'.format(disk),
+                button = ister_button('Partition /dev/{}'.format(disk),
                                       on_press=self._item_chosen,
                                       user_data=disk)
                 self._ui_widgets.extend([header,
@@ -1834,17 +1834,19 @@ class MountPointsStep(ProcessStep):
     def __init__(self, cur_step, tot_steps):
         super(MountPointsStep, self).__init__()
         self.progress = urwid.Text('Step {} of {}'.format(cur_step, tot_steps))
+        self.mount_d = {}
+        self.choices = None
 
     def handler(self, config):
         # pylint: disable=R0914
-        mount_d = dict()
+        mount_d = self.mount_d
         self.display_fmt = '{0:12}{1:12}{2:30}{3:20}{4:6}'
-        choices = self._get_partitions(config)
+        self.choices = self._get_partitions(config)
         other_options = ['Previous', 'Next']
         required_mounts = ['/', '/boot']
         validated = False
         while not validated:
-            self.build_ui_widgets(choices)
+            self.build_ui_widgets()
             self._ui = SimpleForm(u'Set mount points',
                                   self._ui_widgets, buttons=other_options)
             self._clicked = None
@@ -1856,9 +1858,9 @@ class MountPointsStep(ProcessStep):
                 set_mount_step = SetMountEachStep(partition)
                 point = set_mount_step.handler(mount_d)
                 if point not in set_mount_step.options:
-                    idx = choices.index(self._clicked)
+                    idx = self.choices.index(self._clicked)
                     _format = 'Yes' if mount_d[point]['format'] else ''
-                    choices[idx] = self.display_fmt.format(partition,
+                    self.choices[idx] = self.display_fmt.format(partition,
                                                            size,
                                                            part_type,
                                                            point,
@@ -1875,7 +1877,7 @@ class MountPointsStep(ProcessStep):
             else:
                 return self._action
         self._save_config(config, mount_d)
-        partitions = [choice for choice in choices
+        partitions = [choice for choice in self.choices
                       if choice not in other_options]
         self._search_swap(partitions, config, mount_d)
         exc = ister_wrapper('validate_disk_template', config)
@@ -1887,9 +1889,9 @@ class MountPointsStep(ProcessStep):
         self._clicked = choice
         raise urwid.ExitMainLoop()
 
-    def build_ui_widgets(self, choices, *_):
+    def build_ui_widgets(self, *_):
         self._ui_widgets = [self.progress]
-        if len(choices) == 0:
+        if len(self.choices) == 0:
             widget = urwid.Text(u"No partitions found.")
             self._ui_widgets.append(widget)
         else:
@@ -1899,7 +1901,7 @@ class MountPointsStep(ProcessStep):
                                                             "Mount point",
                                                             "Format?"))
             self._ui_widgets.append(wgt)
-            for part in choices:
+            for part in self.choices:
                 button = ister_button(part,
                                       on_press=self._item_chosen,
                                       user_data=part)
@@ -1933,6 +1935,7 @@ class MountPointsStep(ProcessStep):
                 'disk': disk,
                 'partition': part,
                 'mount': point})
+            self.mount_d = mount_d
 
     def _search_swap(self, choices, config, mount_d):
         for choice in choices:
@@ -1967,10 +1970,21 @@ class MountPointsStep(ProcessStep):
         for disk in config['Disks']:
             disk_info = get_disk_info('/dev/{0}'.format(disk))
             for part in disk_info['partitions']:
-                result.append(self.display_fmt.format(disk+part['number'],
+                name = disk + part['number']
+                mount = ''
+                fmt = ''
+                # look for partition name buried in the dict then set mount
+                # point and format if it has already been set
+                for mnt in self.mount_d:
+                    if self.mount_d[mnt]['part'] == name:
+                        mount = mnt
+                        if self.mount_d[mnt]['format']:
+                            fmt = 'Yes'
+
+                result.append(self.display_fmt.format(name,
                                                       part['size'],
                                                       part['type'],
-                                                      '', ''))
+                                                      mount, fmt))
         return result
 
 
@@ -2034,7 +2048,7 @@ class BundleSelectorStep(ProcessStep):
 
         # build widgets and ui each time in case user went back and opted out
         # of telemetrics
-        self.build_ui_widgets()
+        self.build_ui_widgets(config)
         self.build_ui()
         self._action = self.run_ui()
         for widget in self._ui_widgets[2:]:
@@ -2054,14 +2068,15 @@ class BundleSelectorStep(ProcessStep):
     def run_ui(self):
         return self._ui.do_form()
 
-    def build_ui_widgets(self):
+    def build_ui_widgets(self, config):
         self._ui_widgets = []
         if self.progress:
             self._ui_widgets = [self.progress, urwid.Divider()]
         self._ui_widgets.extend([urwid.Text('Select the bundles to install:'),
                                  urwid.Divider()])
         for bundle in self.bundles:
-            check = urwid.CheckBox(bundle['name'])
+            state = True if bundle['name'] in config['Bundles'] else False
+            check = urwid.CheckBox(bundle['name'], state=state)
             desc_text = urwid.Text(bundle['desc'])
             column = urwid.Columns([check, ('weight', 2, desc_text)])
             self._ui_widgets.append(column)
