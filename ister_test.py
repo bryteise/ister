@@ -4030,6 +4030,9 @@ def gui_static_configuration():
         """mock_sleep wrapper so the tests run faster"""
         del sec
 
+    def mock_target(button):
+        del button
+
     call_backup = subprocess.call
     makedirs_backup = os.makedirs
     sleep_backup = time.sleep
@@ -4039,12 +4042,15 @@ def gui_static_configuration():
     time.sleep = mock_sleep
 
     # we will be running the function twice, once without then once with DNS
-    commands = ['/etc/systemd/network/10-en-static.network', 'w',
+    commands = ['/etc/resolv.conf', 'r',
+                'read',
+                '/etc/systemd/network/10-en-static.network', 'w',
                 '[Match]\n',
                 'Name=enp0s1\n\n',
                 '[Network]\n',
                 'Address=10.0.2.15/24\n',
                 'Gateway=10.0.2.2\n',
+                'DNS=10.0.2.3\n',
                 '/etc/systemd/network/10-en-static.network', 'w',
                 '[Match]\n',
                 'Name=enp0s1\n\n',
@@ -4053,14 +4059,16 @@ def gui_static_configuration():
                 'Gateway=10.0.2.2\n',
                 'DNS=10.0.2.3\n']
 
+    netcon = ister_gui.NetworkControl(mock_target)
+    netcon.ifaceaddrs = {"enp0s1": "10.0.2.15"}
+    netcon.static_ip_e = Edit("10.0.2.15")
+    netcon.mask_e = Edit("255.255.255.0")
+    netcon.interface_e = Edit("enp0s1")
+    netcon.gateway_e = Edit("10.0.2.2")
+    netcon.dns_e = Edit("10.0.2.3")
+    netcon.static_ready = True
     netreq = ister_gui.NetworkRequirements(0, 0)
-    netreq.config = {}
-    netreq.ifaceaddrs = {"enp0s1": "10.0.2.15"}
-    netreq.static_ip_e = Edit("10.0.2.15")
-    netreq.mask_e = Edit("255.255.255.0")
-    netreq.interface_e = Edit("enp0s1")
-    netreq.gateway_e = Edit("10.0.2.2")
-    netreq.static_ready = True
+    netreq.netcontrol = netcon
     try:
         netreq._static_configuration(None)
     except:
