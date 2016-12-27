@@ -1744,7 +1744,7 @@ class SelectMultiDeviceStep(SelectDeviceStep):
     """UI to display the available disks"""
     def handler(self, config):
         config["Disks"] = self.disks[:]
-        other_options = ['Previous', 'Done']
+        other_options = ['Previous', 'Next']
         self.build_ui_widgets()
         self._ui = SimpleForm(u'Choose a drive to partition using cgdisk tool',
                               self._ui_widgets, buttons=other_options)
@@ -1752,7 +1752,7 @@ class SelectMultiDeviceStep(SelectDeviceStep):
         self._action = self.run_ui()
         if self._clicked:
             config["CurrentDisk"] = self._clicked
-            return 'Next'
+            return 'cgdisk'
         return self._action
 
 
@@ -1809,6 +1809,8 @@ class SetMountEachStep(ProcessStep):
         _format = self.check_format.get_state()
         if point == '/':
             _format = True
+            Alert('Information', "Format required for '/' partition, setting "
+                  "format option...").do_alert()
         if self._action == 'Next' and len(point) > 0 and point[0] == '/':
             config[point] = {'part': self._partition, 'format': _format}
             return point
@@ -1838,7 +1840,7 @@ class MountPointsStep(ProcessStep):
         mount_d = dict()
         self.display_fmt = '{0:12}{1:12}{2:30}{3:20}{4:6}'
         choices = self._get_partitions(config)
-        other_options = ['Previous', 'Done']
+        other_options = ['Previous', 'Next']
         required_mounts = ['/', '/boot']
         validated = False
         while not validated:
@@ -1861,7 +1863,7 @@ class MountPointsStep(ProcessStep):
                                                            part_type,
                                                            point,
                                                            _format)
-            elif self._action == 'Done':
+            elif self._action == 'Next':
                 validated = True
                 for mount in required_mounts:
                     if mount not in mount_d:
@@ -2467,11 +2469,11 @@ class Installation(object):
         part_menu.set_action('Auto', manual_nopart_device)
         part_menu.set_action('Previous', startmenu)
         manual_part_device.set_action('Previous', part_menu)
-        manual_part_device.set_action('Next', terminal_cgdisk)
-        manual_part_device.set_action('Done', set_mount_points)
+        manual_part_device.set_action('cgdisk', terminal_cgdisk)
+        manual_part_device.set_action('Next', set_mount_points)
         terminal_cgdisk.set_action('Next', manual_part_device)
         set_mount_points.set_action('Previous', manual_part_device)
-        set_mount_points.set_action('Done', config_hostname)
+        set_mount_points.set_action('Next', config_hostname)
         manual_nopart_device.set_action('Previous', part_menu)
         manual_nopart_device.set_action('Next', confirm_disk_wipe2)
         confirm_disk_wipe2.set_action('No', manual_nopart_device)
