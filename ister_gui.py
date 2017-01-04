@@ -1026,7 +1026,7 @@ class NetworkControl(object):
         # configure reset button
         if allow_reset:
             self.reset_button = ister_button(
-                'Reset network to default configuration',
+                'Reset network to DHCP configuration',
                 on_press=self._reset_network,
                 left=left)
         # configure detected network settings section
@@ -1034,7 +1034,6 @@ class NetworkControl(object):
                                           'installer image')
         self.ifaceaddrs = None
         self.allow_iface = iface
-        self.static_set = False
         self.static_ready = False
         self.static_edits = {}
         self.set_static_edits()
@@ -1227,13 +1226,11 @@ class NetworkControl(object):
             subprocess.call(['/usr/bin/systemctl', 'restart',
                              'systemd-networkd', 'systemd-resolved'])
         except:
-            self.static_set = False
             raise urwid.ExitMainLoop()
 
         # give the network a chance to start up again
         time.sleep(.1)
         self.static_ready = False
-        self.static_set = False
         self.reset = True
         self.set_static_edits()
         raise urwid.ExitMainLoop()
@@ -1257,7 +1254,6 @@ class NetworkRequirements(ProcessStep):
         self.https_proxy = None
         self.config = None
         self.nettime = False
-        self.static_set = False
         self.reset = False
         self.netcontrol = None
 
@@ -1281,10 +1277,6 @@ class NetworkRequirements(ProcessStep):
         # proxy settings may have been added during the self.run_ui() step,
         # copy our config instance back to the config.
         config = self.config
-        # we lose the netcontrol state when refreshing this page, save the
-        # static_set variable to a local one to display the reset_network
-        # button if need be.
-        self.static_set = self.netcontrol.static_set
         return self._action
 
     def build_ui_widgets(self):
@@ -1320,7 +1312,7 @@ class NetworkRequirements(ProcessStep):
                             self.proxy_button,
                             urwid.Divider()]
         self._ui_widgets.extend(self.netcontrol.widgets)
-        if self.static_set:
+        if os.path.isfile('/etc/systemd/network/10-en-static.network'):
             self._ui_widgets.extend([self.netcontrol.reset_button,
                                      urwid.Divider()])
 
@@ -1434,7 +1426,6 @@ class NetworkRequirements(ProcessStep):
         except Exception as err:
             Alert('Error!', err).do_alert()
 
-        self.netcontrol.static_set = True
         raise urwid.ExitMainLoop()
 
     def _set_proxy(self, _):
@@ -1640,9 +1631,9 @@ class ConfirmDiskWipe(ConfirmStep):
 
     def handler(self, config):
         disk = '/dev/{0}'.format(config['PartitionLayout'][0]['disk'])
-        self.text = ('Step {} of {}\n\n'
-                     'All data on {} will be erased!'
-                     ' Do you want to proceed with the installation?\n\n'
+        self.text = ('Step {0} of {1}\n\n'
+                     'All data on {2} will be erased during the installation '
+                     '(final step). Do you want to proceed with {2}?\n\n'
                      .format(self._cur_step, self._tot_steps, disk))
         disk_info = get_disk_info(disk)
         if not disk_info["partitions"]:
@@ -2388,6 +2379,11 @@ class StaticIpStep(ProcessStep):
         self.build_ui()
         self._action = self.run_ui()
         config = self.config
+        if self._action == 'Next' and not config.get('Static_IP'):
+            msg = 'Please set static IP configuration before continuing.'
+            Alert('Information', msg).do_alert()
+            return ''
+
         return self._action
 
     def setup_saved(self, config):
