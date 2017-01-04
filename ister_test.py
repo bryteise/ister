@@ -4043,7 +4043,7 @@ def gui_static_configuration():
 
     # we will be running the function twice, once without then once with DNS
     commands = ['/etc/resolv.conf', 'r',
-                'read',
+                'readlines',
                 '/etc/systemd/network/10-en-static.network', 'w',
                 '[Match]\n',
                 'Name=enp0s1\n\n',
