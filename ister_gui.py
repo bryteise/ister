@@ -1223,19 +1223,40 @@ class NetworkControl(object):
         except FileNotFoundError:
             pass
 
-        try:
-            subprocess.call(['/usr/bin/systemctl', 'restart',
-                             'systemd-networkd', 'systemd-resolved'])
-        except:
-            raise urwid.ExitMainLoop()
+        self._restart_networkd_resolved()
 
-        # give the network a chance to start up again
-        time.sleep(.1)
+        # set necessary flags, then reset static edit text.
         self.static_ready = False
         self.reset = True
         self.set_static_edits()
         raise urwid.ExitMainLoop()
 
+    def _restart_networkd_resolved(self):
+        """Restart the network services then poll systemctl status output until
+        both are back up"""
+        restarted = False
+        try:
+            # restart systemd-networkd and systemd-resolved
+            subprocess.call(['/usr/bin/systemctl', 'restart',
+                             'systemd-networkd', 'systemd-resolved'])
+            # check network status with increasing sleep times on each failure.
+            for i in [.1, 1, 2, 4]:
+                out = subprocess.check_output(['/usr/bin/systemctl',
+                                               'status',
+                                               'systemd-networkd',
+                                               'systemd-resolved'])
+                if out.decode('utf-8').count('Active: active (running)') == 2:
+                    restarted = True
+                    break
+
+                time.sleep(i)
+
+            if not restarted:
+                raise Exception('Unable to restart network services')
+
+        except Exception as err:
+            Alert('Error!', str(err)).do_alert()
+            raise urwid.ExitMainLoop()
 
 
 class NetworkRequirements(ProcessStep):
@@ -1421,12 +1442,7 @@ class NetworkRequirements(ProcessStep):
             if self.netcontrol.dns_e.get_edit_text():
                 nfile.write('DNS={}\n'.format(self.netcontrol.dns_e.get_edit_text()))
 
-        try:
-            subprocess.call(['/usr/bin/systemctl', 'restart',
-                             'systemd-networkd', 'systemd-resolved'])
-        except Exception as err:
-            Alert('Error!', err).do_alert()
-
+        self.netcontrol._restart_networkd_resolved()
         raise urwid.ExitMainLoop()
 
     def _set_proxy(self, _):
