@@ -56,6 +56,7 @@ import shutil
 import ipaddress
 import netifaces
 import pycurl
+import signal
 
 # pylint: disable=E0401
 import urwid
@@ -2697,6 +2698,8 @@ def main():
     """Entry point for the ui"""
     setup()
     args = handle_options()
+    # Don't die on CTRL-C, as it only freezes the TTY
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
     ins = Installation(**vars(args))
     ins.run()
 
