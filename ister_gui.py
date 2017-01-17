@@ -1793,7 +1793,7 @@ class SelectDeviceStep(ProcessStep):
 class SelectMultiDeviceStep(SelectDeviceStep):
     """UI to display the available disks"""
     def handler(self, config):
-        config["Disks"] = self.disks[:]
+        config["Disks"] = get_list_of_disks()
         other_options = ['Previous', 'Next']
         self.build_ui_widgets()
         self._ui = SimpleForm(u'Choose a drive to partition using cgdisk tool',
@@ -1803,6 +1803,8 @@ class SelectMultiDeviceStep(SelectDeviceStep):
         if self._clicked:
             config["CurrentDisk"] = self._clicked
             return 'cgdisk'
+        # get the list again, it might have changed
+        config["Disks"] = get_list_of_disks()
         return self._action
 
 
@@ -1857,7 +1859,7 @@ class SetMountEachStep(ProcessStep):
         self._action = self.run_ui()
         point = self.edit_m_point.get_edit_text()
         _format = self.check_format.get_state()
-        if point == '/':
+        if point == '/' and not _format:
             _format = True
             Alert('Information', "Format required for '/' partition, setting "
                   "format option...").do_alert()
@@ -1892,6 +1894,17 @@ class MountPointsStep(ProcessStep):
         mount_d = self.mount_d
         self.display_fmt = '{0:12}{1:12}{2:30}{3:20}{4:6}'
         self.choices = self._get_partitions(config)
+        # if the user went back to cgdisk and deleted a partition, we have to
+        # detect that here. After we get a list to remove, remove each key
+        # (can't do it on the fly because it resizes the mount_d dict)
+        removed = []
+        for disk in mount_d:
+            if not any(mount_d[disk]['part'] in chc for chc in self.choices):
+                removed.append(disk)
+
+        for disk in removed:
+            mount_d.pop(disk, None)
+
         other_options = ['Previous', 'Next']
         required_mounts = ['/', '/boot']
         validated = False
@@ -1908,13 +1921,14 @@ class MountPointsStep(ProcessStep):
                 set_mount_step = SetMountEachStep(partition)
                 point = set_mount_step.handler(mount_d)
                 if point not in set_mount_step.options:
+                    self._erase_dup_mount(point, partition)
                     idx = self.choices.index(self._clicked)
                     _format = 'Yes' if mount_d[point]['format'] else ''
                     self.choices[idx] = self.display_fmt.format(partition,
-                                                           size,
-                                                           part_type,
-                                                           point,
-                                                           _format)
+                                                                size,
+                                                                part_type,
+                                                                point,
+                                                                _format)
             elif self._action == 'Next':
                 validated = True
                 for mount in required_mounts:
@@ -1934,6 +1948,14 @@ class MountPointsStep(ProcessStep):
         if exc is not None:
             return exc
         return self._action
+
+    def _erase_dup_mount(self, point, part):
+        for idx, chc in enumerate(self.choices):
+            if '{} '.format(point) in chc and '{} '.format(part) not in chc:
+                self.choices[idx] = \
+                    (self.choices[idx]
+                     .replace(point, ' ' * len(point))
+                     .replace('Yes', '   '))
 
     def _item_chosen(self, _, choice):
         self._clicked = choice
