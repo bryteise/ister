@@ -1499,7 +1499,6 @@ class TelemetryDisclosure(ProcessStep):
         if not self._ui:
             self.build_ui()
 
-        config['Bundles'] = list()
         if self._ui:
             self._action = self.run_ui()
         if self.accept.get_state():
@@ -2078,6 +2077,12 @@ class BundleSelectorStep(ProcessStep):
                         {'name': 'network-proxy-client',
                          'desc': 'Auto proxy detection for aware tools like '
                                  'swupd'}]
+        self.default_bundles = [{'name': 'network-basic',
+                                 'desc': 'Run network utilities and modify '
+                                         'network settings'},
+                                {'name': 'sysadmin-basic',
+                                 'desc': 'Run common utilities useful for '
+                                         'managing a system'}]
         self.required_bundles = list()
         try:
             output = subprocess.check_output('systemd-detect-virt',
@@ -2096,16 +2101,19 @@ class BundleSelectorStep(ProcessStep):
                      'functional'},
             kernel,
             {'name': 'os-core-update',
-             'desc': 'Required to update the system'},
-            {'name': 'network-basic',
-             'desc': 'Run network utilities and modify network settings'},
-            {'name': 'sysadmin-basic',
-             'desc': 'Run common utilities useful for managing a system'}])
+             'desc': 'Required to update the system'}])
+        self.default_set = False
         if cur_step and tot_steps:
             self.progress = urwid.Text('Step {} of {}'.format(cur_step,
                                                               tot_steps))
 
     def handler(self, config):
+        if not self.default_set:
+            for bundle in self.default_bundles:
+                config['Bundles'].append(bundle['name'])
+            self.bundles.extend(self.default_bundles)
+            self.default_set = True
+
         telem_present = any(bundle['name'] == 'telemetrics'
                             for bundle in self.required_bundles)
         if 'telemetrics' in config['Bundles'] and not telem_present:
@@ -2623,6 +2631,9 @@ class Installation(object):
         """Starts up the installer ui"""
         pprint.PrettyPrinter(indent=4)
         step = self.start
+        # initiate the bundles list at the start, not in a screen, so it does
+        # not get overwritten when a user returns to that screen.
+        self.installation_d['Bundles'] = list()
         i = 0
         while not isinstance(step, RunInstallation):
             action = step.handler(self.installation_d)
