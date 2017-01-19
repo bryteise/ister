@@ -1863,6 +1863,9 @@ class SetMountEachStep(ProcessStep):
             Alert('Information', "Format required for '/' partition, setting "
                   "format option...").do_alert()
         if self._action == 'Next' and len(point) > 0 and point[0] == '/':
+            for key in list(config.keys()):
+                if config[key]['part'] == self._partition:
+                    del config[key]
             config[point] = {'part': self._partition, 'format': _format}
             return point
         return self._action
