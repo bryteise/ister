@@ -1657,6 +1657,10 @@ class ConfirmDiskWipe(ConfirmStep):
                      'All data on {2} will be erased during the installation '
                      '(final step). Do you want to proceed with {2}?\n\n'
                      .format(self._cur_step, self._tot_steps, disk))
+        if self._cur_step == self._tot_steps:
+            self.text += 'Selecting "Yes" will begin installation. This ' \
+                         'step may take several minutes depending on '    \
+                         'network speed.\n\n'
         disk_info = get_disk_info(disk)
         if not disk_info["partitions"]:
             self.text += "{0} contents: no partitions found.".format(disk)
@@ -2567,9 +2571,10 @@ class Installation(object):
         user_configuration = UserConfigurationStep(10, 12)
         confirm_dhcp = ConfirmDHCPMenu(11, 12)
         static_ip_config = StaticIpStep(11, 12)
-        confirm_installation = ConfirmStep('Attention!', 'Setup is complete. '
-                                           'Do you want to begin '
-                                           'installation?', 12, 12)
+        setup_msg = 'Setup is complete. Do you want to begin installation? '  \
+                    'This step may take several minutes depending on '        \
+                    'bundles selected and network speed.'
+        confirm_installation = ConfirmStep('Attention!', setup_msg, 12, 12)
         run = RunInstallation()
 
         self.start.set_action('Next', network_requirements)
