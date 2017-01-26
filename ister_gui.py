@@ -778,6 +778,12 @@ class ChooseAction(ProcessStep):
                                   user_data=key)
             self._ui_widgets.append(button)
 
+        # Add the exit button last so it is at the bottom of the choices list
+        exit_button = ister_button('Exit    - Exit installer',
+                                   on_press=self._item_chosen,
+                                   user_data='Exit')
+        self._ui_widgets.append(exit_button)
+
     def _item_chosen(self, _, choice):
         self._clicked = choice
         raise urwid.ExitMainLoop()
