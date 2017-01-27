@@ -400,6 +400,8 @@ def copy_os(args, template, target_dir):
     swupd_command += " --versionurl={0}".format(args.versionurl)
     swupd_command += " --format={0}".format(args.format)
     swupd_command += " --statedir={0}".format(args.statedir)
+    if args.cert_file:
+        swupd_command += " -C {0}".format(args.cert_file)
 
     if template["DestinationType"] == "physical":
         os.makedirs("/var/lib/swupd", exist_ok=True)
@@ -1280,6 +1282,9 @@ def handle_options():
     parser.add_argument("-c", "--config-file", action="store",
                         default=None,
                         help="Path to configuration file to use")
+    parser.add_argument("-s", "--cert-file", action="store",
+                        default=None,
+                        help="Path to certificate file used by swupd")
     parser.add_argument("-t", "--template-file", action="store",
                         default=None,
                         help="Path to template file to use")

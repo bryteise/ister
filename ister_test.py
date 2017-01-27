@@ -1232,6 +1232,7 @@ def copy_os_good():
     args.versionurl = "vtest"
     args.format = "formattest"
     args.statedir = "/statetest"
+    args.cert_file = None
     swupd_cmd = "swupd verify --install --path=/ --manifest=0 "              \
                 "--contenturl=ctest --versionurl=vtest --format=formattest " \
                 "--statedir=/statetest"
@@ -1239,6 +1240,39 @@ def copy_os_good():
                 os.getenv("https_proxy"),
                 True]
     ister.copy_os(args, {"Version": 0, "DestinationType": ""}, "/")
+    ister.add_bundles = backup_add_bundles
+    shutil.which = backup_which
+    commands_compare_helper(commands)
+
+
+@run_command_wrapper
+def copy_os_cert_good():
+    """Check installer command with cert present"""
+    backup_add_bundles = ister.add_bundles
+    ister.add_bundles = lambda x, y: None
+    backup_which = shutil.which
+    shutil.which = lambda x: False
+
+    def args():
+        """args empty object"""
+        None
+    args.contenturl = "ctest"
+    args.versionurl = "vtest"
+    args.format = "formattest"
+    args.statedir = "/statetest"
+    args.cert_file = "/certtest"
+    swupd_cmd = "swupd verify --install --path=/ --manifest=0 "              \
+                "--contenturl=ctest --versionurl=vtest --format=formattest " \
+                "--statedir=/statetest -C /certtest"
+    commands = [swupd_cmd,
+                "https://to.clearlinux.org",
+                True]
+    template = {
+        "Version": 0,
+        "DestinationType": "",
+        "HTTPSProxy": "https://to.clearlinux.org"
+    }
+    ister.copy_os(args, template, "/")
     ister.add_bundles = backup_add_bundles
     shutil.which = backup_which
     commands_compare_helper(commands)
@@ -1259,6 +1293,7 @@ def copy_os_proxy_good():
     args.versionurl = "vtest"
     args.format = "formattest"
     args.statedir = "/statetest"
+    args.cert_file = None
     swupd_cmd = "swupd verify --install --path=/ --manifest=0 "              \
                 "--contenturl=ctest --versionurl=vtest --format=formattest " \
                 "--statedir=/statetest"
@@ -1294,6 +1329,7 @@ def copy_os_format_good():
     args.versionurl = "vtest"
     args.format = None
     args.statedir = "/statetest"
+    args.cert_file = None
     swupd_cmd = "swupd verify --install --path=/ --manifest=0 "        \
                 "--contenturl=ctest --versionurl=vtest --format=test " \
                 "--statedir=/statetest"
@@ -1323,6 +1359,7 @@ def copy_os_which_good():
     args.versionurl = "vtest"
     args.format = "formattest"
     args.statedir = "/statetest"
+    args.cert_file = None
     swupd_cmd = "swupd verify --install --path=/ --manifest=0 "              \
                 "--contenturl=ctest --versionurl=vtest --format=formattest " \
                 "--statedir=/statetest"
@@ -1353,6 +1390,7 @@ def copy_os_physical_good():
     args.versionurl = "vtest"
     args.format = "formattest"
     args.statedir = "/statetest"
+    args.cert_file = None
     swupd_cmd = "swupd verify --install --path=/ --manifest=0 "              \
                 "--contenturl=ctest --versionurl=vtest --format=formattest " \
                 "--statedir=/statetest"
@@ -2989,7 +3027,8 @@ def handle_options_good():
     """Test all values handle options supports"""
     # Test short options first
     sys.argv = ["ister.py", "-c", "cfg", "-t", "tpt", "-C", "/", "-V", "/",
-                "-f", "1", "-v", "-l", "log", "-L", "debug", "-S", "/"]
+                "-f", "1", "-v", "-l", "log", "-L", "debug", "-S", "/",
+                "-s", "./cert"]
     try:
         args = ister.handle_options()
     except Exception:
@@ -3012,10 +3051,13 @@ def handle_options_good():
         raise Exception("Failed to correctly set short loglevel")
     if args.statedir != "/":
         raise Exception("Failed to correctly set short state dir")
+    if args.cert_file != "./cert":
+        raise Exception("Failed to correctly set short cert file")
     # Test long options next
     sys.argv = ["ister.py", "--config-file=cfg", "--template-file=tpt",
                 "--contenturl=/", "--versionurl=/", "--format=1", "--verbose",
-                "--logfile=log", "--loglevel=debug", "--statedir=/"]
+                "--logfile=log", "--loglevel=debug", "--statedir=/",
+                "--cert-file=./cert"]
     try:
         args = ister.handle_options()
     except Exception:
@@ -3038,6 +3080,8 @@ def handle_options_good():
         raise Exception("Failed to correctly set long loglevel")
     if args.statedir != "/":
         raise Exception("Failed to correctly set long state dir")
+    if args.cert_file != "./cert":
+        raise Exception("Failed to correctly set long cert file")
     # Test default options
     sys.argv = ["ister.py"]
     try:
@@ -3062,6 +3106,8 @@ def handle_options_good():
         raise Exception("Incorrect default loglevel set")
     if args.statedir != "/var/lib/swupd":
         raise Exception("Incorrect default state dir set")
+    if args.cert_file:
+        raise Exception("Incorrect default cert file set")
 
 
 def handle_logging_good():
@@ -4706,6 +4752,7 @@ if __name__ == '__main__':
         get_current_format_good,
         set_hostname_good,
         copy_os_good,
+        copy_os_cert_good,
         copy_os_proxy_good,
         copy_os_format_good,
         copy_os_which_good,
