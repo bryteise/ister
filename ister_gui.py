@@ -826,6 +826,7 @@ class ChooseAction(ProcessStep):
         root_part, boot_part = self._mount_host_disk(config)
         term = None
         if not self.error:
+            os.environ['HOME'] = '/root'
             term = Terminal(['chroot', self.target_dir, '/bin/bash'])
         else:
             # ask user if they want a shell in the installer instead
@@ -854,7 +855,6 @@ class ChooseAction(ProcessStep):
             self._umount_host_disk(root_part, boot_part)
             self._action = 'return'
             return
-
         if os.path.exists('/run/systemd/resolve/resolv.conf'):
             try:
                 # This fixes the issue where this is actually just a broken
@@ -985,6 +985,9 @@ class ChooseAction(ProcessStep):
                         osf = '{}/usr/lib/os-release'.format(self.target_dir)
                         with open(osf, 'r') as os_release:
                             if 'clear-linux-os' in os_release.read():
+                                for mount in ['/sys', '/proc']:
+                                    subprocess.call(['mount', '-o', 'bind',
+                                                     mount, target + mount])
                                 return part_found
                         # if we have not returned at this point, unmount and
                         # keep looking, this is not Clear Linux.
@@ -1000,6 +1003,8 @@ class ChooseAction(ProcessStep):
 
     def _umount_host_disk(self, root_part, boot_part):
         """Unmount the os disk"""
+        for mount in ['/sys', '/proc']:
+            subprocess.call(['umount', self.target_dir + mount])
         subprocess.call(['umount', boot_part])
         subprocess.call(['umount', root_part])
         os.rmdir(self.target_dir)
