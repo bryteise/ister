@@ -855,45 +855,11 @@ class ChooseAction(ProcessStep):
             self._umount_host_disk(root_part, boot_part)
             self._action = 'return'
             return
-        if os.path.exists('/run/systemd/resolve/resolv.conf'):
-            try:
-                # This fixes the issue where this is actually just a broken
-                # symlink in a chroot. Removing the file allows us to copy a
-                # new file in its place.
-                os.remove('{}/etc/resolv.conf'.format(self.target_dir))
-            except Exception:
-                # try anyways
-                pass
 
-            try:
-                shutil.copy('/run/systemd/resolve/resolv.conf',
-                            '{}/etc/resolv.conf'.format(self.target_dir))
-            except Exception:
-                # try anyways
-                Alert('Error!', 'Unable to copy /etc/resolv.conf to host OS. '
-                                'This may cause repair to fail due to network '
-                                'issues. Consider manually removing the file '
-                                'using the "Shell" option if the repair '
-                                'fails').do_alert()
-
-        # save proxy if it exist in case the user did not set one in the
-        # network configuration screen
-        old_https_proxy = os.environ.get('https_proxy')
-
-        try:
-            old_root = os.open('/', os.O_RDONLY)
-            os.chroot(self.target_dir)
-        except Exception:
-            Alert('Error!', 'Unable to chroot to host os').do_alert()
-            self._umount_host_disk(root_part, boot_part)
-            self._action = 'return'
-            return
-
-        # In host OS chroot
-        if old_https_proxy:
-            os.environ['https_proxy'] = old_https_proxy
-
-        watch = WatchableProcess(['swupd', 'verify', '--fix'])
+        watch = WatchableProcess(['swupd',
+                                  'verify',
+                                  '--path={}'.format(self.target_dir),
+                                  '--fix'])
         watch.start()
         current = 0
         Alert('Repairing',
@@ -910,11 +876,6 @@ class ChooseAction(ProcessStep):
             Alert('Repairing', 'Successful repair').do_alert()
         else:
             Alert('Error!', 'Unable to repair host os').do_alert()
-
-        # leaving host OS chroot
-        os.chdir(old_root)
-        os.chroot('.')
-        os.close(old_root)
 
         self._umount_host_disk(root_part, boot_part)
         self.error = False
