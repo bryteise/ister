@@ -4334,7 +4334,7 @@ def gui_mount_host_disk_normal():
         return 0
 
     def mock_mkdtemp(prefix):
-        return "/tmp/{}abcdefg123".format(prefix)
+        return "/tmp/{}temp".format(prefix)
 
     def mock_get_list_of_disks():
         return ["sda", "sdb", "sdc"]
@@ -4369,10 +4369,12 @@ def gui_mount_host_disk_normal():
     ister_gui.get_disk_info = mock_get_disk_info
     ister_gui.ChooseAction._find_current_disk = mock_find_current_disk
 
-    commands = ['mount', '/dev/sdc3', '/tmp/ister-latest-abcdefg123',
-                '/tmp/ister-latest-abcdefg123/usr/lib/os-release', 'r',
+    commands = ['mount', '/dev/sdc3', '/tmp/ister-latest-temp',
+                '/tmp/ister-latest-temp/usr/lib/os-release', 'r',
                 'read',
-                'mount', '/dev/sdc2', '/tmp/ister-latest-abcdefg123/boot']
+                'mount', '-o', 'bind', '/sys', '/tmp/ister-latest-temp/sys',
+                'mount', '-o', 'bind', '/proc', '/tmp/ister-latest-temp/proc',
+                'mount', '/dev/sdc2', '/tmp/ister-latest-temp/boot']
     chooseact = ister_gui.ChooseAction(0, 0)
     config = {"Version": "latest"}
     os_disk, boot_part = chooseact._mount_host_disk(config)
@@ -4383,9 +4385,9 @@ def gui_mount_host_disk_normal():
     ister_gui.get_disk_info = get_disk_info_backup
     ister_gui.ChooseAction._find_current_disk = find_current_disk_backup
 
-    if chooseact.target_dir != "/tmp/ister-latest-abcdefg123":
+    if chooseact.target_dir != "/tmp/ister-latest-temp":
         raise Exception("Target directory {} did not match expected "
-                        "/tmp/ister-latest-abcdefg123"
+                        "/tmp/ister-latest-temp"
                         .format(chooseact.target_dir))
 
     if os_disk != "/dev/sdc3":
@@ -4423,7 +4425,7 @@ def gui_mount_host_disk_no_boot_on_host():
         return 0
 
     def mock_mkdtemp(prefix):
-        return "/tmp/{}abcdefg123".format(prefix)
+        return "/tmp/{}temp".format(prefix)
 
     def mock_get_list_of_disks():
         return ["sda", "sdb", "sdc"]
@@ -4458,8 +4460,10 @@ def gui_mount_host_disk_no_boot_on_host():
     ister_gui.ChooseAction._find_current_disk = mock_find_current_disk
     ister_gui.Alert = mock_alert
 
-    commands = ['mount', '/dev/sdc3', '/tmp/ister-latest-abcdefg123',
-                '/tmp/ister-latest-abcdefg123/usr/lib/os-release', 'r', 'read']
+    commands = ['mount', '/dev/sdc3', '/tmp/ister-latest-temp',
+                '/tmp/ister-latest-temp/usr/lib/os-release', 'r', 'read',
+                'mount', '-o', 'bind', '/sys', '/tmp/ister-latest-temp/sys',
+                'mount', '-o', 'bind', '/proc', '/tmp/ister-latest-temp/proc']
     chooseact = ister_gui.ChooseAction(0, 0)
     config = {"Version": "latest"}
     os_disk, boot_part = chooseact._mount_host_disk(config)
@@ -4471,9 +4475,9 @@ def gui_mount_host_disk_no_boot_on_host():
     ister_gui.ChooseAction._find_current_disk = find_current_disk_backup
     ister_gui.Alert = alert_backup
 
-    if chooseact.target_dir != "/tmp/ister-latest-abcdefg123":
+    if chooseact.target_dir != "/tmp/ister-latest-temp":
         raise Exception("Target directory {} did not match expected "
-                        "/tmp/ister-latest-abcdefg123"
+                        "/tmp/ister-latest-temp"
                         .format(chooseact.target_dir))
 
     if os_disk != "/dev/sdc3":
@@ -4501,10 +4505,12 @@ def gui_get_root_present():
 
     part_info = {"partitions": [{"name": "/dev/sda1"},
                                 {"type": "Linux root", "name": "/dev/sda2"}]}
-    commands = ['mount', '/dev/sda2', '/tmp/ister-latest-abcdefg123',
-                '/tmp/ister-latest-abcdefg123/usr/lib/os-release', 'r', 'read']
+    commands = ['mount', '/dev/sda2', '/tmp/ister-latest-temp',
+                '/tmp/ister-latest-temp/usr/lib/os-release', 'r', 'read',
+                'mount', '-o', 'bind', '/sys', '/tmp/ister-latest-temp/sys',
+                'mount', '-o', 'bind', '/proc', '/tmp/ister-latest-temp/proc']
     chooseact = ister_gui.ChooseAction(0, 0)
-    chooseact.target_dir = "/tmp/ister-latest-abcdefg123"
+    chooseact.target_dir = "/tmp/ister-latest-temp"
     result = chooseact._get_part(part_info, "Linux root", chooseact.target_dir)
     subprocess.call = call_backup
     if result is not "/dev/sda2":
@@ -4615,13 +4621,12 @@ def gui_umount_host_disk():
     subprocess.call = mock_call
     os.rmdir = mock_rmdir
 
-    commands = ["umount",
-                "/dev/sdc2",
-                "umount",
-                "/dev/sdc3",
-                "ister-latest-abcdefg123"]
+    commands = ['umount', 'ister-latest-temp/sys',
+                'umount', 'ister-latest-temp/proc',
+                'umount', '/dev/sdc2',
+                'umount', '/dev/sdc3', 'ister-latest-temp']
     chooseact = ister_gui.ChooseAction(0, 0)
-    chooseact.target_dir = "ister-latest-abcdefg123"
+    chooseact.target_dir = "ister-latest-temp"
     chooseact._umount_host_disk("/dev/sdc3",
                                 "/dev/sdc2")
 
