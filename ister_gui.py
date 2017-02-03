@@ -191,6 +191,57 @@ def ister_button(message, on_press=None, user_data=None,
                          left=left, right=right)
 
 
+def required_bundles(config):
+    """
+    Determines the required bundles list from options set in the configuration
+    dictionary. Returns a list of bundle dictionaries containing 'name' and
+    'desc' fields.
+    """
+    required_bundles = []
+
+    # configure core bundles (kernel, os-core, and os-core-update)
+    # detect virtualization technology to determine which kernel to require
+    try:
+        output = subprocess.check_output('systemd-detect-virt',
+                                         shell=True).decode('utf-8')
+    except Exception:
+        output = 'none'
+
+    if 'qemu' in output or 'kvm' in output:
+        kernel = {'name': 'kernel-kvm',
+                  'desc': 'Required to run Clear Linux OS on kvm'}
+    else:
+        kernel = {'name': 'kernel-native',
+                  'desc': 'Required to run Clear Linux OS on baremetal'}
+
+    required_bundles.extend([
+        {'name': 'os-core',
+         'desc': 'Minimal packages to have Clear Linux OS fully '
+                 'functional'},
+        kernel,
+        {'name': 'os-core-update',
+         'desc': 'Required to update the system'}])
+
+    # configure dynamically required bundles (sysadmin-basic, telemetrics)
+    sysadmin_basic = {'name': 'sysadmin-basic',
+                      'desc': 'Run common utilities useful for managing a '
+                              'system (required when creating an admin user)'}
+    telemetrics = {'name': 'telemetrics',
+                   'desc': 'Collects anonymous reports to improve system '
+                           'stability (opted in)'}
+    # 'telemetrics' will exist in config['Bundles'] if the user opted in. This
+    # is the only way to select the telemetrics bundle, so make it required.
+    if 'telemetrics' in config['Bundles']:
+        required_bundles.append(telemetrics)
+
+    # if an administrative user is defined, that user will need sudo to operate
+    # the system.
+    if config.get('Users'):
+        required_bundles.append(sysadmin_basic)
+
+    return required_bundles
+
+
 class Alert(object):
     """Class to display alerts or confirm boxes"""
     # pylint: disable=R0902
@@ -2062,48 +2113,49 @@ class BundleSelectorStep(ProcessStep):
                                 {'name': 'sysadmin-basic',
                                  'desc': 'Run common utilities useful for '
                                          'managing a system'}]
-        self.required_bundles = list()
-        try:
-            output = subprocess.check_output('systemd-detect-virt',
-                                             shell=True).decode('utf-8')
-        except Exception:
-            output = 'none'
-        if 'qemu' in output or 'kvm' in output:
-            kernel = {'name': 'kernel-kvm',
-                      'desc': 'Required to run Clear Linux OS on kvm'}
-        else:
-            kernel = {'name': 'kernel-native',
-                      'desc': 'Required to run Clear Linux OS on baremetal'}
-        self.required_bundles.extend([
-            {'name': 'os-core',
-             'desc': 'Minimal packages to have Clear Linux OS fully '
-                     'functional'},
-            kernel,
-            {'name': 'os-core-update',
-             'desc': 'Required to update the system'}])
         self.default_set = False
+        self.sysadmin_basic_state = True
         if cur_step and tot_steps:
             self.progress = urwid.Text('Step {} of {}'.format(cur_step,
                                                               tot_steps))
 
     def handler(self, config):
+        # required bundles list can change depending on configuration
+        self.required_bundles = required_bundles(config)
+        # find which lists sysadmin-basic is in
+        sysadmin_reqd = any(bundle['name'] == 'sysadmin-basic'
+                            for bundle in self.required_bundles)
+        sysadmin_bundle = any(bundle['name'] == 'syadmin-basic'
+                            for bundle in self.bundles)
+        sysadmin_def = any(bundle['name'] == 'sysadmin-basic'
+                           for bundle in self.default_bundles)
+        sysadmin_basic = {'name': 'sysadmin-basic',
+                          'desc': 'Run common utilities useful for managing a '
+                                  'system'}
+        # if syadmin-basic is in the required_bundles list, it must be removed
+        # from the other bundle lists so it is not displayed multiple times
+        if sysadmin_reqd:
+            self.default_bundles = [
+                bundle for bundle in self.default_bundles
+                if not bundle.get('name') == 'sysadmin-basic']
+            self.bundles = [bundle for bundle in self.bundles
+                            if not bundle.get('name') == 'sysadmin-basic']
+        # if sysadmin-basic is not in any of the lists, add it to the main
+        # bundles list. Do not add it to the default_bundles list because
+        # default_bundles is only processed the first time a user reaches this
+        # screen.
+        elif not (sysadmin_reqd or sysadmin_bundle or sysadmin_def):
+            self.bundles.append(sysadmin_basic)
+
+        # The first time a user reaches this screen, the remaining items in
+        # default_bundles should be added to self.bundles and config['Bundles']
+        # so they will be pre-selected. This list may or may not include
+        # sysadmin-basic
         if not self.default_set:
             for bundle in self.default_bundles:
                 config['Bundles'].append(bundle['name'])
             self.bundles.extend(self.default_bundles)
             self.default_set = True
-
-        telem_present = any(bundle['name'] == 'telemetrics'
-                            for bundle in self.required_bundles)
-        if 'telemetrics' in config['Bundles'] and not telem_present:
-            self.required_bundles.append(
-                {'name': 'telemetrics',
-                 'desc': 'Collects anonymous reports to improve '
-                         'system stability (opted in)'})
-        elif 'telemetrics' not in config['Bundles']:
-            self.required_bundles = [
-                bundle for bundle in self.required_bundles
-                if not bundle.get('name') == 'telemetrics']
 
         # build widgets and ui each time in case user went back and opted out
         # of telemetrics
@@ -2122,6 +2174,13 @@ class BundleSelectorStep(ProcessStep):
                         else:
                             if bundle in config['Bundles']:
                                 config['Bundles'].remove(bundle)
+
+        # update only if user had chance to unselect - the user had a chance to
+        # unselect the bundle if it is not in the required_bundles list.
+        if not any(bundle['name'] == 'sysadmin-basic'
+                   for bundle in self.required_bundles):
+            self.sysadmin_basic_state = 'sysadmin-basic' in config['Bundles']
+
         return self._action
 
     def run_ui(self):
@@ -2135,6 +2194,12 @@ class BundleSelectorStep(ProcessStep):
                                  urwid.Divider()])
         for bundle in self.bundles:
             state = True if bundle['name'] in config['Bundles'] else False
+            # sysadmin-basic state needs to be handled differently.
+            # the state must be remembered in case the user changes their mind
+            # a couple times, causing the bundle to be added and removed from
+            # the required bundles list.
+            if bundle['name'] == 'sysadmin-basic':
+                state = self.sysadmin_basic_state
             check = urwid.CheckBox(bundle['name'], state=state)
             desc_text = urwid.Text(bundle['desc'])
             column = urwid.Columns([check, ('weight', 2, desc_text)])
@@ -2197,6 +2262,9 @@ class ConfirmUserMenu(ProcessStep):
 
         if self._clicked:
             self._action = self._clicked
+
+        if self._action == 'nouser':
+            config['Users'] = []
 
         return self._action
 
@@ -2519,22 +2587,24 @@ class Installation(object):
             self._exit(-1, 'Template file does not exist')
 
     def _init_actions(self):
+        # auto install assumed
         network_requirements = NetworkRequirements(1, 6)
         choose_action = ChooseAction(2, 6)
         telem_disclosure = TelemetryDisclosure(3, 6)
         startmenu = StartInstaller(4, 6)
-        config_hostname = ConfigureHostname(8, 12)
-        confirm_disk_wipe = ConfirmDiskWipe(6, 6)
-        confirm_disk_wipe2 = ConfirmDiskWipe(7, 12)
-        part_menu = PartitioningMenu(5, 12)
         automatic_device = SelectDeviceStep(5, 6)
+        confirm_disk_wipe = ConfirmDiskWipe(6, 6)
+        # manual install
+        part_menu = PartitioningMenu(5, 12)
         manual_part_device = SelectMultiDeviceStep(6, 12)
         manual_nopart_device = SelectDeviceStep(6, 12)
         terminal_cgdisk = TerminalStep()
         set_mount_points = MountPointsStep(7, 12)
-        bundle_selector = BundleSelectorStep(9, 12)
-        confirm_user = ConfirmUserMenu(10, 12)
-        user_configuration = UserConfigurationStep(10, 12)
+        confirm_disk_wipe2 = ConfirmDiskWipe(7, 12)
+        config_hostname = ConfigureHostname(8, 12)
+        confirm_user = ConfirmUserMenu(9, 12)
+        user_configuration = UserConfigurationStep(9, 12)
+        bundle_selector = BundleSelectorStep(10, 12)
         confirm_dhcp = ConfirmDHCPMenu(11, 12)
         static_ip_config = StaticIpStep(11, 12)
         setup_msg = 'Setup is complete. Do you want to begin installation? '  \
@@ -2574,17 +2644,17 @@ class Installation(object):
         confirm_disk_wipe2.set_action('No', manual_nopart_device)
         confirm_disk_wipe2.set_action('Yes', config_hostname)
         config_hostname.set_action('Previous', part_menu)
-        config_hostname.set_action('Next', bundle_selector)
-        bundle_selector.set_action('Previous', config_hostname)
-        bundle_selector.set_action('Next', confirm_user)
+        config_hostname.set_action('Next', confirm_user)
         confirm_user.set_action('mkuser', user_configuration)
-        confirm_user.set_action('nouser', confirm_dhcp)
-        confirm_user.set_action('Previous', bundle_selector)
+        confirm_user.set_action('nouser', bundle_selector)
+        confirm_user.set_action('Previous', config_hostname)
         user_configuration.set_action('Previous', confirm_user)
-        user_configuration.set_action('Next', confirm_dhcp)
+        user_configuration.set_action('Next', bundle_selector)
+        bundle_selector.set_action('Previous', confirm_user)
+        bundle_selector.set_action('Next', confirm_dhcp)
         confirm_dhcp.set_action('dhcp', confirm_installation)
         confirm_dhcp.set_action('staticip', static_ip_config)
-        confirm_dhcp.set_action('Previous', confirm_user)
+        confirm_dhcp.set_action('Previous', bundle_selector)
         static_ip_config.set_action('Previous', confirm_dhcp)
         static_ip_config.set_action('', static_ip_config)
         static_ip_config.set_action('Next', confirm_installation)
@@ -2629,7 +2699,8 @@ class Installation(object):
             i += 1
         # Make sure that required bundles are included independently of
         # installation method.
-        for bundle in BundleSelectorStep().required_bundles:
+        # the required bundles depend on the configuration in installation_d
+        for bundle in required_bundles(self.installation_d):
             if bundle["name"] not in self.installation_d["Bundles"]:
                 self.installation_d["Bundles"].append(bundle["name"])
         self.automatic_install()
