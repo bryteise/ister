@@ -1541,25 +1541,30 @@ def add_user_key_bad():
         raise Exception("Didn't handle failure during key add")
 
 
-@open_wrapper("good", "")
+@chroot_open_wrapper("silent")
 @add_user_key_wrapper
 def setup_sudo_good():
-    """Add user to sudoers file"""
+    """Add user to sudo (wheel) group"""
+    import subprocess
+
     global COMMAND_RESULTS
     COMMAND_RESULTS = []
+
+    def mock_call(cmd):
+        """mock_call wrapper"""
+        COMMAND_RESULTS.extend(cmd)
+
+    backup_call = subprocess.call
+    subprocess.call = mock_call
+
     template = {"username": "user"}
-    commands = ["/tmp/etc/sudoers.d",
-                0,
-                False,
-                "/tmp/etc/sudoers.d/user",
-                "w",
-                "user ALL=(ALL) NOPASSWD: ALL\n",
-                "close"]
+    commands = ["usermod", "-a", "-G", "wheel", "user"]
     ister.setup_sudo(template, "/tmp")
+    subprocess.call = backup_call
     commands_compare_helper(commands)
 
 
-@open_wrapper("bad", "")
+@chroot_open_wrapper("bad chroot")
 @add_user_key_wrapper
 def setup_sudo_bad():
     """Ensure failures during setup_sudo are handled"""

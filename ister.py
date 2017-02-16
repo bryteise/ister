@@ -534,19 +534,17 @@ def disable_root_login(target_dir):
 
 
 def setup_sudo(user, target_dir):
-    """Append user to sudoers file
+    """Add user to sudo (wheel) group
 
     This function will raise an Exception on finding an error.
     """
-    sudoer_template = "{} ALL=(ALL) NOPASSWD: ALL\n".format(user["username"])
     try:
-        os.makedirs("{0}/etc/sudoers.d".format(target_dir))
-        conf = open("{0}/etc/sudoers.d/{1}"
-                    .format(target_dir, user["username"]), "w")
-        conf.write(sudoer_template)
-        conf.close()
+        command = ["usermod", "-a", "-G", "wheel", user["username"]]
+
+        with ChrootOpen(target_dir) as _:
+            subprocess.call(command)
     except:
-        raise Exception("Unable to add sudoer conf file for {}"
+        raise Exception("Unable to add sudo group for {}"
                         .format(user["username"]))
 
 
