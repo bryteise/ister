@@ -255,6 +255,21 @@ def required_bundles(config):
     return required_bundles
 
 
+def network_service_ready():
+    """Check network status with increasing sleep times on each failure"""
+    for i in [.1, 1, 2, 4]:
+        out = subprocess.check_output(['/usr/bin/systemctl',
+                                       'status',
+                                       'systemd-networkd',
+                                       'systemd-resolved'])
+        if out.decode('utf-8').count('Active: active (running)') == 2:
+            return True
+
+        time.sleep(i)
+
+    return False
+
+
 class Alert(object):
     """Class to display alerts or confirm boxes"""
     # pylint: disable=R0902
@@ -1270,24 +1285,12 @@ class NetworkControl(object):
     def _restart_networkd_resolved(self):
         """Restart the network services then poll systemctl status output until
         both are back up"""
-        restarted = False
         try:
             # restart systemd-networkd and systemd-resolved
             subprocess.call(['/usr/bin/systemctl', 'restart',
                              'systemd-networkd', 'systemd-resolved'])
-            # check network status with increasing sleep times on each failure.
-            for i in [.1, 1, 2, 4]:
-                out = subprocess.check_output(['/usr/bin/systemctl',
-                                               'status',
-                                               'systemd-networkd',
-                                               'systemd-resolved'])
-                if out.decode('utf-8').count('Active: active (running)') == 2:
-                    restarted = True
-                    break
 
-                time.sleep(i)
-
-            if not restarted:
+            if not network_service_ready():
                 raise Exception('Unable to restart network services')
 
         except Exception as err:
@@ -1314,6 +1317,8 @@ class NetworkRequirements(ProcessStep):
         self.nettime = False
         self.reset = False
         self.netcontrol = None
+        # wait for network service to load the first time this screen is loaded
+        network_service_ready()
 
     def handler(self, config):
         # make config an instance variable so we can copy proxy settings to it
