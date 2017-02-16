@@ -146,29 +146,42 @@ def get_disk_info(disk):
 
 
 def get_list_of_disks():
-    """"Queries for the available disks discarding the inst. source"""
-    dir_path = '/sys/block'
-    disks = [device for device in os.listdir(dir_path)
-             if 'pci' in os.readlink('{0}/{1}'.format(dir_path, device))]
-    unmounted = list()
+    """"
+    Queries for the available disks discarding the installer root disk
 
+    Parses lsblk output to find list of disks and to find where / is mounted.
+    The disk with a partition mounted to / is the installer disk and is
+    ignored. A list of available disks by name (sdb, sdc, vda, etc.) is
+    returned.
+
+    The lsblk command `lsblk -lo NAME,TYPE,MOUNTPOINT outputs the following
+    format.
+
+    NAME TYPE MOUNTPOINT
+    sda  disk        <--- disk, identified as current by sda3 mount point
+    sda1 part
+    sda2 part [SWAP]
+    sda3 part /      <--- root partition
+    sdb  disk        <--- disk, valid target because no root partition mounted
+    sdb1 part
+    sdb2 part
+
+    For the above case this function would return ['sdb']
+    """
+    disks = []
+    root_disk = ''
     output = subprocess.check_output([
-        '/usr/bin/lsblk', '-o',
-        'MOUNTPOINT,PARTUUID']).decode('utf-8')
+        '/usr/bin/lsblk', '-lo', 'NAME,TYPE,MOUNTPOINT']).decode('utf-8')
     parts = output.split('\n')
+    for part in parts:
+        part = part.strip()
+        if 'disk' in part:
+            disks.append(part.split()[0])
+        elif part.endswith('/'):
+            root_disk = part.split()[0]
 
-    expr = re.compile(r'(\S*)\s*(\S*)')
-    for line in parts:
-        match = expr.match(line)
-        if match:
-            if match.group(1) == '/':
-                part_uuid = match.group(2)
-
-    root_disk = os.readlink('/dev/disk/by-partuuid/{0}'.format(part_uuid))
-    for disk in disks:
-        if disk not in root_disk:
-            unmounted.append(disk)
-    return unmounted
+    # remove installer disk and return
+    return [dsk for dsk in disks if dsk not in root_disk]
 
 
 def compute_mask(mask_ip):
