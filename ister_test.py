@@ -885,6 +885,7 @@ def create_filesystems_good_options():
 def setup_mounts_good():
     """Setup mount points for install"""
     backup_mkdtemp = tempfile.mkdtemp
+    backup_listdir = os.listdir
 
     def mock_mkdtemp(*_, **kwargs):
         """mock_mkdtemp wrapper"""
@@ -892,7 +893,12 @@ def setup_mounts_good():
             raise Exception("Missing prefix argument to mkdtemp")
         COMMAND_RESULTS.append(kwargs["prefix"])
         return "/tmp"
+
+    def mock_listdir(_):
+        return ['sda', 'sda1']
+
     tempfile.mkdtemp = mock_mkdtemp
+    os.listdir = mock_listdir
     template = {"PartitionMountPoints": [{"mount": "/", "disk": "sda",
                                           "partition": 1},
                                          {"mount": "/boot", "disk": "sda",
@@ -914,6 +920,7 @@ def setup_mounts_good():
         target_dir = ister.setup_mounts(template)
     finally:
         tempfile.mkdtemp = backup_mkdtemp
+        os.listdir = backup_listdir
     if target_dir != "/tmp":
         raise Exception("Target dir doesn't match expected: {0}"
                         .format(target_dir))
@@ -924,6 +931,7 @@ def setup_mounts_good():
 def setup_mounts_good_mbr():
     """Setup mount points for mbr install"""
     backup_mkdtemp = tempfile.mkdtemp
+    backup_listdir = os.listdir
 
     def mock_mkdtemp(*_, **kwargs):
         """mock_mkdtemp wrapper"""
@@ -931,7 +939,12 @@ def setup_mounts_good_mbr():
             raise Exception("Missing prefix argument to mkdtemp")
         COMMAND_RESULTS.append(kwargs["prefix"])
         return "/tmp"
+
+    def mock_listdir(_):
+        return ['sda', 'sda1']
+
     tempfile.mkdtemp = mock_mkdtemp
+    os.listdir = mock_listdir
     template = {"PartitionMountPoints": [{"mount": "/", "disk": "sda",
                                           "partition": 1},
                                          {"mount": "/boot", "disk": "sda",
@@ -953,6 +966,7 @@ def setup_mounts_good_mbr():
         target_dir = ister.setup_mounts(template)
     finally:
         tempfile.mkdtemp = backup_mkdtemp
+        os.listdir = backup_listdir
     if target_dir != "/tmp":
         raise Exception("Target dir doesn't match expected: {0}"
                         .format(target_dir))
@@ -963,6 +977,7 @@ def setup_mounts_good_mbr():
 def setup_mounts_good_no_boot():
     """Setup mount points for install without a /boot (mbr type)"""
     backup_mkdtemp = tempfile.mkdtemp
+    backup_listdir = os.listdir
 
     def mock_mkdtemp(*_, **kwargs):
         """mock_mkdtemp wrapper"""
@@ -970,7 +985,12 @@ def setup_mounts_good_no_boot():
             raise Exception("Missing prefix argument to mkdtemp")
         COMMAND_RESULTS.append(kwargs["prefix"])
         return "/tmp"
+
+    def mock_listdir(_):
+        return ['sda', 'sda1']
+
     tempfile.mkdtemp = mock_mkdtemp
+    os.listdir = mock_listdir
     template = {"PartitionMountPoints": [{"mount": "/", "disk": "sda",
                                           "partition": 1}],
                 "FilesystemTypes": [{"disk": "sda", "partition": 1,
@@ -986,6 +1006,7 @@ def setup_mounts_good_no_boot():
         target_dir = ister.setup_mounts(template)
     finally:
         tempfile.mkdtemp = backup_mkdtemp
+        os.listdir = backup_listdir
     if target_dir != "/tmp":
         raise Exception("Target dir doesn't match expected: {0}"
                         .format(target_dir))
@@ -997,6 +1018,7 @@ def setup_mounts_good_units():
     """Setup mount points for install"""
     backup_mkdtemp = ister.tempfile.mkdtemp
     backup_run_command = ister.run_command
+    backup_listdir = os.listdir
 
     def mock_mkdtemp(*_, **__):
         """mock_mkdtemp wrapper"""
@@ -1008,7 +1030,12 @@ def setup_mounts_good_units():
         """mock run for setup mounts test"""
         COMMAND_RESULTS.append(cmd)
         return (["", "X"],)
+
+    def mock_listdir(_):
+        return ['sda', 'sda1']
+
     ister.run_command = mock_run_command
+    os.listdir = mock_listdir
     template = {"PartitionMountPoints": [{"mount": "/", "disk": "sda",
                                           "partition": 1},
                                          {"mount": "/boot", "disk": "sda",
@@ -1054,6 +1081,7 @@ def setup_mounts_good_units():
     finally:
         ister.tempfile.mkdtemp = backup_mkdtemp
         ister.run_command = backup_run_command
+        os.listdir = backup_listdir
     commands_compare_helper(commands)
 
 
@@ -3949,12 +3977,15 @@ def cloud_init_configs_good_no_role():
     commands_compare_helper(commands)
 
 
+@run_command_wrapper
 def gui_network_connection():
     """
     Test that network connection can be detected with successful pycurl perform
     """
     import time
 
+    global COMMAND_RESULTS
+    COMMAND_RESULTS = []
     actual = []
     expected = ["https://www.clearlinux.org", 1, 1, 3]
 
@@ -3979,11 +4010,21 @@ def gui_network_connection():
         """mock_sleep wrapper so the tests run faster"""
         del sec
 
+    def mock_service_ready():
+        """mock network_service_ready function"""
+        COMMAND_RESULTS.extend(['/usr/bin/systemctl',
+                                'status',
+                                'systemd-networkd',
+                                'systemd-resolved'])
+        return True
+
     pycurl_backup = pycurl.Curl
     sleep_backup = time.sleep
+    network_service_ready_backup = ister_gui.network_service_ready
 
     pycurl.Curl = mock_pycurl_curl
     time.sleep = mock_sleep
+    ister_gui.network_service_ready = mock_service_ready
 
     netreq = ister_gui.NetworkRequirements(0, 0)
     # don't try to set hardware clock
@@ -3995,8 +4036,14 @@ def gui_network_connection():
         raise Exception("pycurl.Curl options {} do not match "
                         "expected options {}".format(actual, expected))
 
+    commands = ['/usr/bin/systemctl',
+                'status',
+                'systemd-networkd',
+                'systemd-resolved']
+    commands_compare_helper(commands)
     pycurl.Curl = pycurl_backup
     time.sleep = sleep_backup
+    ister_gui.network_service_ready = network_service_ready_backup
 
 
 def gui_network_connection_curl_exception():
@@ -4030,11 +4077,16 @@ def gui_network_connection_curl_exception():
         """mock_sleep wrapper so the tests run faster"""
         del sec
 
+    def mock_service_ready():
+        return True
+
     pycurl_backup = pycurl.Curl
     sleep_backup = time.sleep
+    service_ready_backup = ister_gui.network_service_ready
 
     pycurl.Curl = mock_pycurl_curl
     time.sleep = mock_sleep
+    ister_gui.network_service_ready = mock_service_ready
 
     netreq = ister_gui.NetworkRequirements(0, 0)
     netreq.config = {}
@@ -4045,6 +4097,7 @@ def gui_network_connection_curl_exception():
 
     pycurl.Curl = pycurl_backup
     time.sleep = sleep_backup
+    ister_gui.network_service_ready = service_ready_backup
 
     if actual != expected:
         raise Exception("pycurl.Curl options {} do not match "
@@ -4084,13 +4137,18 @@ def gui_static_configuration():
     def mock_target(button):
         del button
 
+    def mock_service_ready():
+        return True
+
     call_backup = subprocess.call
     makedirs_backup = os.makedirs
     sleep_backup = time.sleep
+    service_ready_backup = ister_gui.network_service_ready
 
     subprocess.call = mock_call
     os.makedirs = mock_makedirs
     time.sleep = mock_sleep
+    ister_gui.network_service_ready = mock_service_ready
 
     # we will be running the function twice, once without then once with DNS
     commands = ['/etc/resolv.conf', 'r',
@@ -4139,6 +4197,7 @@ def gui_static_configuration():
     subprocess.call = call_backup
     os.makedirs = makedirs_backup
     time.sleep = sleep_backup
+    ister_gui.network_service_ready = service_ready_backup
 
 
 def gui_set_proxy():
@@ -4160,8 +4219,13 @@ def gui_set_proxy():
         """mock_sleep wrapper so the tests run faster"""
         del sec
 
+    def mock_service_ready():
+        return True
+
     sleep_backup = time.sleep
     time.sleep = mock_sleep
+    service_ready_backup = ister_gui.network_service_ready
+    ister_gui.network_service_ready = mock_service_ready
 
     netreq = ister_gui.NetworkRequirements(1, 1)
     netreq.config = {}
@@ -4173,6 +4237,7 @@ def gui_set_proxy():
         pass
 
     time.sleep = sleep_backup
+    ister_gui.network_service_ready = service_ready_backup
     if "HTTPSProxy" in netreq.config:
         if netreq.config["HTTPSProxy"] != "http://to.clearlinux.org:1080":
             raise Exception("Proxy not set properly in config")
@@ -4286,11 +4351,16 @@ def gui_set_hw_time():
         """mock_sleep wrapper so the tests run faster"""
         del sec
 
+    def mock_service_ready():
+        return True
+
     call_backup = subprocess.call
     sleep_backup = time.sleep
+    service_ready_backup = ister_gui.network_service_ready
 
     subprocess.call = mock_call
     time.sleep = mock_sleep
+    ister_gui.network_service_ready = mock_service_ready
 
     lines = ['Date: Sun, Jan 01 2000 00:00:00 GMT\r\n']
     commands = ['/usr/bin/date',
@@ -4305,6 +4375,7 @@ def gui_set_hw_time():
 
     subprocess.call = call_backup
     time.sleep = sleep_backup
+    ister_gui.network_service_ready = service_ready_backup
 
     if not netreq.nettime:
         raise Exception('Date not set')
