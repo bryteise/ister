@@ -52,14 +52,16 @@
 
 import functools
 import json
-import os
-import sys
-import shutil
-import urllib.request as request
-import tempfile
-import socket
 import netifaces
+import os
 import pycurl
+import shutil
+import socket
+import stat
+import sys
+import tempfile
+
+import urllib.request as request
 
 import ister
 import ister_gui
@@ -1410,6 +1412,14 @@ def copy_os_physical_good():
     backup_which = shutil.which
     shutil.which = lambda x: False
 
+    def mock_chmod(path, mode):
+        """mock chmod"""
+        global COMMAND_RESULTS
+        COMMAND_RESULTS.extend([path, mode])
+
+    backup_chmod = os.chmod
+    os.chmod = mock_chmod
+
     def args():
         """args empty object"""
         None
@@ -1422,19 +1432,22 @@ def copy_os_physical_good():
     swupd_cmd = "swupd verify --install --path=/ --manifest=0 "              \
                 "--contenturl=ctest --versionurl=vtest --format=formattest " \
                 "--statedir=/statetest"
-    commands = ["/var/lib/swupd",
+    commands = ["/statetest",
                 0,
                 True,
+                "/statetest",
+                stat.S_IRWXU,
                 "//var/tmp",
                 0,
                 False,
-                "mount --bind //var/tmp /var/lib/swupd",
+                "mount --bind //var/tmp /statetest",
                 swupd_cmd,
                 os.getenv("https_proxy"),
                 True]
     ister.copy_os(args, {"Version": 0, "DestinationType": "physical"}, "/")
     ister.add_bundles = backup_add_bundles
     shutil.which = backup_which
+    os.chmod = backup_chmod
     commands_compare_helper(commands)
 
 
@@ -1721,7 +1734,7 @@ def post_install_nonchroot_good():
 
 @run_command_wrapper
 def cleanup_physical_good():
-    """Test cleanup of virtual device"""
+    """Test cleanup of physical device"""
     backup_isdir = os.path.isdir
 
     def mock_isdir(path):
@@ -1729,12 +1742,18 @@ def cleanup_physical_good():
         COMMAND_RESULTS.append(path)
         return True
     os.path.isdir = mock_isdir
+
+    def args():
+        """args empty object"""
+        None
+    args.statedir = '/swupd/state'
+
     commands = ["/tmp/var/tmp",
-                "umount /var/lib/swupd",
+                "umount /swupd/state",
                 "rm -fr /tmp/var/tmp",
                 "umount -R /tmp",
                 "rm -fr /tmp"]
-    ister.cleanup({}, "/tmp")
+    ister.cleanup(args, {}, "/tmp")
     os.path.isdir = backup_isdir
     commands_compare_helper(commands)
 
@@ -1749,12 +1768,17 @@ def cleanup_virtual_good():
         COMMAND_RESULTS.append(path)
         return False
     os.path.isdir = mock_isdir
+
+    def args():
+        """args empty object"""
+        None
+
     template = {"dev": "image"}
     commands = ["/tmp/var/tmp",
                 "umount -R /tmp",
                 "rm -fr /tmp",
                 "losetup --detach image"]
-    ister.cleanup(template, "/tmp")
+    ister.cleanup(args, template, "/tmp")
     os.path.isdir = backup_isdir
     commands_compare_helper(commands)
 
