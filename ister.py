@@ -38,22 +38,24 @@
 import argparse
 import ctypes
 import json
+import logging
+import netifaces
 import os
 import pwd
 import re
-import subprocess
-import traceback
-import sys
 import shutil
+import socket
+import stat
+import subprocess
+import sys
 import tempfile
 import time
-import logging
-import socket
+import traceback
 import urllib.request as request
+
+from contextlib import closing
 from urllib.error import URLError, HTTPError
 from urllib.parse import urlparse
-from contextlib import closing
-import netifaces
 
 LOG = None
 
@@ -404,10 +406,11 @@ def copy_os(args, template, target_dir):
         swupd_command += " -C {0}".format(args.cert_file)
 
     if template["DestinationType"] == "physical":
-        os.makedirs("/var/lib/swupd", exist_ok=True)
+        os.makedirs(args.statedir, exist_ok=True)
+        os.chmod(args.statedir, stat.S_IRWXU)
         os.makedirs("{0}/var/tmp".format(target_dir))
-        run_command("mount --bind {0}/var/tmp /var/lib/swupd"
-                    .format(target_dir))
+        run_command("mount --bind {0}/var/tmp {1}"
+                    .format(target_dir, args.statedir))
     swupd_env = os.environ
     if template.get("HTTPSProxy"):
         swupd_env["https_proxy"] = template["HTTPSProxy"]
@@ -621,13 +624,13 @@ def post_install_nonchroot(template, target_dir):
         run_command(script + " {}".format(target_dir))
 
 
-def cleanup(template, target_dir, raise_exception=True):
+def cleanup(args, template, target_dir, raise_exception=True):
     """Unmount and remove temporary files
     """
     LOG.info("Cleaning up")
     if target_dir:
         if os.path.isdir("{0}/var/tmp".format(target_dir)):
-            run_command("umount /var/lib/swupd",
+            run_command("umount {0}".format(args.statedir),
                         raise_exception=raise_exception)
             run_command("rm -fr {0}/var/tmp".format(target_dir),
                         raise_exception=raise_exception)
@@ -1246,7 +1249,7 @@ def install_os(args):
         LOG.error("Couldn't install ClearLinux")
         raise excep
     finally:
-        cleanup(template, target_dir, False)
+        cleanup(args, template, target_dir, False)
 
 
 def handle_logging(level, logfile):
