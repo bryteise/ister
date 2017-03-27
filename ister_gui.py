@@ -258,10 +258,14 @@ def required_bundles(config):
 def network_service_ready():
     """Check network status with increasing sleep times on each failure"""
     for i in [.1, 1, 2, 4]:
-        out = subprocess.check_output(['/usr/bin/systemctl',
-                                       'status',
-                                       'systemd-networkd',
-                                       'systemd-resolved'])
+        try:
+            out = subprocess.check_output(['/usr/bin/systemctl',
+                                           'status',
+                                           'systemd-networkd',
+                                           'systemd-resolved'])
+        except Exception as excep:
+            return False
+
         if out.decode('utf-8').count('Active: active (running)') == 2:
             return True
 
@@ -1110,6 +1114,11 @@ class NetworkControl(object):
         if not dns_res:
             dns_res = 'none found'
 
+        if 'none found' in ''.join([interface_res, mask_res, ip_res, dns_res]):
+            self.detected_header.set_text('Detected network configuration on '
+                                          'installer image\nhit refresh to '
+                                          'update')
+
         fmt = '{0:>20}'
         interface = urwid.Text(fmt.format('Interface: ') + interface_res)
         static_ip = urwid.Text(fmt.format('IP address: ') + ip_res)
@@ -1318,7 +1327,9 @@ class NetworkRequirements(ProcessStep):
         self.reset = False
         self.netcontrol = None
         # wait for network service to load the first time this screen is loaded
-        network_service_ready()
+        self.timeout = ''
+        if not network_service_ready():
+            self.timeout = 'Network service timed out, hit refresh to retry'
 
     def handler(self, config):
         # make config an instance variable so we can copy proxy settings to it
@@ -1356,13 +1367,16 @@ class NetworkRequirements(ProcessStep):
             [self.https_proxy,
              urwid.Text(('ex', 'example: http://proxy.url.com:123'),
                         align='center')])
-        if self._network_connection():
-            wired_req = urwid.Text(['* Connection to clearlinux.org: ',
-                                    ('success', 'established')])
+        if self.timeout:
+            wired_req = urwid.Text(('warn', self.timeout))
         else:
-            wired_req = urwid.Text(['* Connection to clearlinux.org: ',
-                                    ('warn', 'none detected, '),
-                                    'install will fail'])
+            if self._network_connection():
+                wired_req = urwid.Text(['* Connection to clearlinux.org: ',
+                                        ('success', 'established')])
+            else:
+                wired_req = urwid.Text(['* Connection to clearlinux.org: ',
+                                        ('warn', 'none detected, '),
+                                        'install will fail'])
 
         self._ui_widgets = [self.progress,
                             urwid.Divider(),
