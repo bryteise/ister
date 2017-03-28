@@ -373,18 +373,24 @@ class ButtonMenu(object):
     # pylint: disable=R0903
     def __init__(self, title, choices):
         self._response = ''  # The choice made by the user is stored here.
+        self.choices = choices
+        self.title = title
+        self.construct()
+
+    def construct(self):
         # These will sit above the list box
         self._frame_contents = [('pack', urwid.Divider()),
-                                ('pack', urwid.Text(title)),
+                                ('pack', urwid.Text(self.title)),
                                 ('pack', urwid.Divider())]
         self._menu = []
-        for choice in choices:
-            button = ister_button(choice,
+        for choice in self.choices:
+            label = choice if self.selection != choice else '* ' + choice
+            button = ister_button(label,
                                   on_press=self._item_chosen,
                                   user_data=choice)
             self._menu.append(button)
 
-        self._lb = urwid.ListBox(urwid.SimpleFocusListWalker(self._menu))
+        self._lb = NavListBox(urwid.SimpleFocusListWalker(self._menu), self)
         self._frame_contents.append(self._lb)
         self._frame_contents = urwid.Pile(self._frame_contents)
         self._fgwin = urwid.Padding(self._frame_contents, left=2, right=2)
@@ -417,7 +423,7 @@ class ButtonMenu(object):
     def _item_chosen(self, button, choice):
         """ Callback trigged by button activation  """
         del button
-        self._response = choice
+        self._response = 'Next'
         raise urwid.ExitMainLoop()
 
     def run_ui(self):
@@ -835,6 +841,112 @@ class SplashScreen(ProcessStep):
         self._ui = SimpleForm(
             u'Clear Linux OS for Intel Architecture Installer',
             self._ui_widgets, buttons=["Next"], align_title='center')
+
+
+class KeyboardSelection(ButtonMenu):
+    """
+    Screen to allow user to select keyboard layout for installer
+    """
+    def __init__(self):
+        self.action_map = {}
+        self._action = None
+        header = 'Keyboard Selection\n\n' \
+                 'Defaults to us\n' \
+                 'Current selection indicated by *\n' \
+                 'ESC, left arrow, q      - return to previous screen\n' \
+                 'tab, right arrow        - proceed to next screen without changing keyboard map\n' \
+                 'j, k, up/down arrow     - navigate the list\n' \
+                 'enter                   - set keyboard mapping to selection and proceed'
+        self.selection = 'us'
+        super(KeyboardSelection, self).__init__(header, self.get_keyboards())
+
+    def handler(self, config):
+        """Handles all the work for the current UI"""
+        self.construct()
+        if self._ui:
+            self.run_ui()
+
+        return self._action
+
+    def run_ui(self):
+        urwid.MainLoop(self._ui, palette=PALETTE).run()
+
+    def set_action(self, action, target, **_):
+        """Sets process step to be matched by a key"""
+        self.action_map[action] = target
+
+    def _item_chosen(self, button, choice):
+        """ Callback trigged by button activation  """
+        self._action = 'Next'
+        self.set_keyboard(choice)
+        self.selection = choice
+        raise urwid.ExitMainLoop()
+
+    def get_next_step(self, action):
+        """Returns the process step matched by action"""
+        if action == 'Exit':
+            exit(0)
+        if action in self.action_map:
+            return self.action_map[action]
+        else:
+            tmp = Alert(u'Error!', '"{}" not implemented yet'.format(action))
+            tmp.do_alert()
+            return self
+
+    @staticmethod
+    def get_keyboards():
+        """
+        Get list of keyboards from localectl to create dropdown selection
+        """
+        try:
+            keyboards = subprocess.check_output(['localectl', 'list-keymaps'])
+        except Exception:
+            return ['us']
+
+        return keyboards.decode('utf-8').split('\n')[:-1]
+
+    @staticmethod
+    def set_keyboard(keyboard):
+        """
+        Set system keymapping to keyboard
+        """
+        try:
+            subprocess.call(['localectl', 'set-keymap', keyboard])
+        except Exception:
+            Alert('Error!',
+                  'Unable to set keymapping to {}'.format(keyboard)).do_alert()
+
+
+class NavListBox(urwid.ListBox):
+    """
+    Screen to allow user to select keyboard layout for installer
+    """
+    def __init__(self, body, ps):
+        self.ps = ps
+        self.ps._action = None
+        super(NavListBox, self).__init__(body)
+
+    def keypress(self, size, key):
+        """ Get the key that was pressed """
+        # pylint: disable=E0203
+        # pylint: disable=W0201
+        # we will handle the following keys ourselves, don't call super
+        #Alert('key', key).do_alert()
+        if key not in ['tab', 'j', 'k', 'q', 'right', 'left', 'esc']:
+            key = super(NavListBox, self).keypress(size, key)
+        elif key == 'j':
+            key = super(NavListBox, self).keypress(size, 'down')
+        elif key == 'k':
+            key = super(NavListBox, self).keypress(size, 'up')
+
+        if key in ['tab', 'right']:
+            self.ps._action = 'Next'
+            raise urwid.ExitMainLoop
+        elif key in ['esc', 'left', 'q']:
+            self.ps._action = 'Previous'
+            raise urwid.ExitMainLoop
+        else:
+            return key
 
 
 class ChooseAction(ProcessStep):
@@ -2620,6 +2732,7 @@ class Installation(object):
 
     def _init_actions(self):
         # auto install assumed
+        keyboard_select = KeyboardSelection()
         network_requirements = NetworkRequirements(1, 6)
         choose_action = ChooseAction(2, 6)
         telem_disclosure = TelemetryDisclosure(3, 6)
@@ -2645,10 +2758,12 @@ class Installation(object):
         confirm_installation = ConfirmStep('Attention!', setup_msg, 12, 12)
         run = RunInstallation()
 
-        self.start.set_action('Next', network_requirements)
+        self.start.set_action('Next', keyboard_select)
+        keyboard_select.set_action('Next', network_requirements)
+        keyboard_select.set_action('Previous', self.start)
         network_requirements.set_action('Next', choose_action)
         network_requirements.set_action('Refresh', network_requirements)
-        network_requirements.set_action('Previous', self.start)
+        network_requirements.set_action('Previous', keyboard_select)
         network_requirements.set_action('', network_requirements)
         choose_action.set_action('Install', telem_disclosure)
         choose_action.set_action('return', choose_action)

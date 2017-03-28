@@ -48,6 +48,7 @@ spawn /usr/bin/python3 /usr/bin/ister_gui.py --exit-after
 match_max 100000
 expect -re ".*Clear Linux OS for Intel Architecture Installer.*"
 send -- "\r"
+send -- "\t"
 expect -re ".*Network Requirements.*"
 send -- "\t"
 send -- "\t"
