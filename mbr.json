@@ -1,9 +1,9 @@
 {
     "DestinationType" : "virtual",
-    "PartitionLayout" : [ { "disk" : "mbr.img", "partition" : 1, "size" : "500M", "type" : "linux" } ],
+    "PartitionLayout" : [ { "disk" : "mbr.img", "partition" : 1, "size" : "20G", "type" : "linux" } ],
     "FilesystemTypes" : [ { "disk" : "mbr.img", "partition" : 1, "type" : "ext4" } ],
     "PartitionMountPoints" : [ { "disk" : "mbr.img", "partition" : 1, "mount" : "/" } ],
-    "Version": 8860,
+    "Version": "latest",
     "Bundles": ["kernel-native", "os-core", "os-core-update"],
     "LegacyBios": true
 }
