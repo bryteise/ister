@@ -1421,10 +1421,12 @@ class NetworkControl(object):
 
 class NetworkRequirements(ProcessStep):
     """UI to verify and configure network connectivity to
-    https://www.clearlinux.org for the installer"""
+    the version and content urls for the installer"""
     # pylint: disable=R0902
-    def __init__(self, cur_step, tot_steps):
+    def __init__(self, cur_step, tot_steps, content_url, version_url):
         super(NetworkRequirements, self).__init__()
+        self.content_url = content_url
+        self.version_url = version_url
         left = 8  # padding desired left of buttons, modifiable
         # configure proxy section
         self.proxy_header = urwid.Text('Proxy Settings')
@@ -1483,10 +1485,10 @@ class NetworkRequirements(ProcessStep):
             wired_req = urwid.Text(('warn', self.timeout))
         else:
             if self._network_connection():
-                wired_req = urwid.Text(['* Connection to clearlinux.org: ',
+                wired_req = urwid.Text(['* Connection to the update server: ',
                                         ('success', 'established')])
             else:
-                wired_req = urwid.Text(['* Connection to clearlinux.org: ',
+                wired_req = urwid.Text(['* Connection to the update server: ',
                                         ('warn', 'none detected, '),
                                         'install will fail'])
 
@@ -1515,7 +1517,7 @@ class NetworkRequirements(ProcessStep):
         return self._ui.do_form()
 
     def _network_connection(self):
-        """Check if connection to https://www.clearlinux.org is available"""
+        """Check if connection to content and version urls are available"""
         # pylint: disable=E1103
 
         class Storage(object):
@@ -1531,26 +1533,33 @@ class NetworkRequirements(ProcessStep):
             def __str__(self):
                 return ' '.join(self.buffer)
 
-        headers = Storage()
+        def make_curl(url):
+            """build curl object for url"""
+            headers = Storage()
+            curl = pycurl.Curl()
+            curl.setopt(curl.URL, url)
+            curl.setopt(curl.HEADER, 1)
+            curl.setopt(curl.NOBODY, 1)
+            curl.setopt(curl.WRITEFUNCTION, headers.store)
+            curl.setopt(curl.TIMEOUT, 3)
+            return headers, curl
 
-        curl = pycurl.Curl()
-        curl.setopt(curl.URL, 'https://www.clearlinux.org')
-        curl.setopt(curl.HEADER, 1)
-        curl.setopt(curl.NOBODY, 1)
-        curl.setopt(curl.WRITEFUNCTION, headers.store)
-        curl.setopt(curl.TIMEOUT, 3)
+        urls = {self.content_url: make_curl(self.content_url)}
+        if self.content_url != self.version_url:
+            urls[self.version_url] = make_curl(self.version_url)
 
         try:
-            curl.perform()
+            for (headers, curl) in urls.values():
+                curl.perform()
+                if '401' not in str(headers):
+                    if not self.nettime:
+                        self._set_hw_time(headers.buffer)
+                else:
+                    return False
         except Exception:
             return False
 
-        if '401' not in str(headers):
-            if not self.nettime:
-                self._set_hw_time(headers.buffer)
-            return True
-
-        return False
+        return True
 
     def _set_hw_time(self, headers):
         for line in headers:
@@ -2708,6 +2717,7 @@ class Installation(object):
     def __init__(self, *args, **kwargs):
         # args unused for now
         del args
+        self.args = kwargs
         self._steps = list()
         self.start = SplashScreen()
         self._init_actions()
@@ -2721,7 +2731,6 @@ class Installation(object):
         _fh.setFormatter(_formatter)
         self.logger.addHandler(_fh)
         self.logger.setLevel(logging.DEBUG)
-        self.args = kwargs
         try:
             with open('/etc/ister.json') as infile:
                 json_string = infile.read()
@@ -2733,7 +2742,9 @@ class Installation(object):
     def _init_actions(self):
         # auto install assumed
         keyboard_select = KeyboardSelection()
-        network_requirements = NetworkRequirements(1, 6)
+        network_requirements = NetworkRequirements(1, 6,
+                                                   self.args['contenturl'],
+                                                   self.args['versionurl'])
         choose_action = ChooseAction(2, 6)
         telem_disclosure = TelemetryDisclosure(3, 6)
         startmenu = StartInstaller(4, 6)
@@ -2922,10 +2933,10 @@ def handle_options():
     """Argument parser for the ui"""
     parser = argparse.ArgumentParser()
     parser.add_argument("-V", "--versionurl", action="store",
-                        default="https://download.clearlinux.org/update",
+                        default="https://cdn.download.clearlinux.org/update",
                         help="URL to use for looking for update versions")
     parser.add_argument("-C", "--contenturl", action="store",
-                        default="https://download.clearlinux.org/update",
+                        default="https://cdn.download.clearlinux.org/update",
                         help="URL to use for looking for update content")
     parser.add_argument("-f", "--format", action="store", default=None,
                         help="format to use for looking for update content")

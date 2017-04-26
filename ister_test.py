@@ -3149,9 +3149,9 @@ def handle_options_good():
         raise Exception("Incorrect default config file set")
     if args.template_file:
         raise Exception("Incorrect default template file set")
-    if args.contenturl != "https://download.clearlinux.org/update":
+    if args.contenturl != "https://cdn.download.clearlinux.org/update":
         raise Exception("Incorrect default contenturl set")
-    if args.versionurl != "https://download.clearlinux.org/update":
+    if args.versionurl != "https://cdn.download.clearlinux.org/update":
         raise Exception("Incorrect default versionurl set")
     if args.format:
         raise Exception("Incorrect default format set")
@@ -4011,7 +4011,7 @@ def gui_network_connection():
     global COMMAND_RESULTS
     COMMAND_RESULTS = []
     actual = []
-    expected = ["https://www.clearlinux.org", 1, 1, 3]
+    expected = ["", 1, 1, 3]
 
     class mock_pycurl_curl():
         """mock pycurl.Curl class"""
@@ -4050,10 +4050,16 @@ def gui_network_connection():
     time.sleep = mock_sleep
     ister_gui.network_service_ready = mock_service_ready
 
-    netreq = ister_gui.NetworkRequirements(0, 0)
+    netreq = ister_gui.NetworkRequirements(0, 0, "", "")
     # don't try to set hardware clock
     netreq.nettime = 'set'
-    if not netreq._network_connection():
+    netreq_success = netreq._network_connection()
+
+    pycurl.Curl = pycurl_backup
+    time.sleep = sleep_backup
+    ister_gui.network_service_ready = network_service_ready_backup
+
+    if not netreq_success:
         raise Exception("No network detected")
 
     if actual != expected:
@@ -4065,9 +4071,6 @@ def gui_network_connection():
                 'systemd-networkd',
                 'systemd-resolved']
     commands_compare_helper(commands)
-    pycurl.Curl = pycurl_backup
-    time.sleep = sleep_backup
-    ister_gui.network_service_ready = network_service_ready_backup
 
 
 def gui_network_connection_curl_exception():
@@ -4078,7 +4081,7 @@ def gui_network_connection_curl_exception():
     import time
 
     actual = []
-    expected = ["https://www.clearlinux.org", 1, 1, 3]
+    expected = ["", 1, 1, 3]
 
     class mock_pycurl_curl():
         """mock pycurl.Curl class"""
@@ -4112,16 +4115,79 @@ def gui_network_connection_curl_exception():
     time.sleep = mock_sleep
     ister_gui.network_service_ready = mock_service_ready
 
-    netreq = ister_gui.NetworkRequirements(0, 0)
+    netreq = ister_gui.NetworkRequirements(0, 0, "", "")
     netreq.config = {}
-    if netreq._network_connection():
-        pycurl.Curl = pycurl_backup
-        time.sleep = sleep_backup
-        raise Exception("Network detected when curl failed")
+    netreq_success = netreq._network_connection()
 
     pycurl.Curl = pycurl_backup
     time.sleep = sleep_backup
     ister_gui.network_service_ready = service_ready_backup
+
+    if netreq_success:
+        raise Exception("Network detected when curl failed")
+
+    if actual != expected:
+        raise Exception("pycurl.Curl options {} do not match "
+                        "expected options {}".format(actual, expected))
+
+
+def gui_network_connection_curl_exception_version_url():
+    """
+    Test that a failing pycurl perform results in failed network check with
+    all pycurl opts set correctly when testing the version url
+    """
+    import time
+
+    actual = []
+    expected = ["content", 1, 1, 3,
+                "version", 1, 1, 3]
+
+    class mock_pycurl_curl():
+        """mock pycurl.Curl class"""
+        def __init__(self):
+            self.version = False
+            self.URL = None
+            self.HEADER = None
+            self.NOBODY = None
+            self.WRITEFUNCTION = None
+            self.TIMEOUT = None
+
+        def setopt(self, attr, val):
+            # Don't copy storage class address
+            if isinstance(val, str) and val == "version":
+                self.version = True
+            if isinstance(val, str) or isinstance(val, int):
+                actual.append(val)
+
+        def perform(self):
+            if self.version:
+                raise Exception("Connection error")
+
+    def mock_sleep(sec):
+        """mock_sleep wrapper so the tests run faster"""
+        del sec
+
+    def mock_service_ready():
+        return True
+
+    pycurl_backup = pycurl.Curl
+    sleep_backup = time.sleep
+    service_ready_backup = ister_gui.network_service_ready
+
+    pycurl.Curl = mock_pycurl_curl
+    time.sleep = mock_sleep
+    ister_gui.network_service_ready = mock_service_ready
+
+    netreq = ister_gui.NetworkRequirements(0, 0, "content", "version")
+    netreq.config = {}
+    netreq_success = netreq._network_connection()
+
+    pycurl.Curl = pycurl_backup
+    time.sleep = sleep_backup
+    ister_gui.network_service_ready = service_ready_backup
+
+    if netreq_success:
+        raise Exception("Network detected when curl failed")
 
     if actual != expected:
         raise Exception("pycurl.Curl options {} do not match "
@@ -4200,7 +4266,7 @@ def gui_static_configuration():
     netcon.gateway_e = Edit("10.0.2.2")
     netcon.dns_e = Edit("10.0.2.3")
     netcon.static_ready = True
-    netreq = ister_gui.NetworkRequirements(0, 0)
+    netreq = ister_gui.NetworkRequirements(0, 0, "", "")
     netreq.netcontrol = netcon
     try:
         netreq._static_configuration(None)
@@ -4251,7 +4317,7 @@ def gui_set_proxy():
     service_ready_backup = ister_gui.network_service_ready
     ister_gui.network_service_ready = mock_service_ready
 
-    netreq = ister_gui.NetworkRequirements(1, 1)
+    netreq = ister_gui.NetworkRequirements(1, 1, "", "")
     netreq.config = {}
     netreq.https_proxy = Edit("http://to.clearlinux.org:1080")
     try:
@@ -4393,7 +4459,7 @@ def gui_set_hw_time():
                 'hwclock',
                 '--systohc']
 
-    netreq = ister_gui.NetworkRequirements(0, 0)
+    netreq = ister_gui.NetworkRequirements(0, 0, "", "")
     netreq.config = {}
     netreq._set_hw_time(lines)
 
@@ -4990,6 +5056,7 @@ if __name__ == '__main__':
         cloud_init_configs_good_no_role,
         gui_network_connection,
         gui_network_connection_curl_exception,
+        gui_network_connection_curl_exception_version_url,
         gui_static_configuration,
         gui_set_proxy,
         gui_set_fullname_fname_lname_present,
