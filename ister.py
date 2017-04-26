@@ -1290,10 +1290,10 @@ def handle_options():
                         default=None,
                         help="Path to template file to use")
     parser.add_argument("-V", "--versionurl", action="store",
-                        default="https://download.clearlinux.org/update",
+                        default="https://cdn.download.clearlinux.org/update",
                         help="URL to use for looking for update versions")
     parser.add_argument("-C", "--contenturl", action="store",
-                        default="https://download.clearlinux.org/update",
+                        default="https://cdn.download.clearlinux.org/update",
                         help="URL to use for looking for update content")
     parser.add_argument("-f", "--format", action="store", default=None,
                         help="format to use for looking for update content")
