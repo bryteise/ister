@@ -1727,7 +1727,8 @@ def add_user_fullname():
 @run_command_wrapper
 def post_install_nonchroot_good():
     """Test post install script execution"""
-    commands = ["file1 /tmp"]
+    commands = ["ldconfig -r /tmp",
+                "file1 /tmp"]
     ister.post_install_nonchroot({"PostNonChroot": ["file1"]}, "/tmp")
     commands_compare_helper(commands)
 
