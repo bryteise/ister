@@ -74,6 +74,16 @@ def append_installer_no_kms(path):
         entry.writelines(entry_content)
 
 
+def append_systemd_boot_timeout(path):
+    """Add a systemd-boot timeout to loader.conf"""
+    loader_path = path + "/boot/loader/loader.conf"
+    if not os.path.exists(loader_path):
+        raise Exception("Unable to find loader.conf in {}"
+                        .format(os.path.dirname(loader_path)))
+    with open(loader_path, 'a') as loadconf:
+        loadconf.write('timeout 5')
+
+
 def disable_tty1_getty(path):
     """Add a symlink masking the systemd tty1 generator"""
     os.makedirs(path + "/etc/systemd/system/getty.target.wants")
@@ -95,6 +105,7 @@ if __name__ == '__main__':
         create_installer_config(sys.argv[1])
         append_installer_rootwait(sys.argv[1])
         append_installer_no_kms(sys.argv[1])
+        append_systemd_boot_timeout(sys.argv[1])
         disable_tty1_getty(sys.argv[1])
         add_installer_service(sys.argv[1])
     except Exception as exep:
