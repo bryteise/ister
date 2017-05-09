@@ -7,6 +7,6 @@
     "PartitionMountPoints" : [ { "disk" : "installer.img", "partition" : 1, "mount" : "/boot" },
 			       { "disk" : "installer.img", "partition" : 2, "mount" : "/" } ],
     "Version": "latest",
-    "Bundles": ["kernel-native", "os-installer", "os-core-update", "os-core", "os-core-dev", "bootloader"],
+    "Bundles": ["kernel-native", "os-installer", "os-core-update", "os-core", "bootloader"],
     "PostNonChroot": ["./installation-image-post-update-version.py"]
 }
