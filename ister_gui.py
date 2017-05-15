@@ -1055,6 +1055,9 @@ class ChooseAction(ProcessStep):
         watch = WatchableProcess(['swupd',
                                   'verify',
                                   '--path={}'.format(self.target_dir),
+                                  '--statedir={}'
+                                  .format(os.path.join(self.target_dir,
+                                                       "var/lib/swupd")),
                                   '--fix'])
         watch.start()
         current = 0
