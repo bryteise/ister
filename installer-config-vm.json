@@ -1,7 +1,7 @@
 {
     "DestinationType" : "virtual",
     "PartitionLayout" : [ { "disk" : "installer-val.img", "partition" : 1, "size" : "64M", "type" : "EFI" },
-                          { "disk" : "installer-val.img", "partition" : 2, "size" : "2G", "type" : "linux" } ],
+                          { "disk" : "installer-val.img", "partition" : 2, "size" : "3G", "type" : "linux" } ],
     "FilesystemTypes" : [ { "disk" : "installer-val.img", "partition" : 1, "type" : "vfat" },
                           { "disk" : "installer-val.img", "partition" : 2, "type" : "ext4" } ],
     "PartitionMountPoints" : [ { "disk" : "installer-val.img", "partition" : 1, "mount" : "/boot" },
