@@ -2261,7 +2261,9 @@ class BundleSelectorStep(ProcessStep):
                         {'name': 'user-basic',
                          'desc': 'Captures most console work flows'},
                         {'name': 'desktop-autostart',
-                         'desc': 'UI that automatically starts on boot'}]
+                         'desc': 'UI that automatically starts on boot'},
+                        {'name': 'dev-utils',
+                         'desc': 'Utilities to assist application development'}]
         self.default_bundles = [{'name': 'network-basic',
                                  'desc': 'Run network utilities and modify '
                                          'network settings'},
