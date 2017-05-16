@@ -2260,16 +2260,8 @@ class BundleSelectorStep(ProcessStep):
                          'desc': 'Popular text editors (terminal-based)'},
                         {'name': 'user-basic',
                          'desc': 'Captures most console work flows'},
-                        {'name': 'devtools-basic',
-                         'desc': 'gcc and minimal R, go, hpc, perl, python, '
-                                 'ruby'},
-                        {'name': 'sysadmin',
-                         'desc': 'Tools sys-admins commonly use'},
-                        {'name': 'net-utils',
-                         'desc': 'Core network config and debug'},
-                        {'name': 'network-proxy-client',
-                         'desc': 'Auto proxy detection for aware tools like '
-                                 'swupd'}]
+                        {'name': 'desktop-autostart',
+                         'desc': 'UI that automatically starts on boot'}]
         self.default_bundles = [{'name': 'network-basic',
                                  'desc': 'Run network utilities and modify '
                                          'network settings'},
