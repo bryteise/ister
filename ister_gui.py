@@ -900,11 +900,17 @@ class KeyboardSelection(ButtonMenu):
         Get list of keyboards from localectl to create dropdown selection
         """
         try:
-            keyboards = subprocess.check_output(['localectl', 'list-keymaps'])
+            out = subprocess.check_output(['localectl',
+                                           'list-keymaps']).decode('utf-8')
         except Exception:
             return ['us']
 
-        return keyboards.decode('utf-8').split('\n')[:-1]
+        # 'us' is default and should be first in the list
+        kbs = ['us']
+        # remove trailing empty line with [:-1]
+        # extend by each keyboard in localectl list-keymaps output
+        kbs.extend(k for k in out.split('\n')[:-1] if k != 'us')
+        return kbs
 
     @staticmethod
     def set_keyboard(keyboard):
