@@ -2603,6 +2603,10 @@ class StaticIpStep(ProcessStep):
         self.gateway_s = ''
         self.dns_s = ''
         self.config = {}
+        self.ip_res = ''
+        self.mask_res = ''
+        self.dns_res = ''
+        self.gate_res = ''
 
     def _save_config(self, _):
         """Save static IP configuration to config dict"""
@@ -2625,7 +2629,15 @@ class StaticIpStep(ProcessStep):
         else:
             self.clear_saved()
 
-        self.setup_netcontrol()
+        # Only pre-populate with local network settings if static has been
+        # configured by the user and there is no saved 'Static_IP' in the
+        # install configuration.
+        det = self.static_set() and not config.get('Static_IP')
+        if det:
+            # gather network data from installer image
+            self.find_network()
+
+        self.setup_netcontrol(det=det)
         self.build_ui_widgets()
         self.build_ui()
         self._action = self.run_ui()
@@ -2639,7 +2651,7 @@ class StaticIpStep(ProcessStep):
 
     def setup_saved(self, config):
         """
-        Record pre-existing configration for pre-population of fields and
+        Record pre-existing configuration for pre-population of fields and
         confirmation message
         """
         static_config = config['Static_IP']
@@ -2656,12 +2668,32 @@ class StaticIpStep(ProcessStep):
         self.gateway_s = ''
         self.dns_s = ''
 
-    def setup_netcontrol(self):
+    def find_network(self):
+        """
+        Find the network information to pre-populate the static configuration
+        fields.
+        """
+        if_ip = self.netcontrol.find_interface_ip()
+        self.ip_res = if_ip[1] if if_ip else ''
+        self.mask_res = if_ip[2] if if_ip else ''
+        self.dns_res = self.netcontrol.find_dns() or ''
+        # pylint: disable=E1103
+        try:
+            self.gate_res = netifaces.gateways()['default'][netifaces.AF_INET][0]
+        except Exception:
+            self.gate_res = ''
+
+    @staticmethod
+    def static_set():
+        """ Return a True if static has been configured on machine """
+        return os.path.exists('/etc/systemd/network/10-en-static.network')
+
+    def setup_netcontrol(self, det=False):
         """Pre-populate edit fields with saved data if available"""
-        self.netcontrol.static_ip_e.set_edit_text(self.static_ip_s)
-        self.netcontrol.mask_e.set_edit_text(self.mask_s)
-        self.netcontrol.gateway_e.set_edit_text(self.gateway_s)
-        self.netcontrol.dns_e.set_edit_text(self.dns_s)
+        self.netcontrol.static_ip_e.set_edit_text(self.ip_res if det else self.static_ip_s)
+        self.netcontrol.mask_e.set_edit_text(self.mask_res if det else self.mask_s)
+        self.netcontrol.gateway_e.set_edit_text(self.gate_res if det else self.gateway_s)
+        self.netcontrol.dns_e.set_edit_text(self.dns_res if det else self.dns_s)
 
     def run_ui(self):
         return self._ui.do_form()
