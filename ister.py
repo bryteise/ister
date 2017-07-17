@@ -19,27 +19,28 @@
 #
 
 # We aren't splitting ister up just yet so ignore too many lines error
-# pylint: disable=C0302
+# pylint: disable=too-many-lines
 # As much as it pains us, global for the LOG handler is reasonable here
-# pylint: disable=W0603
+# pylint: disable=global-statement
 # If we see an exception it is always fatal so the broad exception
 # warning isn't helpful.
-# pylint: disable=W0703
+# pylint: disable=broad-except
 # We aren't using classes for anything other than with handling so
 # a warning about too few methods being implemented isn't useful.
-# pylint: disable=R0903
+# pylint: disable=too-few-public-methods
 # Too many branches is probably something we'd have hoped to avoid but this
 # logic for partition creation was born to be ugly, good spot for cleanup
 # though for the adventurous sort
-# pylint: disable=R0912
-# pylint: disable=W0702
+# pylint: disable=too-many-branches
+# We aren't worried too much about performance of ister itself here, so using
+# .format() for the logging functions (which always formats the string) is ok.
+# pylint: disable=logging-format-interpolation
 
 
 import argparse
 import ctypes
 import json
 import logging
-import netifaces
 import os
 import pwd
 import re
@@ -52,10 +53,10 @@ import tempfile
 import time
 import traceback
 import urllib.request as request
-
-from contextlib import closing
 from urllib.error import URLError, HTTPError
 from urllib.parse import urlparse
+from contextlib import closing
+import netifaces
 
 LOG = None
 
@@ -156,7 +157,6 @@ def create_partitions(template, sleep_time=1):
     # Create partitions
     for part in sorted(template["PartitionLayout"], key=lambda v: v["disk"] +
                        str(v["partition"])):
-        # pylint: disable=R0204
         if part["disk"] != cdisk:
             start = 0
         if part["size"] == "rest":
@@ -209,7 +209,7 @@ def map_loop_device(template, sleep_time=1):
     try:
         dev = subprocess.check_output(command.split(" ")).decode("utf-8")\
                                                          .splitlines()
-    except:
+    except Exception:
         raise Exception("losetup command failed: {0}: {1}"
                         .format(command, sys.exc_info()))
     if len(dev) != 1:
@@ -233,7 +233,7 @@ def get_device_name(template, disk):
     devgen = (name for name in devices if disk in name)
     for name in devgen:
         part = name.replace(disk, "")
-        if len(part) > 0:
+        if part:
             prefix = "p" if part.startswith("p") else ""
             return ("/dev/{}{}".format(disk, prefix), prefix)
 
@@ -284,7 +284,7 @@ def setup_mounts(template):
         prefix = "ister-" + str(template["Version"]) + "-"
         target_dir = tempfile.mkdtemp(prefix=prefix)
         LOG.debug("Using temporary directory: {0}".format(target_dir))
-    except:
+    except Exception:
         raise Exception("Failed to setup mounts for install")
 
     has_boot = False
@@ -436,7 +436,7 @@ class ChrootOpen(object):
         try:
             self.old_root = os.open("/", os.O_RDONLY)
             os.chroot(self.target_dir)
-        except:
+        except Exception:
             raise Exception("Unable to setup chroot to create users")
 
         return self.target_dir
@@ -450,7 +450,7 @@ class ChrootOpen(object):
             os.chdir(self.old_root)
             os.chroot(".")
             os.close(self.old_root)
-        except:
+        except Exception:
             raise Exception("Unable to restore real root after chroot")
 
 
@@ -546,7 +546,7 @@ def setup_sudo(user, target_dir):
 
         with ChrootOpen(target_dir) as _:
             subprocess.call(command)
-    except:
+    except Exception:
         raise Exception("Unable to add sudo group for {}"
                         .format(user["username"]))
 
@@ -775,7 +775,7 @@ FilesystemTypes".format(disk, part))
         if disk_part not in parts_to_size:
             raise Exception("disk {0} partition {1} used in FilesystemTypes \
 not found in PartitionLayout".format(disk, part))
-        if len(force_fmt) > 0 and force_fmt[0][0] == disk \
+        if force_fmt and force_fmt[0][0] == disk \
                 and force_fmt[0][1] == part and disable_fmt is not None:
             raise Exception("/ does not apply to disable_format")
         partition_fstypes.add(disk_part)
@@ -1076,7 +1076,7 @@ def get_mac_for_iface(iface):
     LOG.debug("Determining MAC address for iface {0}".format(iface))
     try:
         addrs = netifaces.ifaddresses(iface)
-    except:
+    except Exception:
         return None
     macs = addrs[netifaces.AF_LINK]
     mac = macs[0].get('addr')
@@ -1092,13 +1092,13 @@ def fetch_cloud_init_configs(src_url, mac):
               "\t{0}".format(src_url))
     try:
         json_file = request.urlopen(src_url)
-    except:
+    except Exception:
         json_file = None
 
     if json_file is not None:
         return json.loads(json_file.read().decode("utf-8"))
-    else:
-        return dict()
+
+    return dict()
 
 
 def get_cloud_init_configs(icis_source):
@@ -1338,6 +1338,7 @@ def main():
         sys.exit(-1)
     LOG.info("Successful installation")
     sys.exit(0)
+
 
 if __name__ == '__main__':
     main()

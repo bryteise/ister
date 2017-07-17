@@ -20,28 +20,20 @@
 
 # If we see an exception it is always fatal so the broad exception
 # warning isn't helpful.
-# pylint: disable=W0703
+# pylint: disable=broad-except
 # Using global is fine for us
-# pylint: disable=W0603
+# pylint: disable=global-statement
 # Warning for too many lines in the file isn't an issue
-# pylint: disable=C0302
+# pylint: disable=too-many-lines
 # We often don't use self when mocking so this warning isn't helpful
-# pylint: disable=R0201
+# pylint: disable=no-self-use
 # Length of function names aren't particularly important for tests
-# pylint: disable=C0103
-# We do some useless seeming things to test now and then
-# pylint: disable=W0104
+# pylint: disable=invalid-name
 # Classes are generally for mocking, don't need public methods
-# pylint: disable=R0903
-# Using lots of branches for a single test is fine
-# pylint: disable=R0912
-# Using lots of statements for a single test is fine
-# pylint: disable=R0915
-# Naked excepts are fine for us - especially in unit tests.
-# pylint: disable=W0702
+# pylint: disable=too-few-public-methods
 # Mock functions almost by definition do not make use of their inputs.
 # Fine if they don't use them
-# pylint: disable=W0613
+# pylint: disable=unused-argument
 # We don't need docstrings for many of these methods, especially when they are
 # just mock methods anyways
 # pylint: disable=missing-docstring
@@ -52,16 +44,15 @@
 
 import functools
 import json
-import netifaces
 import os
-import pycurl
 import shutil
 import socket
 import stat
 import sys
 import tempfile
-
 import urllib.request as request
+import pycurl
+import netifaces
 
 import ister
 import ister_gui
@@ -490,7 +481,7 @@ def run_command_bad():
     exception_flag = False
     try:
         ister.run_command("not-a-binary", False)
-    except:
+    except Exception:
         raise Exception("Command raised exception with surpression enabled")
     try:
         ister.run_command("not-a-binary")
@@ -1257,7 +1248,7 @@ def copy_os_good():
 
     def args():
         """args empty object"""
-        None
+        pass
     args.contenturl = "ctest"
     args.versionurl = "vtest"
     args.format = "formattest"
@@ -1285,7 +1276,7 @@ def copy_os_cert_good():
 
     def args():
         """args empty object"""
-        None
+        pass
     args.contenturl = "ctest"
     args.versionurl = "vtest"
     args.format = "formattest"
@@ -1318,7 +1309,7 @@ def copy_os_proxy_good():
 
     def args():
         """args empty object"""
-        None
+        pass
     args.contenturl = "ctest"
     args.versionurl = "vtest"
     args.format = "formattest"
@@ -1353,7 +1344,7 @@ def copy_os_format_good():
 
     def args():
         """args empty object"""
-        None
+        pass
 
     args.contenturl = "ctest"
     args.versionurl = "vtest"
@@ -1383,7 +1374,7 @@ def copy_os_which_good():
 
     def args():
         """args empty object"""
-        None
+        pass
 
     args.contenturl = "ctest"
     args.versionurl = "vtest"
@@ -1422,7 +1413,7 @@ def copy_os_physical_good():
 
     def args():
         """args empty object"""
-        None
+        pass
 
     args.contenturl = "ctest"
     args.versionurl = "vtest"
@@ -1746,7 +1737,7 @@ def cleanup_physical_good():
 
     def args():
         """args empty object"""
-        None
+        pass
     args.statedir = '/swupd/state'
 
     commands = ["/tmp/var/tmp",
@@ -1772,7 +1763,7 @@ def cleanup_virtual_good():
 
     def args():
         """args empty object"""
-        None
+        pass
 
     template = {"dev": "image"}
     commands = ["/tmp/var/tmp",
@@ -2753,19 +2744,19 @@ def validate_proxy_url_template_bad():
     try:
         ister.validate_proxy_url_template("httpproxy.clear.com")
         error.append("httpproxy.clear.com")
-    except:
+    except Exception:
         pass
 
     try:
         ister.validate_proxy_url_template("not a url")
         error.append("not a url")
-    except:
+    except Exception:
         pass
 
     try:
         ister.validate_proxy_url_template("clear.com")
         error.append("clear.com")
-    except:
+    except Exception:
         pass
 
     if error:
@@ -2932,7 +2923,9 @@ def validate_template_bad_version():
 
 def parse_config_good():
     """Positive tests for configuration parsing"""
-    # pylint: pylint: disable=R0914
+    # Using lots of statements for a single test is fine
+    # pylint: disable=too-many-statements
+    # pylint: disable=too-many-locals
     global COMMAND_RESULTS
     COMMAND_RESULTS = []
     backup_isfile = os.path.isfile
@@ -2992,7 +2985,7 @@ def parse_config_good():
 
         def args():
             """args empty object"""
-            None
+            pass
         args.kcmdline = "/proc/cmdline_yes_ister_conf"
         args.config_file = None
         args.template_file = None
@@ -3068,7 +3061,7 @@ def parse_config_bad():
     try:
         def args():
             """args empty object"""
-            None
+            pass
         args.config_file = None
         args.template_file = None
         args.kcmdline = "/proc/no_isterconf"
@@ -3083,6 +3076,9 @@ def parse_config_bad():
 
 def handle_options_good():
     """Test all values handle options supports"""
+    # Using lots of branches for a single test is fine
+    # pylint: disable=too-many-branches
+    # pylint: disable=too-many-statements
     # Test short options first
     sys.argv = ["ister.py", "-c", "cfg", "-t", "tpt", "-C", "/", "-V", "/",
                 "-f", "1", "-v", "-l", "log", "-L", "debug", "-S", "/",
@@ -3383,7 +3379,7 @@ def check_kernel_cmdline_bad_urlopen_fails():
 
     try:
         ister.check_kernel_cmdline("foo", sleep_time=0)
-    except:
+    except Exception:
         exception_flag = True
     finally:
         tempfile.mkstemp = mkstemp_orig
@@ -3426,7 +3422,7 @@ def check_kernel_cmdline_bad_fdopen_fails():
 
     try:
         ister.check_kernel_cmdline("foo", sleep_time=0)
-    except:
+    except Exception:
         exception_flag = True
     finally:
         tempfile.mkstemp = mkstemp_orig
@@ -3800,7 +3796,7 @@ def get_cloud_init_configs_bad_no_configs_for_target():
     ister.get_mac_for_iface = get_mac_for_iface_orig
     ister.fetch_cloud_init_configs = fetch_cloud_init_configs_orig
 
-    if len(confs) > 0:
+    if confs:
         raise Exception("expected empty dict")
 
 
@@ -3848,7 +3844,7 @@ def fetch_cloud_init_role_bad_cannot_open_url():
 
     try:
         ister.fetch_cloud_init_role("source/", "compute", "/dir")
-    except:
+    except Exception:
         exception_flag = True
 
     shutil.copyfileobj = cfo_orig
@@ -3877,7 +3873,7 @@ def fetch_cloud_init_role_bad_cannot_target_file():
 
     try:
         ister.fetch_cloud_init_role("source/", "compute", "/dir")
-    except:
+    except Exception:
         exception_flag = True
 
     shutil.copyfileobj = cfo_orig
@@ -3916,7 +3912,7 @@ def modify_cloud_init_service_file_bad_open():
 
     try:
         ister.modify_cloud_init_service_file("/dir")
-    except:
+    except Exception:
         exception_flag = True
 
     if not exception_flag:
@@ -4025,7 +4021,7 @@ def gui_network_connection():
 
         def setopt(self, attr, val):
             # Don't copy storage class address
-            if isinstance(val, str) or isinstance(val, int):
+            if isinstance(val, (str, int)):
                 actual.append(val)
 
         def perform(self):
@@ -4095,7 +4091,7 @@ def gui_network_connection_curl_exception():
 
         def setopt(self, attr, val):
             # Don't copy storage class address
-            if isinstance(val, str) or isinstance(val, int):
+            if isinstance(val, (str, int)):
                 actual.append(val)
 
         def perform(self):
@@ -4157,7 +4153,7 @@ def gui_network_connection_curl_exception_version_url():
             # Don't copy storage class address
             if isinstance(val, str) and val == "version":
                 self.version = True
-            if isinstance(val, str) or isinstance(val, int):
+            if isinstance(val, (str, int)):
                 actual.append(val)
 
         def perform(self):
@@ -4271,7 +4267,7 @@ def gui_static_configuration():
     netreq.netcontrol = netcon
     try:
         netreq._static_configuration(None)
-    except:
+    except Exception:
         # this method always exits with an exception (urwid.ExitMainLoop)
         pass
 
@@ -4279,7 +4275,7 @@ def gui_static_configuration():
     netreq.dns_e = Edit("10.0.2.3")
     try:
         netreq._static_configuration(None)
-    except:
+    except Exception:
         # this method always exits with an exception (urwid.ExitMainLoop)
         pass
 
@@ -4567,20 +4563,20 @@ def gui_mount_host_disk_normal():
                                    {"type": "Linux root",
                                     "name": "/dev/sdc3"}]}
 
-    def mock_find_current_disk(_):
+    def mock_find_current_disk():
         return "sda"
 
     call_backup = subprocess.call
     mkdtemp_backup = tempfile.mkdtemp
     get_list_of_disks_backup = ister_gui.get_list_of_disks
     get_disk_info_backup = ister_gui.get_disk_info
-    find_current_disk_backup = ister_gui.ChooseAction._find_current_disk
+    find_current_disk_backup = ister_gui.find_current_disk
 
     subprocess.call = mock_call
     tempfile.mkdtemp = mock_mkdtemp
     ister_gui.get_list_of_disks = mock_get_list_of_disks
     ister_gui.get_disk_info = mock_get_disk_info
-    ister_gui.ChooseAction._find_current_disk = mock_find_current_disk
+    ister_gui.find_current_disk = mock_find_current_disk
 
     commands = ['mount', '/dev/sdc3', '/tmp/ister-latest-temp',
                 '/tmp/ister-latest-temp/usr/lib/os-release', 'r',
@@ -4596,7 +4592,7 @@ def gui_mount_host_disk_normal():
     tempfile.mkdtemp = mkdtemp_backup
     ister_gui.get_list_of_disks = get_list_of_disks_backup
     ister_gui.get_disk_info = get_disk_info_backup
-    ister_gui.ChooseAction._find_current_disk = find_current_disk_backup
+    ister_gui.find_current_disk = find_current_disk_backup
 
     if chooseact.target_dir != "/tmp/ister-latest-temp":
         raise Exception("Target directory {} did not match expected "
@@ -4656,21 +4652,21 @@ def gui_mount_host_disk_no_boot_on_host():
                                    {"type": "Linux root",
                                     "name": "/dev/sdc3"}]}
 
-    def mock_find_current_disk(_):
+    def mock_find_current_disk():
         return "sda"
 
     call_backup = subprocess.call
     mkdtemp_backup = tempfile.mkdtemp
     get_list_of_disks_backup = ister_gui.get_list_of_disks
     get_disk_info_backup = ister_gui.get_disk_info
-    find_current_disk_backup = ister_gui.ChooseAction._find_current_disk
+    find_current_disk_backup = ister_gui.find_current_disk
     alert_backup = ister_gui.Alert
 
     subprocess.call = mock_call
     tempfile.mkdtemp = mock_mkdtemp
     ister_gui.get_list_of_disks = mock_get_list_of_disks
     ister_gui.get_disk_info = mock_get_disk_info
-    ister_gui.ChooseAction._find_current_disk = mock_find_current_disk
+    ister_gui.find_current_disk = mock_find_current_disk
     ister_gui.Alert = mock_alert
 
     commands = ['mount', '/dev/sdc3', '/tmp/ister-latest-temp',
@@ -4685,7 +4681,7 @@ def gui_mount_host_disk_no_boot_on_host():
     tempfile.mkdtemp = mkdtemp_backup
     ister_gui.get_list_of_disks = get_list_of_disks_backup
     ister_gui.get_disk_info = get_disk_info_backup
-    ister_gui.ChooseAction._find_current_disk = find_current_disk_backup
+    ister_gui.find_current_disk = find_current_disk_backup
     ister_gui.Alert = alert_backup
 
     if chooseact.target_dir != "/tmp/ister-latest-temp":
@@ -4726,7 +4722,7 @@ def gui_get_root_present():
     chooseact.target_dir = "/tmp/ister-latest-temp"
     result = chooseact._get_part(part_info, "Linux root", chooseact.target_dir)
     subprocess.call = call_backup
-    if result is not "/dev/sda2":
+    if result != "/dev/sda2":
         raise Exception("OS root partition {} did not match expected /dev/sda2"
                         .format(result))
 
@@ -4781,7 +4777,7 @@ def gui_get_boot_present():
                                  "EFI System",
                                  "{}/boot".format(chooseact.target_dir))
     subprocess.call = call_backup
-    if result is not "/dev/sda2":
+    if result != "/dev/sda2":
         raise Exception("OS boot partition {} did not match expected /dev/sda2"
                         .format(result))
 
