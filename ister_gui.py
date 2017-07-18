@@ -1210,7 +1210,7 @@ class NetworkControl(object):
     settings on the installer for reference.
     """
     # pylint: disable=R0902
-    def __init__(self, target, allow_reset=False, header=None, iface=True):
+    def __init__(self, target, allow_reset=False, header=None, gen_en=False):
         left = 8
         self.target = target
         self.widgets = []
@@ -1237,7 +1237,8 @@ class NetworkControl(object):
         self.detected_header = urwid.Text('Detected network configuration on '
                                           'installer image')
         self.ifaceaddrs = None
-        self.allow_iface = iface
+        self.allow_generic_iface = gen_en
+        self.iface_txt = 'Interface pattern: ' if gen_en else 'Interface: '
         self.static_ready = False
         self.static_edits = {}
         self.set_static_edits()
@@ -1286,24 +1287,24 @@ class NetworkControl(object):
         self.mask = urwid.Columns([self.mask_e, mask])
         self.gateway = urwid.Columns([self.gateway_e, gateway])
         self.dns = urwid.Columns([self.dns_e, dns])
-
         self.widgets = [self.title,
+                        urwid.Divider(),
+                        self.iface,
+                        self.static_ip,
+                        self.mask,
+                        self.gateway,
+                        self.dns,
+                        urwid.Divider(),
+                        self.static_button,
                         urwid.Divider()]
-        if self.allow_iface:
-            self.widgets.append(self.iface)
-
-        self.widgets.extend([self.static_ip,
-                             self.mask,
-                             self.gateway,
-                             self.dns,
-                             urwid.Divider(),
-                             self.static_button,
-                             urwid.Divider()])
 
     def set_static_edits(self):
         """Set the edit captions for the static configuration section"""
         fmt = '{0:>20}'
-        self.interface_e = urwid.Edit(fmt.format('Interface: '))
+        self.interface_e = urwid.Edit(fmt.format(self.iface_txt))
+        if self.allow_generic_iface:
+            self.interface_e.set_caption(
+                ('success', '{0:>20}'.format(self.iface_txt)))
         self.static_ip_e = urwid.Edit(fmt.format('IP address: '))
         self.mask_e = urwid.Edit(fmt.format('Subnet mask: '))
         self.gateway_e = urwid.Edit(fmt.format('Gateway: '))
@@ -1351,14 +1352,15 @@ class NetworkControl(object):
         # make the caption green on a valid format.
         reqd_found = 0
         for key in self.static_edits:
-            if 'Interface' in key.caption and self.static_edits[key]:
-                if self.static_edits[key] in self.ifaceaddrs.keys():
-                    reqd_found += 1
-                    self.interface_e.set_caption(
-                        ('success', '{0:>20}'.format('Interface: ')))
-                else:
-                    self.interface_e.set_caption(
-                        '{0:>20}'.format('Interface: '))
+            if not self.allow_generic_iface:
+                if 'Interface' in key.caption and self.static_edits[key]:
+                    if self.static_edits[key] in self.ifaceaddrs.keys():
+                        reqd_found += 1
+                        self.interface_e.set_caption(
+                            ('success', '{0:>20}'.format(self.iface_txt)))
+                    else:
+                        self.interface_e.set_caption(
+                            '{0:>20}'.format(self.iface_txt))
 
             if 'IP address' in key.caption and self.static_edits[key]:
                 try:
@@ -1398,11 +1400,8 @@ class NetworkControl(object):
                     self.dns_e.set_caption(
                         '{0:>20}'.format('DNS: '))
 
-        # increment reqd_found to reach when interface is not needed
-        if not self.allow_iface:
-            reqd_found += 1
-
-        if reqd_found >= 5:
+        reqd = 4 if self.allow_generic_iface else 5
+        if reqd_found >= reqd:
             self.static_ready = True
             self.static_button.original_widget.original_widget.set_label(
                 ('button', 'Set static IP configuration'))
@@ -2586,11 +2585,13 @@ class StaticIpStep(ProcessStep):
         super(StaticIpStep, self).__init__()
         self.netcontrol = None
         self.progress = urwid.Text('Step {} of {}'.format(cur_step, tot_steps))
+        self.iface_s = ''
         self.static_ip_s = ''
         self.mask_s = ''
         self.gateway_s = ''
         self.dns_s = ''
         self.config = {}
+        self.iface_res = ''
         self.ip_res = ''
         self.mask_res = ''
         self.dns_res = ''
@@ -2598,12 +2599,15 @@ class StaticIpStep(ProcessStep):
 
     def _save_config(self, _):
         """Save static IP configuration to config dict"""
+        if not self.netcontrol.static_ready:
+            return
         tmp = dict()
         tmp['address'] = '{}/{}'.format(
             self.netcontrol.static_ip_e.get_edit_text(),
             compute_mask(self.netcontrol.mask_e.get_edit_text()))
         tmp['gateway'] = self.netcontrol.gateway_e.get_edit_text()
         tmp['dns'] = self.netcontrol.dns_e.get_edit_text()
+        tmp['iface'] = self.netcontrol.interface_e.get_edit_text() or 'en*'
         self.config['Static_IP'] = tmp
         raise urwid.ExitMainLoop()
 
@@ -2611,7 +2615,7 @@ class StaticIpStep(ProcessStep):
         self.config = config
         self.netcontrol = NetworkControl(allow_reset=True,
                                          target=self._save_config,
-                                         iface=False)
+                                         gen_en=True)
         if config.get('Static_IP'):
             self.setup_saved(config)
         else:
@@ -2644,6 +2648,7 @@ class StaticIpStep(ProcessStep):
         """
         static_config = config['Static_IP']
         ip_config = ipaddress.ip_interface(static_config.get('address'))
+        self.iface_s = static_config.get('iface')
         self.static_ip_s = str(ip_config.ip)
         self.mask_s = str(ip_config.netmask)
         self.gateway_s = static_config.get('gateway')
@@ -2651,6 +2656,7 @@ class StaticIpStep(ProcessStep):
 
     def clear_saved(self):
         """Clear saved information if it is no longer present in config"""
+        self.iface_s = ''
         self.static_ip_s = ''
         self.mask_s = ''
         self.gateway_s = ''
@@ -2662,6 +2668,7 @@ class StaticIpStep(ProcessStep):
         fields.
         """
         if_ip = self.netcontrol.find_interface_ip()
+        self.iface_res = if_ip[0] if if_ip else ''
         self.ip_res = if_ip[1] if if_ip else ''
         self.mask_res = if_ip[2] if if_ip else ''
         self.dns_res = find_dns() or ''
@@ -2673,6 +2680,8 @@ class StaticIpStep(ProcessStep):
 
     def setup_netcontrol(self, det=False):
         """Pre-populate edit fields with saved data if available"""
+        self.netcontrol.interface_e.set_edit_text(self.iface_res if det
+                                                  else self.iface_s)
         self.netcontrol.static_ip_e.set_edit_text(self.ip_res if det
                                                   else self.static_ip_s)
         self.netcontrol.mask_e.set_edit_text(self.mask_res if det
@@ -2696,6 +2705,7 @@ class StaticIpStep(ProcessStep):
                 [urwid.Divider(),
                  urwid.Text('Saved Configuration'),
                  urwid.Divider(),
+                 urwid.Text(fmt.format('Interface: ') + self.iface_s),
                  urwid.Text(fmt.format('IP address: ') + self.static_ip_s),
                  urwid.Text(fmt.format('Subnet mask: ') + self.mask_s),
                  urwid.Text(fmt.format('Gateway: ') + self.gateway_s),

@@ -602,7 +602,7 @@ def set_static_configuration(template, target_dir):
 
     with open(path + "10-en-static.network", "w") as file:
         file.write("[Match]\n")
-        file.write("Name=en*\n\n")
+        file.write("Name={}\n\n".format(static_conf["iface"]))
         file.write("[Network]\n")
         file.write("Address={0}\n".format(static_conf["address"]))
         file.write("Gateway={0}\n".format(static_conf["gateway"]))
