@@ -1462,6 +1462,7 @@ class NetworkRequirements(ProcessStep):
         self.config = config
         self.netcontrol = NetworkControl(target=self._static_configuration,
                                          allow_reset=True,
+                                         gen_en=True,
                                          header='Static IP Configuration '
                                                 '(optional)')
 
@@ -1606,12 +1607,6 @@ class NetworkRequirements(ProcessStep):
             ipaddress.ip_address(self.netcontrol.static_ip_e.get_edit_text())
             ipaddress.ip_address(self.netcontrol.gateway_e.get_edit_text())
         except ValueError:
-            # the main loop is waiting on this method to exit so it can report
-            # the error
-            raise urwid.ExitMainLoop()
-
-        ifaces = self.netcontrol.ifaceaddrs.keys()
-        if self.netcontrol.interface_e.get_edit_text() not in ifaces:
             # the main loop is waiting on this method to exit so it can report
             # the error
             raise urwid.ExitMainLoop()
