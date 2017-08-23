@@ -63,7 +63,8 @@ PALETTE = [
     ('success', 'dark green', 'dark gray'),
     ('warn', 'dark red', 'dark gray'),
     ('button', 'light cyan', 'dark gray'),
-    ('ex', 'light gray', 'dark gray')]
+    ('ex', 'light gray', 'dark gray'),
+    ('popbg', 'white', 'dark blue')]
 
 MIN_WIDTH = 80
 MIN_HEIGHT = 24
@@ -362,6 +363,12 @@ def search_swap(choices, config, mount_d):
                         'type': 'swap'})
 
 
+def interface_list():
+    """List all interface names"""
+    # pylint: disable=no-member
+    return [ifc for ifc in netifaces.interfaces() if ifc.startswith('e')]
+
+
 class Alert(object):
     """Class to display alerts or confirm boxes"""
     # pylint: disable=R0902
@@ -451,6 +458,50 @@ class Terminal(object):
     def main_loop(self):
         """Enters the loop to grab focus on the terminal UI"""
         self.term.main_loop.run()
+
+
+class PopUpDialog(urwid.WidgetWrap):
+    """Pop up dialog box"""
+    signals = ['close']
+
+    def __init__(self, popup_msg, button_text):
+        close_button = ister_button(button_text, on_press=self._emit, left=2)
+        pile = urwid.Pile([urwid.Text(popup_msg), close_button])
+        fill = urwid.Filler(pile)
+        super(PopUpDialog, self).__init__(urwid.AttrWrap(fill, 'popbg'))
+
+    def _emit(self, _):
+        """Override urwid.WidgetWrap emit to always close"""
+        super(PopUpDialog, self)._emit('close')
+
+
+class PopUpWidget(urwid.PopUpLauncher):
+    """Launches a pop up dialog box"""
+    def __init__(self, button_text, popup_msg, close_button_text):
+        super(PopUpWidget, self).__init__(
+            ister_button(button_text, on_press=self.open_pop_up))
+        self.popup_msg = popup_msg
+        self.close_button_text = close_button_text
+
+    def create_pop_up(self):
+        """Initiate a pop up menu"""
+        pop_up = PopUpDialog(self.popup_msg, self.close_button_text)
+        urwid.connect_signal(pop_up, 'close',
+                             lambda button: self.close_pop_up())
+        return pop_up
+
+    def get_pop_up_parameters(self):
+        """Override urwid.PopUpLauncher.get_pop_up_parameters to set our own"""
+        return {'left': 0, 'top': 1,
+                'overlay_width': 32,
+                'overlay_height': len(interface_list()) + 3}
+
+    def open_pop_up(self, _):
+        """
+        Override urwid.PopUpLauncher.open_pop_up so we can pass it to
+        ister_button
+        """
+        super(PopUpWidget, self).open_pop_up()
 
 
 class ButtonMenu(object):
@@ -712,9 +763,9 @@ class SimpleForm(object):
                                  height=('relative', PERCENTAGE_H))
         self._ui = urwid.AttrMap(self._ui, 'banner')
 
-    def do_form(self):
+    def do_form(self, pop_ups=False):
         """Creates the loop and enter to it, to focus the UI"""
-        main_loop = urwid.MainLoop(self._ui, palette=PALETTE)
+        main_loop = urwid.MainLoop(self._ui, palette=PALETTE, pop_ups=pop_ups)
         main_loop.run()
         return self._clicked
 
@@ -1289,6 +1340,9 @@ class NetworkControl(object):
         self.dns = urwid.Columns([self.dns_e, dns])
         self.widgets = [self.title,
                         urwid.Divider(),
+                        PopUpWidget('Show available interfaces',
+                                    '\n'.join(interface_list()),
+                                    'close'),
                         self.iface,
                         self.static_ip,
                         self.mask,
@@ -1527,7 +1581,7 @@ class NetworkRequirements(ProcessStep):
                                                          "Next"])
 
     def run_ui(self):
-        return self._ui.do_form()
+        return self._ui.do_form(pop_ups=True)
 
     def _network_connection(self):
         """Check if connection to content and version urls are available"""
@@ -2687,7 +2741,7 @@ class StaticIpStep(ProcessStep):
                                             else self.dns_s)
 
     def run_ui(self):
-        return self._ui.do_form()
+        return self._ui.do_form(pop_ups=True)
 
     def build_ui_widgets(self):
         fmt = '{0:>20}'
@@ -2697,8 +2751,7 @@ class StaticIpStep(ProcessStep):
 
         if self.static_ip_s:
             self._ui_widgets.extend(
-                [urwid.Divider(),
-                 urwid.Text('Saved Configuration'),
+                [urwid.Text('Saved Configuration'),
                  urwid.Divider(),
                  urwid.Text(fmt.format('Interface: ') + self.iface_s),
                  urwid.Text(fmt.format('IP address: ') + self.static_ip_s),
