@@ -107,6 +107,32 @@ def get_disk_info(disk):
     return info
 
 
+def get_part_devname(part):
+    """
+    Return the parent device of the partition
+
+    If called on a device name, we could get a list of identical strings for
+    each partition the device contains:
+
+    $ lsblk -no pkname /dev/sda
+            # note the blank line here
+    sda
+    sda
+    sda
+
+    Just return the first one
+    """
+    cmd = ['/usr/bin/lsblk', '-no', 'pkname', os.path.join('/dev', part)]
+    try:
+        # need to strip out leading blank line for the case that lsblk is
+        # called on a device name
+        output = subprocess.check_output(cmd).decode('utf-8').strip()
+    except subprocess.CalledProcessError:
+        return None
+
+    return output.splitlines()[0]
+
+
 def get_list_of_disks():
     """"
     Queries for the available disks discarding the installer root disk
@@ -350,8 +376,24 @@ def search_swap(choices, config, mount_d):
                 output = output[idx + len(pttr):]
                 output = output[:output.index('"')]
                 if output == 'swap':
-                    disk = ''.join(x for x in part if not x.isdigit())
+                    # first try to set using lsblk -no pkname part
+                    disk = get_part_devname(part)
+                    # if that fails, alert and fallback to old
+                    # (unreliable) method
+                    if not disk:
+                        Alert('Partition error',
+                              'Unable to detect device name for {}. '
+                              'Falling back to path parsing. This method is '
+                              'unreliable and may result in a failed install.'
+                              .format(part)).do_alert()
+                        disk = ''.join(x for x in part if not x.isdigit())
+
                     part = part[len(disk):]
+                    # strip prefix if it exists. Not needed here and ister.py
+                    # will add it back
+                    prefix = part[0] if not part[0].isdigit() else ''
+                    part = part.lstrip(prefix)
+
                     config['PartitionLayout'].append({
                         'disk': disk,
                         'partition': part,
@@ -2238,8 +2280,23 @@ class MountPointsStep(ProcessStep):
         for point in mount_d:
             _type = 'EFI' if point == '/boot' else 'linux'
             part = mount_d[point]['part']
-            disk = ''.join(x for x in part if not x.isdigit())
+            # first try to set using lsblk -no pkname part
+            disk = get_part_devname(part)
+            # if that fails, alert and fallback to old
+            # (unreliable) method
+            if not disk:
+                Alert('Partition error',
+                      'Unable to detect device name for {}. '
+                      'Falling back to path parsing. This method is '
+                      'unreliable and may result in a failed install.'
+                      .format(part)).do_alert()
+                disk = ''.join(x for x in part if not x.isdigit())
+
             part = part[len(disk):]
+            # strip off prefix if it exists and save for grep command below
+            prefix = part[0] if not part[0].isdigit() else ''
+            part = part.lstrip(prefix)
+
             config['PartitionLayout'].append({
                 'disk': disk,
                 'partition': part,
@@ -2253,7 +2310,7 @@ class MountPointsStep(ProcessStep):
             if not mount_d[point]['format']:
                 if 'TYPE="' in subprocess.check_output(
                         'blkid | grep {0}'
-                        .format(disk+part), shell=True).decode('utf-8'):
+                        .format(disk+prefix+part), shell=True).decode('utf-8'):
                     config['FilesystemTypes'][-1]['disable_format'] = True
             config['PartitionMountPoints'].append({
                 'disk': disk,
