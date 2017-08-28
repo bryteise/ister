@@ -748,6 +748,99 @@ def get_device_name_good_mmcblk_physical():
         raise Exception("Bad device name returned {0}".format(dev))
 
 
+def get_device_name_good_nvme0n1():
+    """Get physical device name"""
+    listdir_backup = os.listdir
+
+    def mock_listdir(directory):
+        """mock_listdir wrapper"""
+        del directory
+        return ["nvme0n1", "nvme0n1p1", "nvme0n1p2"]
+
+    os.listdir = mock_listdir
+    dev = ister.get_device_name({}, "nvme0n1")
+    os.listdir = listdir_backup
+    if dev != ("/dev/nvme0n1p", "p"):
+        raise Exception("Bad device name returned {0}".format(dev))
+
+
+@run_command_wrapper
+def get_part_devname_good():
+    """Get partition device name"""
+    def mock_check_output(cmd):
+        COMMAND_RESULTS.extend(cmd)
+        return b"sda\n"
+
+    check_output_backup = ister_gui.subprocess.check_output
+    ister_gui.subprocess.check_output = mock_check_output
+    expected = ["/usr/bin/lsblk",
+                "-no", "pkname",
+                "/dev/sda1"]
+    res = ister_gui.get_part_devname("sda1")
+    ister_gui.subprocess.check_output = check_output_backup
+
+    if res != "sda":
+        raise Exception("Result was {}, expected sda".format(res))
+
+    commands_compare_helper(expected)
+
+
+@run_command_wrapper
+def get_part_devname_with_devname():
+    """Get partition device name when passing device name"""
+    def mock_check_output(cmd):
+        COMMAND_RESULTS.extend(cmd)
+        return b"\nsda\nsda\nsda\n"
+
+    check_output_backup = ister_gui.subprocess.check_output
+    ister_gui.subprocess.check_output = mock_check_output
+    expected = ["/usr/bin/lsblk",
+                "-no", "pkname",
+                "/dev/sda"]
+    res = ister_gui.get_part_devname("/dev/sda")
+    ister_gui.subprocess.check_output = check_output_backup
+
+    if res != "sda":
+        raise Exception("Result was {}, expected sda".format(res))
+
+    commands_compare_helper(expected)
+
+
+@run_command_wrapper
+def get_part_devname_with_no_input():
+    """Get partition device name when passing an empty string"""
+    def mock_check_output(cmd):
+        COMMAND_RESULTS.extend(cmd)
+        return b"\nsda\nsda\nsda\n"
+
+    check_output_backup = ister_gui.subprocess.check_output
+    ister_gui.subprocess.check_output = mock_check_output
+    expected = ["/usr/bin/lsblk",
+                "-no", "pkname",
+                "/dev/"]
+    res = ister_gui.get_part_devname("")
+    ister_gui.subprocess.check_output = check_output_backup
+
+    if res != "sda":
+        raise Exception("Result was {}, expected sda".format(res))
+
+    commands_compare_helper(expected)
+
+
+def get_part_devname_exception():
+    """Get partition device name with exception raised"""
+    def mock_check_output(cmd):
+        raise ister_gui.subprocess.CalledProcessError(1, cmd, "No such device")
+
+    check_output_backup = ister_gui.subprocess.check_output
+    ister_gui.subprocess.check_output = mock_check_output
+    res = ister_gui.get_part_devname("/dev/sda1")
+    ister_gui.subprocess.check_output = check_output_backup
+
+    if res:
+        raise Exception("Result was {}, expected None".format(res))
+
+
 @run_command_wrapper
 def create_filesystems_good():
     """Create filesystems without options"""
@@ -4845,6 +4938,71 @@ def gui_umount_host_disk():
     commands_compare_helper(commands)
 
 
+def gui_mount_points_step_save_config_nvme0n1():
+    """Test that MountPointsStep properly saves the config
+
+    This is an unusual test since this internal function is difficult to test.
+    """
+    def mock_get_part_devname(part):
+        """Return nvme0n1 from nvme0n1p#"""
+        return part[:-2]
+
+    backup_get_part_devname = ister_gui.get_part_devname
+    ister_gui.get_part_devname = mock_get_part_devname
+
+    mps = ister_gui.MountPointsStep(1, 2)
+    config = {}
+    mount_d = {'/': {'part': 'nvme0n1p1', 'format': True},
+               '/boot': {'part': 'nvme0n1p2', 'format': True}}
+    mps._save_config(config, mount_d)
+
+    ister_gui.get_part_devname = backup_get_part_devname
+    expected = {
+        'PartitionLayout': [
+           {
+               'disk': 'nvme0n1',
+               'partition': '1',
+               'size': '1M',
+               'type': 'linux'
+           },
+           {
+               'disk': 'nvme0n1',
+               'partition': '2',
+               'size': '1M',
+               'type': 'EFI'
+           }
+        ],
+        'FilesystemTypes': [
+            {
+                'disk': 'nvme0n1',
+                'partition': '1',
+                'type': 'ext4'
+            },
+            {
+                'disk': 'nvme0n1',
+                'partition': '2',
+                'type': 'vfat'
+            }
+        ],
+        'PartitionMountPoints': [
+            {
+                'disk': 'nvme0n1',
+                'partition': '1',
+                'mount': '/'
+            },
+            {
+                'disk': 'nvme0n1',
+                'partition': '2',
+                'mount': '/boot'
+            }
+        ]
+    }
+
+    if config != expected:
+        raise Exception("config {} does not equal expected: {}"
+                        .format(config, expected))
+
+
 def run_tests(tests):
     """Run ister test suite"""
     fail = 0
@@ -4900,6 +5058,11 @@ if __name__ == '__main__':
         get_device_name_good_virtual,
         get_device_name_good_physical,
         get_device_name_good_mmcblk_physical,
+        get_device_name_good_nvme0n1,
+        get_part_devname_good,
+        get_part_devname_with_devname,
+        get_part_devname_with_no_input,
+        get_part_devname_exception,
         create_filesystems_good,
         create_filesystems_virtual_good,
         create_filesystems_mmcblk_good,
@@ -5071,7 +5234,8 @@ if __name__ == '__main__':
         gui_get_root_not_present,
         gui_get_boot_present,
         gui_get_boot_not_present,
-        gui_umount_host_disk
+        gui_umount_host_disk,
+        gui_mount_points_step_save_config_nvme0n1
     ]
 
     failed = run_tests(TESTS)
