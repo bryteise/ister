@@ -113,6 +113,24 @@ def full_user_install_template():
     "uid": 1001, "sudo": "password"}]}'
 
 
+def good_template_string_partitions():
+    """Return string representation of good_template_string_partitions"""
+    return u'{"DestinationType" : "virtual", "PartitionLayout" : \
+    [{"disk" : "gvdt", "partition" : "1", "size" : "512M", "type" : "EFI"}, \
+    {"disk" : "gvdt", "partition" : "2", \
+    "size" : "512M", "type" : "swap"}, {"disk" : "gvdt", "partition" : "3", \
+    "size" : "rest", "type" : "linux"}], \
+    "FilesystemTypes" : \
+    [{"disk" : "gvdt", "partition" : "1", "type" : "vfat"}, {"disk" : "gvdt", \
+    "partition" : "2", "type" : "swap"}, \
+    {"disk" : "gvdt", "partition" : "3", "type" : "ext4"}], \
+    "PartitionMountPoints" : \
+    [{"disk" : "gvdt", "partition" : "1", "mount" : "/boot"}, \
+    {"disk" : "gvdt", "partition" : "3", "mount" : "/"}], \
+    "Version" : 800, "Bundles" : ["linux-kvm"], \
+    "HTTPSProxy" : "https://proxy.clear.com"}'
+
+
 def run_command_wrapper(func):
     """Wrapper for tests whose functions use run_command"""
     @functools.wraps(func)
@@ -2863,6 +2881,12 @@ def validate_template_good():
     ister.validate_template(template)
 
 
+def validate_good_template_string_partitions():
+    """Good validate_template with string partition fields"""
+    template = json.loads(good_template_string_partitions())
+    ister.validate_template(template)
+
+
 def validate_template_latest_good():
     """Good validate_template"""
     template = json.loads(good_latest_template())
@@ -5171,6 +5195,7 @@ if __name__ == '__main__':
         validate_postnonchroot_template_good,
         validate_postnonchroot_template_bad,
         validate_template_good,
+        validate_good_template_string_partitions,
         validate_template_latest_good,
         validate_template_good_disable_partitioning,
         validate_template_bad_long_hostname,
