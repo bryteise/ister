@@ -611,6 +611,23 @@ def set_static_configuration(template, target_dir):
             file.write("DNS={0}\n".format(static_conf["dns"]))
 
 
+def set_kernel_cmdline_appends(template, target_dir):
+    """Write template['cmdline'] to /etc/kernel/cmdline
+    """
+    if not template.get("cmdline"):
+        return
+
+    cmdline_path = os.path.join(target_dir, "etc/kernel/")
+    if not os.path.exists(cmdline_path):
+        os.makedirs(cmdline_path)
+
+    with open(os.path.join(cmdline_path, "cmdline"), "w") as cmdline_f:
+        cmdline_f.write(template["cmdline"])
+
+    run_command("{0}/usr/bin/clr-boot-manager update --path {0}"
+                .format(target_dir))
+
+
 def post_install_nonchroot(template, target_dir):
     """Run non chroot post install scripts
 
@@ -964,6 +981,15 @@ def validate_proxy_url_template(proxy):
         raise Exception("Invalid proxy url: {}".format(proxy))
 
 
+def validate_cmdline_template(cmdline):
+    """Attempt to verify the cmdline configuration
+
+    This function will raise an Exception on finding an error.
+    """
+    if not isinstance(cmdline, str):
+        raise Exception("cmdline must be stored as a string")
+
+
 def validate_template(template):
     """Attempt to verify template is sane
 
@@ -1003,6 +1029,8 @@ def validate_template(template):
         validate_proxy_url_template(template["HTTPSProxy"])
     if template.get("HTTPProxy"):
         validate_proxy_url_template(template["HTTPProxy"])
+    if template.get("cmdline"):
+        validate_cmdline_template(template["cmdline"])
     LOG.debug("Configuration is valid:")
     LOG.debug(template)
 
@@ -1245,6 +1273,7 @@ def install_os(args):
         add_users(template, target_dir)
         set_hostname(template, target_dir)
         set_static_configuration(template, target_dir)
+        set_kernel_cmdline_appends(template, target_dir)
         if template.get("IsterCloudInitSvc"):
             LOG.debug("Detected IsterCloudInitSvc directive")
             cloud_init_configs(template, target_dir)

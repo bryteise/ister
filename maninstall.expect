@@ -85,6 +85,9 @@ expect -re ".*Warning.*"
 # tab to Yes
 send -- "\t"
 send -- "\r"
+expect -re ".*Append to kernel cmdline.*"
+send -- "\t"
+send -- "\r"
 expect -re ".*Configuring Hostname.*"
 # accept default
 send -- "\r"
@@ -118,7 +121,7 @@ expect -re ".*Network configuration.*"
 send -- "\t"
 # Static IP configuration
 send -- "\r"
-expect -re ".*Step 11 of 12.*"
+expect -re ".*Step 12 of 13.*"
 # tab through options, don't actually set anything
 send -- "\t"
 send -- "\t"
@@ -130,7 +133,7 @@ send -- "\t"
 send -- "\t"
 # Previous
 send -- "\r"
-expect -re ".*Step 11 of 12.*"
+expect -re ".*Step 12 of 13.*"
 send -- "\t"
 send -- "\t"
 # Use DHCP
