@@ -44,6 +44,7 @@ import tempfile
 import ipaddress
 import signal
 import time
+import itertools
 import netifaces
 import pycurl
 import urwid
@@ -1859,6 +1860,55 @@ class StartInstaller(ProcessStep):
         return self._action
 
 
+class ConfigureCmdline(ProcessStep):
+    """UI to add to kernel cmdline"""
+    def __init__(self, cur_step, tot_steps):
+        super(ConfigureCmdline, self).__init__()
+        self.progress = urwid.Text('Step {} of {}'.format(cur_step, tot_steps))
+        self.cmdline_field = urwid.Edit(
+            u'{0:30}'.format('Append to cmdline (space-delimited): '),
+            align='left')
+
+    def handler(self, config):
+
+        if not self._ui_widgets:
+            self.build_ui_widgets()
+
+        if not self._ui:
+            self.build_ui()
+
+        self._action = self.run_ui()
+        if self._action == 'Next':
+            # Just store as a string, since that is how it will be added to
+            # the /etc/kernel/cmdline file by ister.py
+            config['cmdline'] = self.cmdline_field.get_edit_text()
+
+        return self._action
+
+    def run_ui(self):
+        return self._ui.do_form()
+
+    def build_ui_widgets(self):
+        desc = urwid.Text('console=tty0 console=ttyS0,115200n8 quiet '
+                          'init=/usr/lib/systemd/systemd-bootchart '
+                          'initcall_debug tsc=reliable no_timer_check '
+                          'noreplace-smp kvm-intel.nested=1 '
+                          'rootfstype=ext4,btrfs,xfs intel_iommu=igfx_off '
+                          'cryptomgr.notests rcupdate.rcu_expedited=1 '
+                          'i915.fastboot=1  rw rootwait')
+        self._ui_widgets = [self.progress,
+                            urwid.Divider(),
+                            urwid.Text('Default kernel cmdline will be '
+                                       'similar to this:'),
+                            urwid.Divider(),
+                            desc,
+                            urwid.Divider(),
+                            self.cmdline_field]
+
+    def build_ui(self):
+        self._ui = SimpleForm(u'Append to kernel cmdline', self._ui_widgets)
+
+
 class ConfigureHostname(ProcessStep):
     """UI to gather the host's name"""
     def __init__(self, cur_step, tot_steps):
@@ -2880,33 +2930,84 @@ class Installation(object):
     def _init_actions(self):
         # pylint: disable=too-many-locals
         # pylint: disable=too-many-statements
-        # auto install assumed
+
+        # current is the generator representing the current step.
+        # calling next(current) advances the generator and returns an integer.
+        # For steps with multiple screens, this integer must be saved to
+        # another variable to be used more than once (meta_step).
+        current = itertools.count(start=1)
+        # auto install assumed so the total is lower
+        total = 6
+        # Select keyboard layout
         keyboard_select = KeyboardSelection()
-        network_requirements = NetworkRequirements(1, 6,
+
+        # Configure network for installer
+        network_requirements = NetworkRequirements(next(current), total,
                                                    self.args['contenturl'],
                                                    self.args['versionurl'])
-        choose_action = ChooseAction(2, 6)
-        telem_disclosure = TelemetryDisclosure(3, 6)
-        startmenu = StartInstaller(4, 6)
-        automatic_device = SelectDeviceStep(5, 6)
-        confirm_disk_wipe = ConfirmDiskWipe(6, 6)
-        # manual install
-        part_menu = PartitioningMenu(5, 12)
-        manual_part_device = SelectMultiDeviceStep(6, 12)
-        manual_nopart_device = SelectDeviceStep(6, 12)
+
+        # Choose action (install/repair/shell)
+        choose_action = ChooseAction(next(current), total)
+
+        # Telemetry opt-in
+        telem_disclosure = TelemetryDisclosure(next(current), total)
+
+        # Start installation (manual/automatic)
+        startmenu = StartInstaller(next(current), total)
+
+        # Select target device (for automatic install)
+        automatic_device = SelectDeviceStep(next(current), total)
+
+        # Confirm disk wipe
+        confirm_disk_wipe = ConfirmDiskWipe(next(current), total)
+
+        # The manual install route starts at step 5. The total must be updated
+        # to the total in the manual path.
+        current = itertools.count(start=5)
+        total = 13
+
+        # Partition menu
+        part_menu = PartitioningMenu(next(current), total)
+
+        # Partition meta-step
+        meta_step = next(current)
+        manual_part_device = SelectMultiDeviceStep(meta_step, total)
+        manual_nopart_device = SelectDeviceStep(meta_step, total)
+
+        # cgdisk terminal
         terminal_cgdisk = TerminalStep()
-        set_mount_points = MountPointsStep(7, 12)
-        confirm_disk_wipe2 = ConfirmDiskWipe(7, 12)
-        config_hostname = ConfigureHostname(8, 12)
-        confirm_user = ConfirmUserMenu(9, 12)
-        user_configuration = UserConfigurationStep(9, 12)
-        bundle_selector = BundleSelectorStep(10, 12)
-        confirm_dhcp = ConfirmDHCPMenu(11, 12)
-        static_ip_config = StaticIpStep(11, 12)
+
+        # Mount points meta-step
+        meta_step = next(current)
+        set_mount_points = MountPointsStep(meta_step, total)
+        confirm_disk_wipe2 = ConfirmDiskWipe(meta_step, total)
+
+        # Configure kernel cmdline
+        config_cmdline = ConfigureCmdline(next(current), total)
+
+        # Configure hostname
+        config_hostname = ConfigureHostname(next(current), total)
+
+        # User configuration meta-step
+        meta_step = next(current)
+        confirm_user = ConfirmUserMenu(meta_step, total)
+        user_configuration = UserConfigurationStep(meta_step, total)
+
+        # Select bundle
+        bundle_selector = BundleSelectorStep(next(current), total)
+
+        # Networking meta-step
+        meta_step = next(current)
+        confirm_dhcp = ConfirmDHCPMenu(meta_step, total)
+        static_ip_config = StaticIpStep(meta_step, total)
+
+        # Confirm installation
         setup_msg = 'Setup is complete. Do you want to begin installation? '  \
                     'This step may take several minutes depending on '        \
                     'bundles selected and network speed.'
-        confirm_installation = ConfirmStep('Attention!', setup_msg, 12, 12)
+        confirm_installation = ConfirmStep('Attention!',
+                                           setup_msg,
+                                           next(current), total)
         run = RunInstallation()
 
         self.start.set_action('Next', keyboard_select)
@@ -2936,12 +3037,14 @@ class Installation(object):
         manual_part_device.set_action('Next', set_mount_points)
         terminal_cgdisk.set_action('Next', manual_part_device)
         set_mount_points.set_action('Previous', manual_part_device)
-        set_mount_points.set_action('Next', config_hostname)
+        set_mount_points.set_action('Next', config_cmdline)
         manual_nopart_device.set_action('Previous', part_menu)
         manual_nopart_device.set_action('Next', confirm_disk_wipe2)
         confirm_disk_wipe2.set_action('No', manual_nopart_device)
-        confirm_disk_wipe2.set_action('Yes', config_hostname)
-        config_hostname.set_action('Previous', part_menu)
+        confirm_disk_wipe2.set_action('Yes', config_cmdline)
+        config_cmdline.set_action('Previous', part_menu)
+        config_cmdline.set_action('Next', config_hostname)
+        config_hostname.set_action('Previous', config_cmdline)
         config_hostname.set_action('Next', confirm_user)
         confirm_user.set_action('mkuser', user_configuration)
         confirm_user.set_action('nouser', bundle_selector)

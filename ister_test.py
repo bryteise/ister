@@ -3551,6 +3551,32 @@ def check_kernel_cmdline_bad_fdopen_fails():
         raise Exception("Failed to fail on fdopen")
 
 
+@run_command_wrapper
+@open_wrapper("good", "")
+def set_kernel_cmdline_appends_good():
+    """ Set kernel cmdline with valid template
+    """
+    def mock_exists(path):
+        return True
+
+    mock_exists_backup = ister.os.path.exists
+    ister.os.path.exists = mock_exists
+
+    ister.set_kernel_cmdline_appends({"cmdline": "test"}, "path")
+    ister.os.path.exists = mock_exists_backup
+    expected = ["path/etc/kernel/cmdline", "w", "test",
+                "path/usr/bin/clr-boot-manager update --path path"]
+    commands_compare_helper(expected)
+
+
+@run_command_wrapper
+def set_kernel_cmdline_appends_not_in_template():
+    """ Set kernel cmdline with "cmdline" not present in template
+    """
+    ister.set_kernel_cmdline_appends({}, "")
+    commands_compare_helper([])
+
+
 def get_host_from_url_good_1():
     """ Validate hostname from valid url
     """
@@ -4984,44 +5010,26 @@ def gui_mount_points_step_save_config_nvme0n1():
 
     ister_gui.get_part_devname = backup_get_part_devname
     expected = {
-        'PartitionLayout': [
-           {
-               'disk': 'nvme0n1',
-               'partition': '1',
-               'size': '1M',
-               'type': 'linux'
-           },
-           {
-               'disk': 'nvme0n1',
-               'partition': '2',
-               'size': '1M',
-               'type': 'EFI'
-           }
-        ],
-        'FilesystemTypes': [
-            {
-                'disk': 'nvme0n1',
-                'partition': '1',
-                'type': 'ext4'
-            },
-            {
-                'disk': 'nvme0n1',
-                'partition': '2',
-                'type': 'vfat'
-            }
-        ],
-        'PartitionMountPoints': [
-            {
-                'disk': 'nvme0n1',
-                'partition': '1',
-                'mount': '/'
-            },
-            {
-                'disk': 'nvme0n1',
-                'partition': '2',
-                'mount': '/boot'
-            }
-        ]
+        'PartitionLayout': [{'disk': 'nvme0n1',
+                             'partition': '1',
+                             'size': '1M',
+                             'type': 'linux'},
+                            {'disk': 'nvme0n1',
+                             'partition': '2',
+                             'size': '1M',
+                             'type': 'EFI'}],
+        'FilesystemTypes': [{'disk': 'nvme0n1',
+                             'partition': '1',
+                             'type': 'ext4'},
+                            {'disk': 'nvme0n1',
+                             'partition': '2',
+                             'type': 'vfat'}],
+        'PartitionMountPoints': [{'disk': 'nvme0n1',
+                                  'partition': '1',
+                                  'mount': '/'},
+                                 {'disk': 'nvme0n1',
+                                  'partition': '2',
+                                  'mount': '/boot'}]
     }
 
     if config != expected:
@@ -5219,6 +5227,8 @@ if __name__ == '__main__':
         check_kernel_cmdline_bad_no_isterconf,
         check_kernel_cmdline_bad_urlopen_fails,
         check_kernel_cmdline_bad_fdopen_fails,
+        set_kernel_cmdline_appends_good,
+        set_kernel_cmdline_appends_not_in_template,
         get_host_from_url_good_1,
         get_host_from_url_good_2,
         get_host_from_url_bad_malformed_url,
