@@ -409,6 +409,7 @@ def copy_os(args, template, target_dir):
         os.makedirs(args.statedir, exist_ok=True)
         os.chmod(args.statedir, stat.S_IRWXU)
         os.makedirs("{0}/var/tmp".format(target_dir))
+        os.chmod("{0}/var/tmp".format(target_dir), stat.S_IRWXU)
         run_command("mount --bind {0}/var/tmp {1}"
                     .format(target_dir, args.statedir))
     swupd_env = os.environ

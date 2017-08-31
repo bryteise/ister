@@ -1542,6 +1542,8 @@ def copy_os_physical_good():
                 "//var/tmp",
                 0,
                 False,
+                "//var/tmp",
+                stat.S_IRWXU,
                 "mount --bind //var/tmp /statetest",
                 swupd_cmd,
                 os.getenv("https_proxy"),
