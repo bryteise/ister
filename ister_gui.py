@@ -2068,10 +2068,12 @@ class SelectDeviceStep(ProcessStep):
         super(SelectDeviceStep, self).__init__()
         self._clicked = None
         self._actions = None
-        self.disks = get_list_of_disks()
+        self.disks = []
         self.progress = 'Step {} of {}'.format(cur_step, tot_steps)
 
     def handler(self, config):
+        # look every time, slow-loading or plug-in devices may show up late
+        self.disks = get_list_of_disks()
         self.build_ui_widgets()
 
         self._ui = SimpleForm(u'Choose target device for installation',
@@ -2080,6 +2082,8 @@ class SelectDeviceStep(ProcessStep):
         self._clicked = None
 
         self._action = self.run_ui()
+        if self._clicked == "Refresh":
+            return self._clicked
 
         if self._clicked:
             keys = ['PartitionLayout',
@@ -2097,6 +2101,10 @@ class SelectDeviceStep(ProcessStep):
 
     def _item_chosen(self, _, choice):
         self._clicked = choice
+        raise urwid.ExitMainLoop()
+
+    def _refresh(self, _):
+        self._clicked = 'Refresh'
         raise urwid.ExitMainLoop()
 
     def build_ui_widgets(self):
@@ -2129,11 +2137,16 @@ class SelectDeviceStep(ProcessStep):
                                          button,
                                          urwid.Divider()])
 
+        self._ui_widgets.append(ister_button('Refresh device list',
+                                             on_press=self._refresh))
+
 
 class SelectMultiDeviceStep(SelectDeviceStep):
     """UI to display the available disks"""
     def handler(self, config):
-        config["Disks"] = get_list_of_disks()
+        # look every time, slow-loading or plug-in devices may show up late
+        self.disks = get_list_of_disks()
+        config["Disks"] = self.disks
         other_options = ['Previous', 'Next']
         self.build_ui_widgets()
         self._ui = SimpleForm(u'Choose a drive to partition using cgdisk tool',
@@ -2141,8 +2154,12 @@ class SelectMultiDeviceStep(SelectDeviceStep):
         self._clicked = None
         self._action = self.run_ui()
         if self._clicked:
-            config["CurrentDisk"] = self._clicked
-            return 'cgdisk'
+            if self._clicked == 'Refresh':
+                return self._clicked
+            else:
+                config["CurrentDisk"] = self._clicked
+                return 'cgdisk'
+
         # get the list again, it might have changed
         config["Disks"] = get_list_of_disks()
         return self._action
@@ -3025,6 +3042,7 @@ class Installation(object):
         startmenu.set_action('Previous', telem_disclosure)
         startmenu.set_action('Automatic', automatic_device)
         automatic_device.set_action('Previous', startmenu)
+        automatic_device.set_action('Refresh', automatic_device)
         automatic_device.set_action('Next', confirm_disk_wipe)
         confirm_disk_wipe.set_action('No', automatic_device)
         confirm_disk_wipe.set_action('Yes', run)
@@ -3034,11 +3052,13 @@ class Installation(object):
         part_menu.set_action('Previous', startmenu)
         manual_part_device.set_action('Previous', part_menu)
         manual_part_device.set_action('cgdisk', terminal_cgdisk)
+        manual_part_device.set_action('Refresh', manual_part_device)
         manual_part_device.set_action('Next', set_mount_points)
         terminal_cgdisk.set_action('Next', manual_part_device)
         set_mount_points.set_action('Previous', manual_part_device)
         set_mount_points.set_action('Next', config_cmdline)
         manual_nopart_device.set_action('Previous', part_menu)
+        manual_nopart_device.set_action('Refresh', manual_nopart_device)
         manual_nopart_device.set_action('Next', confirm_disk_wipe2)
         confirm_disk_wipe2.set_action('No', manual_nopart_device)
         confirm_disk_wipe2.set_action('Yes', config_cmdline)
