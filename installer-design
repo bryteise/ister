@@ -20,6 +20,7 @@
         Version : version-number,
         Bundles : [ 'bundle1', ... ],
         !PostNonChroot : [ '/path/to/script', ... ],
+        !PostNonChrootShell : [ "shellcmd --and args", ... ],
         //Future
 	!PostChroot : [ '/path/to/script', ... ],
 	!RaidSupport : |md lvm btrfs|,
