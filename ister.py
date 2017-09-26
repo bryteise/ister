@@ -44,6 +44,7 @@ import logging
 import os
 import pwd
 import re
+import shlex
 import shutil
 import socket
 import stat
@@ -64,7 +65,7 @@ DEBUG = False
 
 
 def run_command(cmd, raise_exception=True, log_output=True, environ=None,
-                show_output=False):
+                show_output=False, shell=False):
     """Execute given command in a subprocess
 
     This function will raise an Exception if the command fails unless
@@ -73,10 +74,15 @@ def run_command(cmd, raise_exception=True, log_output=True, environ=None,
     try:
         LOG.debug("Running command {0}".format(cmd))
         sys.stdout.flush()
-        proc = subprocess.Popen(cmd.split(" "),
+        if shell:
+            full_cmd = cmd
+        else:
+            full_cmd = shlex.split(cmd)
+        proc = subprocess.Popen(full_cmd,
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE,
-                                env=environ)
+                                env=environ,
+                                shell=shell)
         lines = proc.stdout
         output = []
         for line in lines:
@@ -643,6 +649,21 @@ def post_install_nonchroot(template, target_dir):
     LOG.info("Running post scripts")
     for script in template["PostNonChroot"]:
         run_command(script + " {}".format(target_dir))
+
+
+def post_install_nonchroot_shell(template, target_dir):
+    """Run non chroot post install commands
+
+    The mount root for the install is passed as the ISTER_CHROOT environment
+    variable.
+    """
+    if not template.get("PostNonChrootShell"):
+        return
+    LOG.info("Running post commands")
+    script_env = os.environ
+    script_env["ISTER_CHROOT"] = target_dir
+    for cmdl in template["PostNonChrootShell"]:
+        run_command(cmdl, shell=True, environ=script_env)
 
 
 def cleanup(args, template, target_dir, raise_exception=True):
@@ -1278,6 +1299,7 @@ def install_os(args):
             LOG.debug("Detected IsterCloudInitSvc directive")
             cloud_init_configs(template, target_dir)
         post_install_nonchroot(template, target_dir)
+        post_install_nonchroot_shell(template, target_dir)
     except Exception as excep:
         LOG.error("Couldn't install ClearLinux")
         raise excep

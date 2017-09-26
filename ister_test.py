@@ -137,7 +137,8 @@ def run_command_wrapper(func):
     def wrapper():
         """run_command_wrapper"""
         def mock_run_command(cmd, _=None, raise_exception=True,
-                             log_output=True, environ=None, show_output=False):
+                             log_output=True, environ=None, show_output=False,
+                             shell=False):
             """mock_run_command wrapper"""
             COMMAND_RESULTS.append(cmd)
             if not raise_exception:
@@ -1827,6 +1828,15 @@ def post_install_nonchroot_good():
     commands = ["ldconfig -r /tmp",
                 "file1 /tmp"]
     ister.post_install_nonchroot({"PostNonChroot": ["file1"]}, "/tmp")
+    commands_compare_helper(commands)
+
+
+@run_command_wrapper
+def post_install_nonchroot_shell_good():
+    """Test post install shell command execution"""
+    cmdl = "cmd and options"
+    commands = [cmdl, True, True]
+    ister.post_install_nonchroot_shell({"PostNonChrootShell": [cmdl]}, "/tmp")
     commands_compare_helper(commands)
 
 
@@ -5124,6 +5134,7 @@ if __name__ == '__main__':
         add_users_none,
         add_user_fullname,
         post_install_nonchroot_good,
+        post_install_nonchroot_shell_good,
         cleanup_physical_good,
         cleanup_virtual_good,
         get_template_location_good,
