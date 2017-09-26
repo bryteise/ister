@@ -145,9 +145,10 @@ def run_command_wrapper(func):
             if not log_output:
                 COMMAND_RESULTS.append(False)
             if environ:
-                https_proxy = environ.get("https_proxy")
-                COMMAND_RESULTS.append(https_proxy)
+                COMMAND_RESULTS.append(True)
             if show_output:
+                COMMAND_RESULTS.append(True)
+            if shell:
                 COMMAND_RESULTS.append(True)
         global COMMAND_RESULTS
         COMMAND_RESULTS = []
@@ -507,14 +508,6 @@ def run_command_bad():
         exception_flag = True
     if not exception_flag:
         raise Exception("Bad command did not fail")
-
-
-@run_command_wrapper
-def run_command_with_env():
-    """run_command with environment variable passed"""
-    command = ["true", os.getenv("https_proxy")]
-    ister.run_command("true", environ=os.environ)
-    commands_compare_helper(command)
 
 
 @run_command_wrapper
@@ -1369,7 +1362,7 @@ def copy_os_good():
                 "--contenturl=ctest --versionurl=vtest --format=formattest " \
                 "--statedir=/statetest"
     commands = [swupd_cmd,
-                os.getenv("https_proxy"),
+                True,
                 True]
     ister.copy_os(args, {"Version": 0, "DestinationType": ""}, "/")
     ister.add_bundles = backup_add_bundles
@@ -1397,7 +1390,7 @@ def copy_os_cert_good():
                 "--contenturl=ctest --versionurl=vtest --format=formattest " \
                 "--statedir=/statetest -C /certtest"
     commands = [swupd_cmd,
-                "https://to.clearlinux.org",
+                True,
                 True]
     template = {
         "Version": 0,
@@ -1430,7 +1423,7 @@ def copy_os_proxy_good():
                 "--contenturl=ctest --versionurl=vtest --format=formattest " \
                 "--statedir=/statetest"
     commands = [swupd_cmd,
-                "https://to.clearlinux.org",
+                True,
                 True]
     template = {
         "Version": 0,
@@ -1466,7 +1459,7 @@ def copy_os_format_good():
                 "--contenturl=ctest --versionurl=vtest --format=test " \
                 "--statedir=/statetest"
     commands = [swupd_cmd,
-                os.getenv("https_proxy"),
+                True,
                 True]
     ister.copy_os(args, {"Version": 0, "DestinationType": ""}, "/")
     ister.add_bundles = backup_add_bundles
@@ -1497,7 +1490,7 @@ def copy_os_which_good():
                 "--statedir=/statetest"
     swupd_cmd = "stdbuf -o 0 {0}".format(swupd_cmd)
     commands = [swupd_cmd,
-                os.getenv("https_proxy"),
+                True,
                 True]
     ister.copy_os(args, {"Version": 0, "DestinationType": ""}, "/")
     ister.add_bundles = backup_add_bundles
@@ -1546,7 +1539,7 @@ def copy_os_physical_good():
                 stat.S_IRWXU,
                 "mount --bind //var/tmp /statetest",
                 swupd_cmd,
-                os.getenv("https_proxy"),
+                True,
                 True]
     ister.copy_os(args, {"Version": 0, "DestinationType": "physical"}, "/")
     ister.add_bundles = backup_add_bundles
@@ -5077,7 +5070,6 @@ if __name__ == '__main__':
 
     TESTS = [
         run_command_good,
-        run_command_with_env,
         run_command_bad,
         create_virtual_disk_good_meg,
         create_virtual_disk_good_gig,
