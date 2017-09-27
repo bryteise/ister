@@ -19,6 +19,7 @@
       !sudo : |True, False| }, ... ],
         Version : version-number,
         Bundles : [ 'bundle1', ... ],
+        !PreSetupShell : [ "shellcmd --and args", ... ],
         !PostNonChroot : [ '/path/to/script', ... ],
         !PostNonChrootShell : [ "shellcmd --and args", ... ],
 	!PostChroot : [ '/path/to/script', ... ],

@@ -1823,6 +1823,15 @@ def add_user_fullname():
 
 
 @run_command_wrapper
+def pre_install_shell_good():
+    """Test pre install shell command execution"""
+    cmdl = "cmd and options"
+    commands = [cmdl, True]
+    ister.pre_install_shell({"PreInstallShell": [cmdl]})
+    commands_compare_helper(commands)
+
+
+@run_command_wrapper
 def post_install_nonchroot_good():
     """Test post non-chroot install script execution"""
     commands = ["ldconfig -r /tmp",
@@ -5152,6 +5161,7 @@ if __name__ == '__main__':
         add_users_good,
         add_users_none,
         add_user_fullname,
+        pre_install_shell_good,
         post_install_nonchroot_good,
         post_install_nonchroot_shell_good,
         post_install_chroot_good,
