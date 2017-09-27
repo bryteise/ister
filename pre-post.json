@@ -7,6 +7,9 @@
     "PartitionMountPoints" : [ { "disk" : "test.img", "partition" : 1, "mount" : "/boot" },
 			       { "disk" : "test.img", "partition" : 2, "mount" : "/" } ],
     "Version": "latest",
-    "Bundles": ["kernel-native", "os-installer", "os-core-update", "os-core"],
-    "PostNonChrootShell": ["touch $ISTER_CHROOT/foo"]
+    "Bundles": ["os-core"],
+    "PostNonChroot": ["./post-non-chroot.sh"],
+    "PostNonChrootShell": ["touch $ISTER_CHROOT/post-non-chroot-shell"],
+    "PostChroot": ["/post-chroot.sh"],
+    "PostChrootShell": ["touch /post-chroot-shell"]
 }

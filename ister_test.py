@@ -1824,7 +1824,7 @@ def add_user_fullname():
 
 @run_command_wrapper
 def post_install_nonchroot_good():
-    """Test post install script execution"""
+    """Test post non-chroot install script execution"""
     commands = ["ldconfig -r /tmp",
                 "file1 /tmp"]
     ister.post_install_nonchroot({"PostNonChroot": ["file1"]}, "/tmp")
@@ -1833,10 +1833,29 @@ def post_install_nonchroot_good():
 
 @run_command_wrapper
 def post_install_nonchroot_shell_good():
-    """Test post install shell command execution"""
+    """Test post non-chroot install shell command execution"""
     cmdl = "cmd and options"
     commands = [cmdl, True, True]
     ister.post_install_nonchroot_shell({"PostNonChrootShell": [cmdl]}, "/tmp")
+    commands_compare_helper(commands)
+
+
+@run_command_wrapper
+@chroot_open_wrapper("silent")
+def post_install_chroot_good():
+    """Test post install script execution"""
+    commands = ["file1"]
+    ister.post_install_chroot({"PostChroot": ["file1"]}, "/tmp")
+    commands_compare_helper(commands)
+
+
+@run_command_wrapper
+@chroot_open_wrapper("silent")
+def post_install_chroot_shell_good():
+    """Test post install shell command execution"""
+    cmdl = "cmd and options"
+    commands = [cmdl, True]
+    ister.post_install_chroot_shell({"PostChrootShell": [cmdl]}, "/tmp")
     commands_compare_helper(commands)
 
 
@@ -5135,6 +5154,8 @@ if __name__ == '__main__':
         add_user_fullname,
         post_install_nonchroot_good,
         post_install_nonchroot_shell_good,
+        post_install_chroot_good,
+        post_install_chroot_shell_good,
         cleanup_physical_good,
         cleanup_virtual_good,
         get_template_location_good,
