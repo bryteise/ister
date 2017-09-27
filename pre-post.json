@@ -8,6 +8,7 @@
 			       { "disk" : "test.img", "partition" : 2, "mount" : "/" } ],
     "Version": "latest",
     "Bundles": ["os-core"],
+    "PreInstallShell": ["echo preinstall shell command"],
     "PostNonChroot": ["./post-non-chroot.sh"],
     "PostNonChrootShell": ["touch $ISTER_CHROOT/post-non-chroot-shell"],
     "PostChroot": ["/post-chroot.sh"],

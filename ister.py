@@ -634,6 +634,16 @@ def set_kernel_cmdline_appends(template, target_dir):
                 .format(target_dir))
 
 
+def pre_install_shell(template):
+    """Run pre install commands
+    """
+    if not template.get("PreInstallShell"):
+        return
+    LOG.info("Running pre install commands")
+    for cmdl in template["PreInstallShell"]:
+        run_command(cmdl, shell=True)
+
+
 def post_install_nonchroot(template, target_dir):
     """Run non chroot post install scripts
 
@@ -1305,6 +1315,7 @@ def install_os(args):
     try:
         # Disabling this until implementation replaced with pycurl
         # validate_network(args.url)
+        pre_install_shell(template)
         if template["DestinationType"] == "virtual":
             create_virtual_disk(template)
         if not template.get("DisabledNewPartitions", False):
