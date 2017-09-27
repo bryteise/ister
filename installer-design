@@ -21,8 +21,9 @@
         Bundles : [ 'bundle1', ... ],
         !PostNonChroot : [ '/path/to/script', ... ],
         !PostNonChrootShell : [ "shellcmd --and args", ... ],
-        //Future
 	!PostChroot : [ '/path/to/script', ... ],
+	!PostChrootShell : [ 'shellcmd --and args', ... ],
+        //Future
 	!RaidSupport : |md lvm btrfs|,
 	!RaidSetup : [ { raid : 'md-raid0', rdisk : 'md0', rpartitions :
       [ sda1, sda2, ... ] }, ... ],

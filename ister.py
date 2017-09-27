@@ -646,7 +646,7 @@ def post_install_nonchroot(template, target_dir):
 
     if not template.get("PostNonChroot"):
         return
-    LOG.info("Running post scripts")
+    LOG.info("Running post non-chroot scripts")
     for script in template["PostNonChroot"]:
         run_command(script + " {}".format(target_dir))
 
@@ -659,12 +659,35 @@ def post_install_nonchroot_shell(template, target_dir):
     """
     if not template.get("PostNonChrootShell"):
         return
-    LOG.info("Running post commands")
+    LOG.info("Running post non-chroot commands")
     script_env = os.environ
     script_env["ISTER_CHROOT"] = target_dir
     for cmdl in template["PostNonChrootShell"]:
         run_command(cmdl, shell=True, environ=script_env)
 
+
+def post_install_chroot(template, target_dir):
+    """Run chroot post install scripts
+
+    All post scripts must be executable.
+    """
+    if not template.get("PostChroot"):
+        return
+    LOG.info("Running post scripts")
+    with ChrootOpen(target_dir) as _:
+        for script in template["PostChroot"]:
+            run_command(script)
+
+
+def post_install_chroot_shell(template, target_dir):
+    """Run chroot post install commands
+    """
+    if not template.get("PostChrootShell"):
+        return
+    LOG.info("Running post commands")
+    with ChrootOpen(target_dir) as _:
+        for cmdl in template["PostChrootShell"]:
+            run_command(cmdl, shell=True)
 
 def cleanup(args, template, target_dir, raise_exception=True):
     """Unmount and remove temporary files
@@ -973,7 +996,7 @@ def validate_static_ip_template(static_conf):
 
 
 def validate_postnonchroot_template(scripts):
-    """Attempt to verify all post scripts exist
+    """Attempt to verify all post non-chroot scripts exist
 
     This function will raise an Exception on finding an error.
     """
@@ -1300,6 +1323,8 @@ def install_os(args):
             cloud_init_configs(template, target_dir)
         post_install_nonchroot(template, target_dir)
         post_install_nonchroot_shell(template, target_dir)
+        post_install_chroot(template, target_dir)
+        post_install_chroot_shell(template, target_dir)
     except Exception as excep:
         LOG.error("Couldn't install ClearLinux")
         raise excep
