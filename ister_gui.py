@@ -2662,8 +2662,7 @@ class UserConfigurationStep(ProcessStep):
                 continue
         tmp = dict()
         tmp['username'] = self.edit_username.get_edit_text()
-        tmp['password'] = crypt.crypt(self.edit_password.get_edit_text(),
-                                      'aa')
+        tmp['password'] = crypt.crypt(self.edit_password.get_edit_text())
         tmp['sudo'] = self.sudo.get_state()
         self._set_fullname(tmp)
 
