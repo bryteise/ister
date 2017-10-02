@@ -126,13 +126,19 @@ def create_virtual_disk(template):
     """
     LOG.info("Creating virtual disk")
     image_size = 0
-    match = {"M": 1, "G": 1024, "T": 1024 * 1024}
+    # number of kilobytes in each of the following
+    match = {"M": 1024, "G": 1024 ** 2, "T": 1024 ** 3}
     for part in template["PartitionLayout"]:
         if part["size"] != "rest":
             image_size += int(part["size"][:-1]) * match[part["size"][-1]]
 
-    image_size += 1
-    command = "qemu-img create {0} {1}M".\
+    # Add extra buffer, note disk sizes should be multiples of 4kb.
+    # Increase buffer by 10x to avoid insufficient space due to dd using 1K
+    # sector sizes and parted is using the native sector sizes and getting
+    # partition sizes specified in MiB (maybe eventually switch to doing
+    # math based on each disk or virtual disks sector size).
+    image_size += 40
+    command = "dd if=/dev/zero of={0} bs=1024 count={1} seek={1}".\
               format(template["PartitionLayout"][0]["disk"], image_size)
     run_command(command)
 
