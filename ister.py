@@ -84,20 +84,29 @@ def run_command(cmd, raise_exception=True, log_output=True, environ=None,
                                 env=environ,
                                 shell=shell)
         lines = proc.stdout
-        output = []
+        stdout = []
         for line in lines:
             decoded_line = line.decode('ascii', 'ignore').rstrip()
-            output.append(decoded_line)
+            stdout.append(decoded_line)
             if show_output:
                 LOG.info(decoded_line)
             elif log_output:
                 LOG.debug(decoded_line)
+        lines = proc.stderr
+        stderr = []
+        for line in lines:
+            decoded_line = line.decode('ascii', 'ignore').rstrip()
+            stderr.append(decoded_line)
+            if show_output:
+                LOG.info(decoded_line)
+            elif log_output:
+                LOG.debug(decoded_line)
+
         if proc.poll() and raise_exception:
-            decoded_line = proc.stderr.read().decode().rstrip()
-            output.append(decoded_line)
-            LOG.debug("Error {0}".format(decoded_line))
-            raise Exception("{0} failed".format(cmd))
-        return output, proc.returncode
+            if len(stderr) > 0:
+                LOG.debug("Error {0}".format('\n'.join(stderr)))
+            raise Exception("{0}".format(cmd))
+        return stdout, proc.returncode
     except Exception as exep:
         if raise_exception:
             raise Exception("{0} failed: {1}".format(cmd, exep))
