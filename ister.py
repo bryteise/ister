@@ -147,7 +147,7 @@ def create_virtual_disk(template):
     # partition sizes specified in MiB (maybe eventually switch to doing
     # math based on each disk or virtual disks sector size).
     image_size += 40
-    command = "dd if=/dev/zero of={0} bs=1024 count={1} seek={1}".\
+    command = "dd if=/dev/zero of={0} bs=1024 count=0 seek={1}".\
               format(template["PartitionLayout"][0]["disk"], image_size)
     run_command(command)
 
