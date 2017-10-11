@@ -142,11 +142,9 @@ def create_virtual_disk(template):
             image_size += int(part["size"][:-1]) * match[part["size"][-1]]
 
     # Add extra buffer, note disk sizes should be multiples of 4kb.
-    # Increase buffer by 10x to avoid insufficient space due to dd using 1K
-    # sector sizes and parted is using the native sector sizes and getting
-    # partition sizes specified in MiB (maybe eventually switch to doing
-    # math based on each disk or virtual disks sector size).
-    image_size += 40
+    # Increase buffer by 1MB to give parted wiggle room due to dd using 1K
+    # sector sizes and parted is getting partition sizes specified in MiB.
+    image_size += 1024
     command = "dd if=/dev/zero of={0} bs=1024 count=0 seek={1}".\
               format(template["PartitionLayout"][0]["disk"], image_size)
     run_command(command)
