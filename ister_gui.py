@@ -363,47 +363,44 @@ def search_swap(choices, config, mount_d):
     Search for the name of the swap partition to add to config
     """
     for choice in choices:
+        is_swap = True
         part = choice.split()[0]
         for point in mount_d:
             if part == mount_d[point]['part']:
+                is_swap = False
                 break
-        else:
-            output = subprocess.check_output('blkid | grep {0}'
+        if is_swap:
+            output = subprocess.check_output('fdisk -l | grep {0}'
                                              .format(part),
                                              shell=True).decode('utf-8')
-            pttr = 'TYPE="'
-            if pttr in output:
-                idx = output.index(pttr)
-                output = output[idx + len(pttr):]
-                output = output[:output.index('"')]
-                if output == 'swap':
-                    # first try to set using lsblk -no pkname part
-                    disk = get_part_devname(part)
-                    # if that fails, alert and fallback to old
-                    # (unreliable) method
-                    if not disk:
-                        Alert('Partition error',
-                              'Unable to detect device name for {}. '
-                              'Falling back to path parsing. This method is '
-                              'unreliable and may result in a failed install.'
-                              .format(part)).do_alert()
-                        disk = ''.join(x for x in part if not x.isdigit())
+            if 'Linux swap' in output:
+                # first try to set using lsblk -no pkname part
+                disk = get_part_devname(part)
+                # if that fails, alert and fallback to old
+                # (unreliable) method
+                if not disk:
+                    Alert('Partition error',
+                          'Unable to detect device name for {}. '
+                          'Falling back to path parsing. This method is '
+                          'unreliable and may result in a failed install.'
+                          .format(part)).do_alert()
+                    disk = ''.join(x for x in part if not x.isdigit())
 
-                    part = part[len(disk):]
-                    # strip prefix if it exists. Not needed here and ister.py
-                    # will add it back
-                    prefix = part[0] if not part[0].isdigit() else ''
-                    part = part.lstrip(prefix)
+                part = part[len(disk):]
+                # strip prefix if it exists. Not needed here and ister.py
+                # will add it back
+                prefix = part[0] if not part[0].isdigit() else ''
+                part = part.lstrip(prefix)
 
-                    config['PartitionLayout'].append({
-                        'disk': disk,
-                        'partition': part,
-                        'size': '1M',
-                        'type': 'swap'})
-                    config['FilesystemTypes'].append({
-                        'disk': disk,
-                        'partition': part,
-                        'type': 'swap'})
+                config['PartitionLayout'].append({
+                    'disk': disk,
+                    'partition': part,
+                    'size': '1M',
+                    'type': 'swap'})
+                config['FilesystemTypes'].append({
+                    'disk': disk,
+                    'partition': part,
+                    'type': 'swap'})
 
 
 def interface_list():
@@ -2302,9 +2299,7 @@ class MountPointsStep(ProcessStep):
             else:
                 return self._action
         self._save_config(config, mount_d)
-        partitions = [choice for choice in self.choices
-                      if choice not in other_options]
-        search_swap(partitions, config, mount_d)
+        search_swap(self.choices, config, mount_d)
         exc = ister_wrapper('validate_disk_template', config)
         if exc is not None:
             return exc
