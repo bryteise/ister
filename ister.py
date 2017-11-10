@@ -482,12 +482,9 @@ def create_account(user, target_dir):
     """
 
     os.makedirs(target_dir + "/home", exist_ok=True)
-    if user.get("uid"):
-        command = "useradd -U -m -u {0} {1}"\
-            .format(user["uid"], user["username"])
-    else:
-        command = "useradd -U -m {}".format(user["username"])
-
+    # default uid to 1001 if uid not present in user
+    command = "useradd -U -m -u {} {}".format(user.get("uid") or "1001",
+                                              user.get("username"))
     command += (" -p {0}".format(user["password"])
                 if user.get("password") else " -p ''")
 
