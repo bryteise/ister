@@ -1623,7 +1623,7 @@ def chroot_open_class_bad_close():
 def create_account_good():
     """Create account no uid"""
     template = {"username": "user"}
-    commands = ["useradd -U -m user -p ''"]
+    commands = ["useradd -U -m -u 1001 user -p ''"]
     ister.create_account(template, "/tmp")
     commands_compare_helper(commands)
 
