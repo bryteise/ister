@@ -816,9 +816,9 @@ class HostnameEdit(urwid.Edit):
     def keypress(self, size, key):
         """Manages key press event to validate input"""
         first = re.compile('[a-zA-Z0-9]')
-        rest = re.compile('[a-zA-Z0-9-]')
+        rest = re.compile('[a-zA-Z0-9-.]')
         # Only allow valid hostnames. Only letters, numbers,
-        # and '-' allowed.  Can't start with '-', Max length 63 """
+        # '.' and '-' allowed.  Can't start with '.' or '-', Max length 63 """
 
         i = len(self.get_edit_text())
 
