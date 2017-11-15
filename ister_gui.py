@@ -2412,6 +2412,8 @@ class BundleSelectorStep(ProcessStep):
                          'desc': 'Popular text editors (terminal-based)'},
                         {'name': 'user-basic',
                          'desc': 'Captures most console work flows'},
+                        {'name': 'openssh-server',
+                         'desc': 'Secure shell server for remote login'},
                         {'name': 'desktop-autostart',
                          'desc': 'UI that automatically starts on boot'},
                         {'name': 'dev-utils',
