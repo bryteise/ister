@@ -115,6 +115,7 @@ send -- "\t"
 send -- "\t"
 send -- "\t"
 send -- "\t"
+send -- "\t"
 # Next
 send -- "\r"
 expect -re ".*Network configuration.*"
