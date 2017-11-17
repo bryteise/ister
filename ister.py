@@ -289,6 +289,9 @@ def create_filesystems(template):
                         .format(base_dev, fst["partition"]))
         if "disable_format" not in fst:
             run_command(command)
+            if fst["type"] == "swap":
+                run_command("swapon {0}{1}".format(dev, fst["partition"]),
+                            raise_exception=False)
 
 
 def setup_mounts(template):

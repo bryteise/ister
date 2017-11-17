@@ -886,6 +886,8 @@ def create_filesystems_good():
                 "sgdisk /dev/sdb "
                 "--typecode=2:0657fd6d-a4ab-43c4-84e5-0933c84b4f4f",
                 "mkswap /dev/sdb2",
+                "swapon /dev/sdb2",
+                False,
                 "mkfs.xfs -f /dev/sdb3"]
     os.listdir = mock_listdir
     ister.create_filesystems(template)
@@ -913,6 +915,8 @@ def create_filesystems_mmcblk_good():
                 "sgdisk /dev/mmcblk1 "
                 "--typecode=2:0657fd6d-a4ab-43c4-84e5-0933c84b4f4f",
                 "mkswap /dev/mmcblk1p2",
+                "swapon /dev/mmcblk1p2",
+                False,
                 "mkfs.ext4 -F /dev/mmcblk1p3"]
     os.listdir = mock_listdir
     ister.create_filesystems(template)
@@ -934,6 +938,8 @@ def create_filesystems_virtual_good():
                 "sgdisk /dev/loop0 "
                 "--typecode=2:0657fd6d-a4ab-43c4-84e5-0933c84b4f4f",
                 "mkswap /dev/loop0p2",
+                "swapon /dev/loop0p2",
+                False,
                 "mkfs.ext4 -F /dev/loop0p3"]
     ister.create_filesystems(template)
     commands_compare_helper(commands)
@@ -972,6 +978,8 @@ def create_filesystems_good_options():
                 "sgdisk /dev/sdb "
                 "--typecode=2:0657fd6d-a4ab-43c4-84e5-0933c84b4f4f",
                 "mkswap opt /dev/sdb2",
+                "swapon /dev/sdb2",
+                False,
                 "mkfs.xfs -f opt /dev/sdb3"]
     os.listdir = mock_listdir
     ister.create_filesystems(template)
