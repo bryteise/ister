@@ -1301,23 +1301,25 @@ class NetworkControl(object):
     settings on the installer for reference.
     """
     # pylint: disable=R0902
-    def __init__(self, target, allow_reset=False, header=None, gen_en=False):
+    def __init__(self, target, allow_reset=False, header=None, gen_en=False,
+                 label='Set static IP configuration'):
         left = 8
         self.target = target
         self.widgets = []
+        self.label = label
         # configure static ip settings section
         if header:
             self.static_header = urwid.Text(header)
         else:
             self.static_header = urwid.Text('Static IP Configuration')
 
-        self.static_button = ister_button('Set static IP configuration',
+        self.static_button = ister_button(self.label,
                                           on_press=self.target,
                                           left=left)
         # go back two original widgets (through both Padding and AttrMap) to
         # set the label of the button.
         self.static_button.original_widget.original_widget.set_label(
-            ('ex', 'Set static IP configuration'))
+            ('ex', self.label))
         # configure reset button
         if allow_reset:
             self.reset_button = ister_button(
@@ -1498,11 +1500,11 @@ class NetworkControl(object):
         if reqd_found >= reqd:
             self.static_ready = True
             self.static_button.original_widget.original_widget.set_label(
-                ('button', 'Set static IP configuration'))
+                ('button', self.label))
         else:
             self.static_ready = False
             self.static_button.original_widget.original_widget.set_label(
-                ('ex', 'Set static IP configuration'))
+                ('ex', self.label))
 
     def _reset_network(self, _):
         """Reset the network to original configuration by removing static
@@ -1558,7 +1560,9 @@ class NetworkRequirements(ProcessStep):
                                          allow_reset=True,
                                          gen_en=True,
                                          header='Static IP Configuration '
-                                                '(optional)')
+                                                '(optional)',
+                                         label='Set static IP configuration '
+                                               '(may require "Refresh")')
 
         # normally much of this would belong in __init__, but we want it
         # refreshed every time the user refreshes/returns to the screen
