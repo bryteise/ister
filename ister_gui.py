@@ -159,8 +159,11 @@ def get_list_of_disks():
     """
     disks = []
     root_disk = ''
-    output = subprocess.check_output([
-        '/usr/bin/lsblk', '-lo', 'NAME,TYPE,MOUNTPOINT']).decode('utf-8')
+    try:
+        output = subprocess.check_output([
+            '/usr/bin/lsblk', '-lo', 'NAME,TYPE,MOUNTPOINT']).decode('utf-8')
+    except:
+        return []
     parts = output.split('\n')
     for part in parts:
         part = part.strip()
@@ -203,7 +206,10 @@ def find_current_disk():
     root
     """
     cmd = ['lsblk', '-l', '-o', 'NAME,MOUNTPOINT']
-    output = subprocess.check_output(cmd).decode('utf-8')
+    try:
+        output = subprocess.check_output(cmd).decode('utf-8')
+    except:
+        return ''
     for line in output.split('\n'):
         if '/' in line:
             return line.split()[0]
@@ -370,9 +376,12 @@ def search_swap(choices, config, mount_d):
                 is_swap = False
                 break
         if is_swap:
-            output = subprocess.check_output('fdisk -l | grep {0}'
-                                             .format(part),
-                                             shell=True).decode('utf-8')
+            try:
+                output = subprocess.check_output('fdisk -l | grep {0}'
+                                                 .format(part),
+                                                 shell=True).decode('utf-8')
+            except:
+                continue
             if 'Linux swap' in output:
                 # first try to set using lsblk -no pkname part
                 disk = get_part_devname(part)
@@ -1227,7 +1236,10 @@ class ChooseAction(ProcessStep):
         for disk in disks:
             if disk in self.current or root_part:
                 continue
-            part_info = get_disk_info('/dev/{}'.format(disk))
+            try:
+                part_info = get_disk_info('/dev/{}'.format(disk))
+            except:
+                continue
             root_part = self._get_part(part_info,
                                        'Linux root',
                                        self.target_dir)
@@ -2374,9 +2386,13 @@ class MountPointsStep(ProcessStep):
                 'partition': part,
                 'type': _type})
             if not mount_d[point]['format']:
-                if 'TYPE="' in subprocess.check_output(
-                        'blkid | grep {0}'
-                        .format(disk+prefix+part), shell=True).decode('utf-8'):
+                try:
+                    output = subprocess.check_output(
+                        'blkid | grep {0}'.format(disk+prefix+part),
+                        shell=True).decode('utf-8')
+                except:
+                    output = ''
+                if 'TYPE="' in output:
                     config['FilesystemTypes'][-1]['disable_format'] = True
             config['PartitionMountPoints'].append({
                 'disk': disk,
