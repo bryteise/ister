@@ -81,7 +81,10 @@ def get_disk_info(disk):
     """Return dictionary with disk information"""
     info = {'partitions': []}
     cmd = ['/usr/bin/fdisk', '-l', disk]
-    output = subprocess.check_output(cmd).decode('utf-8')
+    try:
+        output = subprocess.check_output(cmd).decode('utf-8')
+    except:
+        return info
     lines = output.split('\n')
     expr = re.compile('^Device')
     # discard header...
@@ -1236,13 +1239,11 @@ class ChooseAction(ProcessStep):
         for disk in disks:
             if disk in self.current or root_part:
                 continue
-            try:
-                part_info = get_disk_info('/dev/{}'.format(disk))
-            except:
-                continue
-            root_part = self._get_part(part_info,
-                                       'Linux root',
-                                       self.target_dir)
+            part_info = get_disk_info('/dev/{}'.format(disk))
+            if part_info["partitions"]:
+                root_part = self._get_part(part_info,
+                                           'Linux root',
+                                           self.target_dir)
             # only look for a boot partition on the same disk as the root
             # partition and only if a root partition is found
             if root_part:
