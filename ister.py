@@ -103,7 +103,7 @@ def run_command(cmd, raise_exception=True, log_output=True, environ=None,
                 LOG.debug(decoded_line)
 
         if proc.poll() and raise_exception:
-            if len(stderr) > 0:
+            if stderr:
                 LOG.debug("Error {0}".format('\n'.join(stderr)))
             raise Exception("{0}".format(cmd))
         return stdout, proc.returncode
