@@ -423,6 +423,8 @@ def copy_os(args, template, target_dir):
     swupd_command += " --contenturl={0}".format(args.contenturl)
     swupd_command += " --versionurl={0}".format(args.versionurl)
     swupd_command += " --format={0}".format(args.format)
+    if args.fast_install:
+        args.statedir = "{0}/tmp/swupd".format(target_dir)
     swupd_command += " --statedir={0}".format(args.statedir)
     if args.cert_file:
         swupd_command += " -C {0}".format(args.cert_file)
@@ -440,6 +442,9 @@ def copy_os(args, template, target_dir):
         LOG.debug("https_proxy: {}".format(template["HTTPSProxy"]))
 
     run_command(swupd_command, environ=swupd_env, show_output=True)
+
+    if args.fast_install:
+        run_command("rm -rf {0}".format(args.statedir))
 
 
 class ChrootOpen(object):
@@ -1415,9 +1420,13 @@ def handle_options():
     parser.add_argument("-k", "--kcmdline", action="store",
                         default="/proc/cmdline",
                         help="File to inspect for kernel cmdline opts")
-    parser.add_argument("-S", "--statedir", action="store",
+    group = parser.add_mutually_exclusive_group(required=False)
+    group.add_argument("-S", "--statedir", action="store",
                         default="/var/lib/swupd",
                         help="Path to swupd state dir")
+    group.add_argument("-F", "--fast-install", action="store_true",
+                        default=False,
+                        help="Move swupd state dir inside image for a faster install")
     args = parser.parse_args()
     return args
 
