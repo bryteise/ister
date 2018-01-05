@@ -1366,6 +1366,7 @@ def copy_os_good():
     args.versionurl = "vtest"
     args.format = "formattest"
     args.statedir = "/statetest"
+    args.fast_install = False
     args.cert_file = None
     swupd_cmd = "swupd verify --install --path=/ --manifest=0 "              \
                 "--contenturl=ctest --versionurl=vtest --format=formattest " \
@@ -1394,6 +1395,7 @@ def copy_os_cert_good():
     args.versionurl = "vtest"
     args.format = "formattest"
     args.statedir = "/statetest"
+    args.fast_install = False
     args.cert_file = "/certtest"
     swupd_cmd = "swupd verify --install --path=/ --manifest=0 "              \
                 "--contenturl=ctest --versionurl=vtest --format=formattest " \
@@ -1427,6 +1429,7 @@ def copy_os_proxy_good():
     args.versionurl = "vtest"
     args.format = "formattest"
     args.statedir = "/statetest"
+    args.fast_install = False
     args.cert_file = None
     swupd_cmd = "swupd verify --install --path=/ --manifest=0 "              \
                 "--contenturl=ctest --versionurl=vtest --format=formattest " \
@@ -1463,6 +1466,7 @@ def copy_os_format_good():
     args.versionurl = "vtest"
     args.format = None
     args.statedir = "/statetest"
+    args.fast_install = False
     args.cert_file = None
     swupd_cmd = "swupd verify --install --path=/ --manifest=0 "        \
                 "--contenturl=ctest --versionurl=vtest --format=test " \
@@ -1493,6 +1497,7 @@ def copy_os_which_good():
     args.versionurl = "vtest"
     args.format = "formattest"
     args.statedir = "/statetest"
+    args.fast_install = False
     args.cert_file = None
     swupd_cmd = "swupd verify --install --path=/ --manifest=0 "              \
                 "--contenturl=ctest --versionurl=vtest --format=formattest " \
@@ -1502,6 +1507,36 @@ def copy_os_which_good():
                 True,
                 True]
     ister.copy_os(args, {"Version": 0, "DestinationType": ""}, "/")
+    ister.add_bundles = backup_add_bundles
+    shutil.which = backup_which
+    commands_compare_helper(commands)
+
+
+@run_command_wrapper
+def copy_os_fast_install_good():
+    """Check installer command with fast install option"""
+    backup_add_bundles = ister.add_bundles
+    ister.add_bundles = lambda x, y: None
+    backup_which = shutil.which
+    shutil.which = lambda x: False
+
+    def args():
+        """args empty object"""
+        pass
+    args.contenturl = "ctest"
+    args.versionurl = "vtest"
+    args.format = "formattest"
+    args.statedir = "/statetest"
+    args.fast_install = True
+    args.cert_file = None
+    swupd_cmd = "swupd verify --install --path=/tmp --manifest=0 "           \
+                "--contenturl=ctest --versionurl=vtest --format=formattest " \
+                "--statedir=/tmp/tmp/swupd"
+    commands = [swupd_cmd,
+                True,
+                True,
+                "rm -rf /tmp/tmp/swupd"]
+    ister.copy_os(args, {"Version": 0, "DestinationType": ""}, "/tmp")
     ister.add_bundles = backup_add_bundles
     shutil.which = backup_which
     commands_compare_helper(commands)
@@ -1532,6 +1567,7 @@ def copy_os_physical_good():
     args.versionurl = "vtest"
     args.format = "formattest"
     args.statedir = "/statetest"
+    args.fast_install = False
     args.cert_file = None
     swupd_cmd = "swupd verify --install --path=/ --manifest=0 "              \
                 "--contenturl=ctest --versionurl=vtest --format=formattest " \
@@ -5154,6 +5190,7 @@ if __name__ == '__main__':
         copy_os_proxy_good,
         copy_os_format_good,
         copy_os_which_good,
+        copy_os_fast_install_good,
         copy_os_physical_good,
         chroot_open_class_good,
         chroot_open_class_bad_open,
