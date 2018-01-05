@@ -1435,7 +1435,7 @@ def main():
         install_os(args)
     except Exception as exep:
         LOG.debug("Failed: {}".format(repr(exep)))
-        # todo: Add arg for loglevel to -v
+        # TODO: Add arg for loglevel to -v
         # And change this to trigger on DEBUG level
         if DEBUG:
             traceback.print_exc()
