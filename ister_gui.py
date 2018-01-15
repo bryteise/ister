@@ -347,6 +347,12 @@ def required_bundles(config):
         {'name': 'os-core-update',
          'desc': 'Required to update the system'}])
 
+    for partition in config['PartitionMountPoints']:
+        if 'encryption' in partition and partition['mount'] == '/':
+            reqd_bundles.extend([{
+                'name':'bundle-extras',
+                'desc':'Required to boot encrypted root partition'}])
+
     # configure dynamically required bundles (sysadmin-basic, telemetrics)
     sysadmin_basic = {'name': 'sysadmin-basic',
                       'desc': 'Run common utilities useful for managing a '
@@ -478,6 +484,85 @@ class Alert(object):
         else:
             self.loop.start()
             self.loop.draw_screen()
+
+
+class AlertLoggerHandler(logging.StreamHandler):
+    def __init__(self, title):
+        self.title = title
+        self.text = ''
+        self.block = False
+        super().__init__()
+
+    def emit(self, record):
+        try:
+            self.block = hasattr(record, 'block')
+            self.text += '{0}{1}'.format(record.msg, self.terminator)
+            Alert(self.title, self.text, block=self.block).do_alert()
+        except (KeyboardInterrupt, SystemExit):
+            raise
+        except:
+            self.handleError(record)
+
+
+class AlertPass(object):
+    """Class to display alerts or confirm boxes"""
+    # pylint: disable=R0902
+    # pylint: disable=R0903
+    def __init__(self, title, msg, **kwargs):
+        self.passphrase = urwid.Edit(msg, mask='*')
+        self._frame = [('pack', urwid.Divider()),
+                       ('pack', self.passphrase),
+                       ('pack', urwid.Divider(u' ', 1))]
+        self._block = kwargs.get('block', True)
+        self._labels = kwargs.get('labels', [u'Ok'])
+        self._title = title
+        self.response = None
+        self.loop = None
+        if self._block:
+            self._add_nav_bar()
+        self._set_ui()
+
+    def _on_click(self, button):
+        self.response = button.label
+        raise urwid.ExitMainLoop()
+
+    def _add_nav_bar(self):
+        buttons = list()
+        for label in self._labels:
+            button = ister_button(label,
+                                  on_press=self._on_click,
+                                  align='center')
+            buttons.append(button)
+
+        # Add to frame
+        nav = NavBar(buttons)
+        # Nav Bar always starts with focus in
+        nav.have_focus = True
+        self._frame.append(('pack', nav))
+        self._frame.append(('pack', urwid.Divider()))
+
+    def _set_ui(self):
+        self._frame = FormController(self._frame)
+        self._frame = urwid.LineBox(self._frame, title=self._title)
+        self._frame = urwid.Filler(self._frame, valign='middle')
+        self._fgwin = urwid.Padding(self._frame, 'center', ('relative', 75))
+        self._ui = urwid.Overlay(self._fgwin,
+                                 urwid.AttrMap(urwid.SolidFill(u' '), 'bg'),
+                                 align='center',
+                                 width=('relative', PERCENTAGE_W),
+                                 valign='middle',
+                                 height=('relative', PERCENTAGE_H))
+        self._ui = urwid.AttrMap(self._ui, 'banner')
+
+    def do_alert(self):
+        """It creates the loop, if synchronous it will block"""
+        self.loop = urwid.MainLoop(self._ui, palette=PALETTE)
+        if self._block:
+            self.loop.run()
+        else:
+            self.loop.start()
+            self.loop.draw_screen()
+        return self.passphrase.get_edit_text()
 
 
 class Terminal(object):
@@ -910,7 +995,7 @@ class ProcessStep(object):
     def get_next_step(self, action):
         """Returns the process step matched by action"""
         if action == 'Exit':
-            exit(0)
+            sys.exit(0)
         if action in self.action_map:
             return self.action_map[action]
 
@@ -1058,7 +1143,7 @@ class KeyboardSelection(ButtonMenu):
     def get_next_step(self, action):
         """Returns the process step matched by action"""
         if action == 'Exit':
-            exit(0)
+            sys.exit(0)
         if action in self.action_map:
             return self.action_map[action]
 
@@ -2264,6 +2349,7 @@ class MountPointsStep(ProcessStep):
         self.display_fmt = '{0:12}{1:12}{2:30}{3:20}{4:6}'
         self.mount_d = {}
         self.choices = None
+        self.encrypt = False
 
     def handler(self, config):
         # pylint: disable=R0914
@@ -2289,6 +2375,7 @@ class MountPointsStep(ProcessStep):
                                   self._ui_widgets, buttons=other_options)
             self._clicked = None
             self._action = self._ui.do_form()
+            self.encrypt = self.cbox_encrypt.get_state()
             if self._clicked:
                 partition = self._clicked.split()[0]
                 size = self._clicked.split()[1]
@@ -2315,6 +2402,7 @@ class MountPointsStep(ProcessStep):
                         break
             else:
                 return self._action
+
         self._save_config(config, mount_d)
         search_swap(self.choices, config, mount_d)
         exc = ister_wrapper('validate_disk_template', config)
@@ -2351,6 +2439,9 @@ class MountPointsStep(ProcessStep):
                                       on_press=self._item_chosen,
                                       user_data=part)
                 self._ui_widgets.append(button)
+            self.cbox_encrypt = urwid.CheckBox('Encrypt Root Partition',
+                    state=self.encrypt)
+            self._ui_widgets.append(self.cbox_encrypt)
 
     def _save_config(self, config, mount_d):
         config['PartitionLayout'] = list()
@@ -2395,10 +2486,28 @@ class MountPointsStep(ProcessStep):
                     output = ''
                 if 'TYPE="' in output:
                     config['FilesystemTypes'][-1]['disable_format'] = True
+            if self.encrypt and point == '/':
+                while True:
+                    tmp_pass1 = AlertPass(u'Root Encryption',
+                            u'Type passphrase for root device: ').do_alert()
+                    tmp_pass2 = AlertPass(u'Root Encryption',
+                            u'Type confirmation passphrase for root device: '
+                            ).do_alert()
+                    if tmp_pass1 == tmp_pass2:
+                        config['FilesystemTypes'][-1]["encryption"] = {
+                            "passphrase": tmp_pass1,
+                            "name" : "encrypted_dev" }
+                        break;
+                    else:
+                        Alert(u'Error!', u'passphrase and confirmation not match').do_alert()
+
             config['PartitionMountPoints'].append({
                 'disk': disk,
                 'partition': part,
                 'mount': point})
+            if self.encrypt and point == '/':
+                config['PartitionMountPoints'][-1]["encryption"] = {
+                    "name" : "encrypted_dev" }
             self.mount_d = mount_d
 
     def _get_partitions(self, config):
@@ -3111,7 +3220,7 @@ class Installation(object):
             alert = Alert(title, message)
             alert.do_alert()
         if self.args['dry_run'] or self.args['exit_after']:
-            exit()
+            sys.exit(0)
         if reboot:
             subprocess.call('reboot')
         subprocess.call('poweroff')
@@ -3145,9 +3254,6 @@ class Installation(object):
 
     def automatic_install(self):
         """Initial installation method, use the default template unmodified"""
-        with open('/tmp/template.json', 'w') as template:
-            self.logger.debug(self.installation_d)
-            template.write(json.dumps(self.installation_d))
         text = ""
         title = u'Automatic installation of Clear Linux OS {0}' \
                 .format(self.installation_d['Version'])
@@ -3158,32 +3264,26 @@ class Installation(object):
             {'name': 'contenturl', 'out': '--contenturl={0}'},
             {'name': 'versionurl', 'out': '--versionurl={0}'},
             {'name': 'format', 'out': '--format={0}'}]
-        flags = [item['out'].format(self.args[item['name']])
+        ister_cmd = [item['out'].format(self.args[item['name']])
                  for item in supported if self.args[item['name']] is not None]
         ister_log = '/var/log/ister.log'
-        ister_cmd = [sys.executable,
-                     '/usr/bin/ister.py',
-                     '-t',
-                     '/tmp/template.json']
-        ister_cmd.extend(flags)
-        ister_cmd.extend(['-l', ister_log])
         self.logger.debug(' '.join(ister_cmd))
-        watch = WatchableProcess(ister_cmd)
-        watch.start()
-        current = 0
-        while not watch.done:
-            if len(watch.output) > current:
-                current = len(watch.output)
-                text = '\n'.join(watch.output[-10:])
-                Alert(title, text, block=False).do_alert()
-        Alert(title, text).do_alert()
+        args = ister.handle_options(ister_cmd)
 
-        if not watch.poll():
+        ister.LOG = ister.logging.getLogger('ister')
+        ister.handle_logging(args.loglevel, ister_log, AlertLoggerHandler)
+
+        try:
+            ister.install_os(args, self.installation_d)
+            ister.LOG.info("", extra={'block':True})
             message = ('Successful installation, the system will be rebooted\n'
                        'please remove installation media after restart')
             Alert(title, message).do_alert()
             self._exit(0, reboot=True)
-        else:
+        except SystemExit:
+            pass
+        except Exception as e:
+            ister.LOG.debug(e)
             end_action = ''
             while not end_action:
                 message = ('An error has ocurred, check log file at {0}?\n'
