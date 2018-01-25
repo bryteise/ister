@@ -1928,12 +1928,13 @@ def cleanup_physical_good():
         pass
     args.statedir = '/swupd/state'
 
+    template = {"FilesystemTypes": []}
     commands = ["/tmp/var/tmp",
                 "umount /swupd/state",
                 "rm -fr /tmp/var/tmp",
                 "umount -R /tmp",
                 "rm -fr /tmp"]
-    ister.cleanup(args, {}, "/tmp")
+    ister.cleanup(args, template, "/tmp")
     os.path.isdir = backup_isdir
     commands_compare_helper(commands)
 
@@ -1953,11 +1954,41 @@ def cleanup_virtual_good():
         """args empty object"""
         pass
 
-    template = {"dev": "image"}
+    template = {"dev": "image",
+                "FilesystemTypes": []}
     commands = ["/tmp/var/tmp",
                 "umount -R /tmp",
                 "rm -fr /tmp",
                 "losetup --detach image"]
+    ister.cleanup(args, template, "/tmp")
+    os.path.isdir = backup_isdir
+    commands_compare_helper(commands)
+
+
+@run_command_wrapper
+def cleanup_virtual_swap_good():
+    """Test cleanup of virtual device"""
+    backup_isdir = os.path.isdir
+
+    def mock_isdir(path):
+        """mock_isdir wrapper"""
+        COMMAND_RESULTS.append(path)
+        return False
+    os.path.isdir = mock_isdir
+
+    def args():
+        """args empty object"""
+        pass
+
+    template = {"dev": "/dev/loop0",
+                "FilesystemTypes": [{"disk": "fake",
+                                     "partition": 1,
+                                     "type": "swap"}]}
+    commands = ["/tmp/var/tmp",
+                "umount -R /tmp",
+                "rm -fr /tmp",
+                "swapoff /dev/loop0p1",
+                "losetup --detach /dev/loop0"]
     ister.cleanup(args, template, "/tmp")
     os.path.isdir = backup_isdir
     commands_compare_helper(commands)
@@ -5213,6 +5244,7 @@ if __name__ == '__main__':
         post_install_chroot_shell_good,
         cleanup_physical_good,
         cleanup_virtual_good,
+        cleanup_virtual_swap_good,
         get_template_location_good,
         get_template_location_bad_missing,
         get_template_location_bad_no_equal,
