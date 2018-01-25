@@ -739,6 +739,13 @@ def cleanup(args, template, target_dir, raise_exception=True):
         run_command("rm -fr {}".format(target_dir),
                     raise_exception=raise_exception)
 
+    # Turn off any swap devices we enabled
+    for fst in template["FilesystemTypes"]:
+        (dev, _) = get_device_name(template, fst["disk"])
+        if fst["type"] == "swap":
+            run_command("swapoff {0}{1}".format(dev, fst["partition"]),
+                        raise_exception=raise_exception)
+
     if template.get("dev"):
         run_command("losetup --detach {0}".format(template["dev"]),
                     raise_exception=raise_exception)
