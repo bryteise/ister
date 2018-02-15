@@ -4301,7 +4301,7 @@ def gui_network_connection():
     netreq = ister_gui.NetworkRequirements(0, 0, "", "")
     # don't try to set hardware clock
     netreq.nettime = 'set'
-    netreq_success = netreq._network_connection()
+    netreq_success = netreq.network_connection()
 
     pycurl.Curl = pycurl_backup
     time.sleep = sleep_backup
@@ -4365,7 +4365,7 @@ def gui_network_connection_curl_exception():
 
     netreq = ister_gui.NetworkRequirements(0, 0, "", "")
     netreq.config = {}
-    netreq_success = netreq._network_connection()
+    netreq_success = netreq.network_connection()
 
     pycurl.Curl = pycurl_backup
     time.sleep = sleep_backup
@@ -4428,7 +4428,7 @@ def gui_network_connection_curl_exception_version_url():
 
     netreq = ister_gui.NetworkRequirements(0, 0, "content", "version")
     netreq.config = {}
-    netreq_success = netreq._network_connection()
+    netreq_success = netreq.network_connection()
 
     pycurl.Curl = pycurl_backup
     time.sleep = sleep_backup

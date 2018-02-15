@@ -1608,7 +1608,7 @@ class NetworkRequirements(ProcessStep):
         if self.timeout:
             wired_req = urwid.Text(('warn', self.timeout))
         else:
-            if self._network_connection():
+            if self.network_connection():
                 wired_req = urwid.Text(['* Connection to the update server: ',
                                         ('success', 'established')])
             else:
@@ -1640,7 +1640,7 @@ class NetworkRequirements(ProcessStep):
     def run_ui(self):
         return self._ui.do_form(pop_ups=True)
 
-    def _network_connection(self):
+    def network_connection(self):
         """Check if connection to content and version urls are available"""
         # pylint: disable=E1103
 
@@ -3124,7 +3124,14 @@ class Installation(object):
         # not get overwritten when a user returns to that screen.
         self.installation_d['Bundles'] = list()
         i = 0
+        last_action = 'Next'
         while not isinstance(step, RunInstallation):
+            # If this step is the Networking Input
+            if hasattr(step, 'network_connection'):
+                # And networking is live, then skip this screen
+                # pylint: disable=no-member
+                if step.network_connection():
+                    step = step.get_next_step(last_action)
             action = step.handler(self.installation_d)
             self.logger.debug("Stepping to % screen", type(step).__name__)
             self.logger.debug(self.installation_d)
@@ -3135,6 +3142,7 @@ class Installation(object):
             step = step.get_next_step(action)
             _ = pprint.pformat(step, indent=4)
             i += 1
+            last_action = action
         # Make sure that required bundles are included independently of
         # installation method.
         # the required bundles depend on the configuration in installation_d
