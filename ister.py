@@ -58,6 +58,7 @@ from urllib.error import URLError, HTTPError
 from urllib.parse import urlparse
 from contextlib import closing
 import netifaces
+import pycryptsetup
 
 LOG = None
 
@@ -288,6 +289,22 @@ def create_filesystems(template):
 0657fd6d-a4ab-43c4-84e5-0933c84b4f4f"
                         .format(base_dev, fst["partition"]))
         if "disable_format" not in fst:
+            if "encryption" in fst:
+                c_dev="{0}{1}".format(dev, fst["partition"])
+                c = pycryptsetup.CryptSetup(device=c_dev)
+                c.luksFormat(cipher = "aes",
+                    cipherMode= "xts-plain64", keysize = 512, hashMode = "sha256")
+                c.addKeyByPassphrase(fst["encryption"]["passphrase"],
+                    fst["encryption"]["passphrase"])
+                c.activate(name=fst["encryption"]["name"],
+                    passphrase=fst["encryption"]["passphrase"])
+                if fst.get("options"):
+                    command = "{0} {1} /dev/mapper/{2}".format(fs_util[fst["type"]],
+                                              fst["options"],
+                                              fst["encryption"]["name"])
+                else:
+                    command = "{0} /dev/mapper/{1}".format(fs_util[fst["type"]],
+                                              fst["encryption"]["name"])
             run_command(command)
             if fst["type"] == "swap":
                 run_command("swapon {0}{1}".format(dev, fst["partition"]),
@@ -371,7 +388,13 @@ c12a7328-f81f-11d2-ba4b-00a0c93ec93b"
                         .format(base_dev, part["partition"]))
         if part["mount"] != "/":
             run_command("mkdir -p {0}{1}".format(target_dir, part["mount"]))
-        run_command("mount {0}{1} {2}{3}".format(dev,
+        if "encryption" in part:
+            run_command("mount /dev/mapper/{0} {1}{2}".format(
+                                                 part["encryption"]["name"],
+                                                 target_dir,
+                                                 part["mount"]))
+        else:
+            run_command("mount {0}{1} {2}{3}".format(dev,
                                                  part["partition"],
                                                  target_dir,
                                                  part["mount"]))
@@ -749,6 +772,11 @@ def cleanup(args, template, target_dir, raise_exception=True):
     if template.get("dev"):
         run_command("losetup --detach {0}".format(template["dev"]),
                     raise_exception=raise_exception)
+    for dev_entry in template['PartitionMountPoints']:
+        if 'encryption' in dev_entry:
+            c_dev = "{0}{1}".format(dev_entry['disk'], dev_entry['partition'])
+            c = pycryptsetup.CryptSetup(name=dev_entry['encryption']['name'])
+            c.deactivate()
 
 
 def get_template_location(path):
@@ -1326,7 +1354,7 @@ def parse_config(args):
     return config
 
 
-def install_os(args):
+def install_os(args, template):
     """Install the OS
 
     Start out parsing the configuration file for URI of the template.
@@ -1336,8 +1364,6 @@ def install_os(args):
     This function will raise an Exception on finding an error.
     """
     target_dir = None
-    configuration = parse_config(args)
-    template = get_template(configuration["template"])
 
     validate_template(template)
     try:
@@ -1371,10 +1397,8 @@ def install_os(args):
         cleanup(args, template, target_dir, False)
 
 
-def handle_logging(level, logfile):
+def handle_logging(level, logfile, shandler=logging.StreamHandler(sys.stdout)):
     """Setup log levels and direct logs to a file"""
-    shandler = logging.StreamHandler(sys.stdout)
-
     # Apparently the LOG object's level trumps level of handler?
     LOG.setLevel(logging.DEBUG)
 
@@ -1395,10 +1419,10 @@ def handle_logging(level, logfile):
         LOG.addHandler(fhandler)
 
 
-def handle_options():
+def handle_options(sys_args):
     """Setup option parsing
     """
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(prog='ister')
     parser.add_argument("-c", "--config-file", action="store",
                         default=None,
                         help="Path to configuration file to use")
@@ -1434,7 +1458,7 @@ def handle_options():
     group.add_argument("-F", "--fast-install", action="store_true",
                         default=False,
                         help="Move swupd state dir inside image for a faster install")
-    args = parser.parse_args()
+    args = parser.parse_args(sys_args)
     return args
 
 
@@ -1442,13 +1466,15 @@ def main():
     """Start the installer
     """
     global LOG
-    args = handle_options()
+    args = handle_options(sys.argv[1:])
 
     LOG = logging.getLogger(__name__)
     handle_logging(args.loglevel, args.logfile)
 
     try:
-        install_os(args)
+        configuration = parse_config(args)
+        template = get_template(configuration["template"])
+        install_os(args, template)
     except Exception as exep:
         LOG.debug("Failed: {}".format(repr(exep)))
         # TODO: Add arg for loglevel to -v
