@@ -1406,7 +1406,8 @@ def handle_options():
     parser.add_argument("-C", "--contenturl", action="store",
                         default=None,
                         help="URL to use for looking for update content")
-    parser.add_argument("-f", "--format", action="store", default=None,
+    parser.add_argument("-f", "--format", action="store",
+                        default=None,
                         help="format to use for looking for update content")
     parser.add_argument("-v", "--verbose", action="store_true",
                         help="Output logging to console stream")
@@ -1424,7 +1425,6 @@ def handle_options():
                         default="/var/lib/swupd",
                         help="Path to swupd state dir")
     group.add_argument("-F", "--fast-install", action="store_true",
-                        default=False,
                         help="Move swupd state dir inside image for a faster install")
     args = parser.parse_args()
     return args
