@@ -75,7 +75,8 @@ def good_virtual_disk_template():
     [{"disk" : "gvdt", "partition" : 1, "mount" : "/boot"}, {"disk" : "gvdt", \
     "partition" : 3, "mount" : "/"}], \
     "Version" : 800, "Bundles" : ["linux-kvm"], \
-    "HTTPSProxy" : "https://proxy.clear.com"}'
+    "HTTPSProxy" : "https://proxy.clear.com", \
+    "SoftwareManager": "swupd"}'
 
 
 def good_latest_template():
@@ -93,7 +94,8 @@ def good_latest_template():
     [{"disk" : "gvdt", "partition" : 1, "mount" : "/boot"}, {"disk" : "gvdt", \
     "partition" : 3, "mount" : "/"}], \
     "Version" : "latest", "Bundles" : ["linux-kvm"], \
-    "HTTPSProxy" : "https://proxy.clear.com"}'
+    "HTTPSProxy" : "https://proxy.clear.com", \
+    "SoftwareManager": "swupd"}'
 
 
 def full_user_install_template():
@@ -128,7 +130,8 @@ def good_template_string_partitions():
     [{"disk" : "gvdt", "partition" : "1", "mount" : "/boot"}, \
     {"disk" : "gvdt", "partition" : "3", "mount" : "/"}], \
     "Version" : 800, "Bundles" : ["linux-kvm"], \
-    "HTTPSProxy" : "https://proxy.clear.com"}'
+    "HTTPSProxy" : "https://proxy.clear.com", \
+    "SoftwareManager": "swupd"}'
 
 
 def run_command_wrapper(func):
@@ -1338,7 +1341,36 @@ def set_hostname_good():
 
 
 @run_command_wrapper
-def copy_os_good():
+def copy_os_switch_swupd():
+    """Check copy_os properly switches to swupd installer"""
+    def args():
+        """args empty object"""
+        pass
+    swupd_cmd = "true"
+    backup_copy_os_swupd = ister.copy_os_swupd
+    ister.copy_os_swupd = lambda x, y, z: ister.run_command(swupd_cmd)
+    ister.copy_os(args, {"Version": 0, "DestinationType": "", "SoftwareManager": "swupd"}, "/")
+    ister.copy_os_swupd = backup_copy_os_swupd
+    commands = [swupd_cmd]
+    commands_compare_helper(commands)
+
+
+@run_command_wrapper
+def copy_os_switch_dnf():
+    """Check copy_os properly switches to dnf installer"""
+    def args():
+        """args empty object"""
+        pass
+    dnf_cmd = "false"
+    backup_copy_os_dnf = ister.copy_os_dnf
+    ister.copy_os_dnf = lambda x, y, z: ister.run_command(dnf_cmd)
+    ister.copy_os(args, {"Version": 0, "DestinationType": "", "SoftwareManager": "dnf"}, "/")
+    ister.copy_os_dnf = backup_copy_os_dnf
+    commands = [dnf_cmd]
+    commands_compare_helper(commands)
+
+@run_command_wrapper
+def copy_os_swupd_good():
     """Check installer command"""
     backup_add_bundles = ister.add_bundles
     ister.add_bundles = lambda x, y: None
@@ -1360,14 +1392,14 @@ def copy_os_good():
     commands = [swupd_cmd,
                 True,
                 True]
-    ister.copy_os(args, {"Version": 0, "DestinationType": ""}, "/")
+    ister.copy_os_swupd(args, {"Version": 0, "DestinationType": ""}, "/")
     ister.add_bundles = backup_add_bundles
     shutil.which = backup_which
     commands_compare_helper(commands)
 
 
 @run_command_wrapper
-def copy_os_cert_good():
+def copy_os_swupd_cert_good():
     """Check installer command with cert present"""
     backup_add_bundles = ister.add_bundles
     ister.add_bundles = lambda x, y: None
@@ -1385,7 +1417,7 @@ def copy_os_cert_good():
     args.cert_file = "/certtest"
     swupd_cmd = "swupd verify --install --path=/ --manifest=0 "              \
                 "--contenturl=ctest --versionurl=vtest --format=formattest " \
-                "--statedir=/statetest -C /certtest"
+                "--statedir=/statetest --certpath=/certtest"
     commands = [swupd_cmd,
                 True,
                 True]
@@ -1394,19 +1426,22 @@ def copy_os_cert_good():
         "DestinationType": "",
         "HTTPSProxy": "https://to.clearlinux.org"
     }
-    ister.copy_os(args, template, "/")
+    ister.copy_os_swupd(args, template, "/")
     ister.add_bundles = backup_add_bundles
     shutil.which = backup_which
     commands_compare_helper(commands)
 
 
-@run_command_wrapper
-def copy_os_proxy_good():
-    """Check installer command with proxy present"""
+def copy_os_swupd_proxy_good():
+    """Check installer command using https proxy"""
     backup_add_bundles = ister.add_bundles
     ister.add_bundles = lambda x, y: None
-    backup_which = shutil.which
-    shutil.which = lambda x: False
+    backup_run_command = ister.run_command
+    proxy_url = "https://to.clearlinux.org"
+    def mock_run_command(cmd, environ, show_output):
+        if not environ.get("https_proxy") or environ["https_proxy"] != proxy_url:
+            raise Exception("Did not add https_proxy variable to environment correctly when running swupd install command")
+    ister.run_command = mock_run_command
 
     def args():
         """args empty object"""
@@ -1417,25 +1452,26 @@ def copy_os_proxy_good():
     args.statedir = "/statetest"
     args.fast_install = False
     args.cert_file = None
-    swupd_cmd = "swupd verify --install --path=/ --manifest=0 "              \
-                "--contenturl=ctest --versionurl=vtest --format=formattest " \
-                "--statedir=/statetest"
-    commands = [swupd_cmd,
-                True,
-                True]
-    template = {
-        "Version": 0,
-        "DestinationType": "",
-        "HTTPSProxy": "https://to.clearlinux.org"
-    }
-    ister.copy_os(args, template, "/")
+    ister.copy_os_swupd(args, {"Version": 0, "DestinationType": "", "Bundles": [], "HTTPSProxy": proxy_url}, "/")
+
     ister.add_bundles = backup_add_bundles
-    shutil.which = backup_which
-    commands_compare_helper(commands)
+    ister.run_command = backup_run_command
+
+
+def get_cmd_env_good():
+    """Check the command environment is properly formed"""
+    cmd_env = ister.get_cmd_env({})
+    if len(cmd_env) == 0:
+        raise Exception("Command environment not initialized from OS")
+    cmd_env = ister.get_cmd_env({"HTTPSProxy": "https://to.clearlinux.org"})
+    try:
+        cmd_env["https_proxy"]
+    except KeyError:
+        raise Exception("Could not add https_proxy variable to command environment")
 
 
 @run_command_wrapper
-def copy_os_format_good():
+def copy_os_swupd_format_good():
     """Check installer command with format string"""
     backup_add_bundles = ister.add_bundles
     ister.add_bundles = lambda x, y: None
@@ -1458,14 +1494,14 @@ def copy_os_format_good():
     commands = [swupd_cmd,
                 True,
                 True]
-    ister.copy_os(args, {"Version": 0, "DestinationType": ""}, "/")
+    ister.copy_os_swupd(args, {"Version": 0, "DestinationType": ""}, "/")
     ister.add_bundles = backup_add_bundles
     shutil.which = backup_which
     commands_compare_helper(commands)
 
 
 @run_command_wrapper
-def copy_os_which_good():
+def copy_os_swupd_which_good():
     """Check installer command"""
     backup_add_bundles = ister.add_bundles
     ister.add_bundles = lambda x, y: None
@@ -1489,14 +1525,14 @@ def copy_os_which_good():
     commands = [swupd_cmd,
                 True,
                 True]
-    ister.copy_os(args, {"Version": 0, "DestinationType": ""}, "/")
+    ister.copy_os_swupd(args, {"Version": 0, "DestinationType": ""}, "/")
     ister.add_bundles = backup_add_bundles
     shutil.which = backup_which
     commands_compare_helper(commands)
 
 
 @run_command_wrapper
-def copy_os_fast_install_good():
+def copy_os_swupd_fast_install_good():
     """Check installer command with fast install option"""
     backup_add_bundles = ister.add_bundles
     ister.add_bundles = lambda x, y: None
@@ -1519,7 +1555,7 @@ def copy_os_fast_install_good():
                 True,
                 True,
                 "rm -rf /tmp/tmp/swupd"]
-    ister.copy_os(args, {"Version": 0, "DestinationType": ""}, "/tmp")
+    ister.copy_os_swupd(args, {"Version": 0, "DestinationType": ""}, "/tmp")
     ister.add_bundles = backup_add_bundles
     shutil.which = backup_which
     commands_compare_helper(commands)
@@ -1527,7 +1563,7 @@ def copy_os_fast_install_good():
 
 @run_command_wrapper
 @makedirs_wrapper("good")
-def copy_os_physical_good():
+def copy_os_swupd_physical_good():
     """Check installer command for physical install"""
     backup_add_bundles = ister.add_bundles
     ister.add_bundles = lambda x, y: None
@@ -1569,11 +1605,63 @@ def copy_os_physical_good():
                 swupd_cmd,
                 True,
                 True]
-    ister.copy_os(args, {"Version": 0, "DestinationType": "physical"}, "/")
+    ister.copy_os_swupd(args, {"Version": 0, "DestinationType": "physical"}, "/")
     ister.add_bundles = backup_add_bundles
     shutil.which = backup_which
     os.chmod = backup_chmod
     commands_compare_helper(commands)
+
+
+@run_command_wrapper
+def copy_os_dnf_good():
+    """Check installer command using dnf"""
+    backup_which = shutil.which
+    shutil.which = lambda x: False
+
+    def args():
+        """args empty object"""
+        pass
+    args.dnf_config = None
+    dnf_cmd = "dnf install --assumeyes --installroot / gcc"
+    commands = [dnf_cmd, True, True]
+    ister.copy_os_dnf(args, {"Version": 0, "DestinationType": "", "SoftwareManager": "dnf", "Bundles": ["gcc"]}, "/")
+    shutil.which = backup_which
+    commands_compare_helper(commands)
+
+
+@run_command_wrapper
+def copy_os_dnf_config_good():
+    """Check installer command using dnf config"""
+    backup_which = shutil.which
+    shutil.which = lambda x: False
+
+    def args():
+        """args empty object"""
+        pass
+    args.dnf_config = "/dnf.conf"
+    dnf_cmd = "dnf install --assumeyes --config /dnf.conf --installroot / gcc"
+    commands = [dnf_cmd, True, True]
+    ister.copy_os_dnf(args, {"Version": 0, "DestinationType": "", "SoftwareManager": "dnf", "Bundles": ["gcc"]}, "/")
+    shutil.which = backup_which
+    commands_compare_helper(commands)
+
+
+def copy_os_dnf_proxy_good():
+    """Check installer command using dnf and https proxy"""
+    backup_run_command = ister.run_command
+    proxy_url = "https://to.clearlinux.org"
+    def mock_run_command(cmd, environ, show_output):
+        if not environ.get("https_proxy") or environ["https_proxy"] != proxy_url:
+            raise Exception("Did not add https_proxy variable to environment correctly when running dnf install command")
+    ister.run_command = mock_run_command
+
+    def args():
+        """args empty object"""
+        pass
+    args.dnf_config = None
+    ister.copy_os_dnf(args, {"Bundles": ["gcc"], "HTTPSProxy": proxy_url}, "/")
+
+    ister.run_command = backup_run_command
 
 
 @chroot_open_wrapper("good")
@@ -2023,7 +2111,7 @@ def get_template_good():
     try:
         template = ister.get_template("file://{0}/test.json"
                                       .format(os.getcwd()))
-        if template != {"test": 1}:
+        if template != {"test": 1, "SoftwareManager": "swupd"}:
             raise Exception("json does not match expected value")
     except Exception as exep:
         raise exep
@@ -3113,8 +3201,8 @@ def validate_template_bad_short_hostname():
         raise Exception("Failed to validate hostname minimum length")
 
 
-def validate_template_bad_version():
-    """Bad validate_template bad Version"""
+def validate_version_template_bad_version_num():
+    """Bad validate_version_template version number"""
     exception_flag = False
     template = {"PartitionLayout": [],
                 "FilesystemTypes": [],
@@ -3122,11 +3210,44 @@ def validate_template_bad_version():
                 "PartitionMountPoints": [],
                 "Version": 0}
     try:
-        ister.validate_template(template)
+        ister.validate_version_template(template)
     except Exception:
         exception_flag = True
     if not exception_flag:
-        raise Exception("Failed to detect bad Version")
+        raise Exception("Failed to detect bad version number")
+
+
+def validate_version_template_bad_version_str():
+    """Bad validate_version_template version string"""
+    exception_flag = False
+    template = {"PartitionLayout": [],
+                "FilesystemTypes": [],
+                "DestinationType": [],
+                "PartitionMountPoints": [],
+                "Version": "20110"}
+    try:
+        ister.validate_version_template(template)
+    except Exception:
+        exception_flag = True
+    if not exception_flag:
+        raise Exception("Failed to detect bad version string")
+
+
+def validate_softmgr_template_bad():
+    """Bad validate_softmgr_template software manager"""
+    exception_flag = False
+    template = {"PartitionLayout": [],
+                "FilesystemTypes": [],
+                "DestinationType": [],
+                "PartitionMountPoints": [],
+                "Bundles": [],
+                "SoftwareManager": "apt"}
+    try:
+        ister.validate_softmgr_template(template)
+    except Exception:
+        exception_flag = True
+    if not exception_flag:
+        raise Exception("Failed to detect bad software manager")
 
 
 def parse_config_good():
@@ -3290,7 +3411,7 @@ def handle_options_good():
     # Test short options first
     sys.argv = ["ister.py", "-c", "cfg", "-t", "tpt", "-C", "/", "-V", "/",
                 "-f", "1", "-v", "-l", "log", "-L", "debug", "-S", "/",
-                "-s", "./cert", "-k", "/cmdline"]
+                "-s", "./cert", "-k", "/cmdline", "-d", "./dnf.conf"]
     try:
         args = ister.handle_options()
     except Exception:
@@ -3319,12 +3440,14 @@ def handle_options_good():
         raise Exception("Failed to correctly set short cert file")
     if args.kcmdline != "/cmdline":
         raise Exception("Failed to correctly set kcmdline")
+    if args.dnf_config != "./dnf.conf":
+        raise Exception("Failed to correctly set dnf config")
 
     # Test long options next
     sys.argv = ["ister.py", "--config-file=cfg", "--template-file=tpt",
                 "--contenturl=/", "--versionurl=/", "--format=1", "--verbose",
                 "--logfile=log", "--loglevel=debug", "--statedir=/",
-                "--cert-file=./cert", "--kcmdline=/cmdline"]
+                "--cert-file=./cert", "--kcmdline=/cmdline", "--dnf-config=./dnf.conf"]
     try:
         args = ister.handle_options()
     except Exception:
@@ -3353,6 +3476,8 @@ def handle_options_good():
         raise Exception("Failed to correctly set long cert file")
     if args.kcmdline != "/cmdline":
         raise Exception("Failed to correctly set long kcmdline")
+    if args.dnf_config != "./dnf.conf":
+        raise Exception("Failed to correctly set long dnf config")
 
     # Test default options
     sys.argv = ["ister.py"]
@@ -3384,6 +3509,8 @@ def handle_options_good():
         raise Exception("Incorrect default cert file set")
     if args.kcmdline != "/proc/cmdline":
         raise Exception("Incorrect default kcmdline set")
+    if args.dnf_config:
+        raise Exception("Incorrect default dnf config set")
 
 
 def handle_logging_good():
@@ -5212,13 +5339,19 @@ if __name__ == '__main__':
         setup_mounts_good_units,
         add_bundles_good,
         set_hostname_good,
-        copy_os_good,
-        copy_os_cert_good,
-        copy_os_proxy_good,
-        copy_os_format_good,
-        copy_os_which_good,
-        copy_os_fast_install_good,
-        copy_os_physical_good,
+        copy_os_switch_swupd,
+        copy_os_switch_dnf,
+        copy_os_swupd_good,
+        copy_os_swupd_cert_good,
+        copy_os_swupd_proxy_good,
+        copy_os_swupd_format_good,
+        copy_os_swupd_which_good,
+        copy_os_swupd_fast_install_good,
+        copy_os_swupd_physical_good,
+        copy_os_dnf_good,
+        copy_os_dnf_config_good,
+        copy_os_dnf_proxy_good,
+        get_cmd_env_good,
         chroot_open_class_good,
         chroot_open_class_bad_open,
         chroot_open_class_bad_chroot,
@@ -5323,7 +5456,9 @@ if __name__ == '__main__':
         validate_template_bad_missing_version,
         validate_template_bad_missing_bundles,
         validate_template_bad_short_hostname,
-        validate_template_bad_version,
+        validate_version_template_bad_version_num,
+        validate_version_template_bad_version_str,
+        validate_softmgr_template_bad,
         validate_network_good,
         validate_network_bad,
         parse_config_good,
