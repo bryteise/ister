@@ -1321,20 +1321,6 @@ def add_bundles_good():
     commands_compare_helper(commands)
 
 
-@open_wrapper("good", "1\n")
-def get_current_format_good():
-    """Ensure correct data read from format file"""
-    global COMMAND_RESULTS
-    COMMAND_RESULTS = []
-    commands = ["/usr/share/defaults/swupd/format",
-                "r",
-                "read",
-                "1"]
-    frmt = ister.get_current_format()
-    COMMAND_RESULTS.append(frmt)
-    commands_compare_helper(commands)
-
-
 @open_wrapper("good", "")
 @makedirs_wrapper("good")
 def set_hostname_good():
@@ -1455,8 +1441,6 @@ def copy_os_format_good():
     ister.add_bundles = lambda x, y: None
     backup_which = shutil.which
     shutil.which = lambda x: False
-    backup_get_current_format = ister.get_current_format
-    ister.get_current_format = lambda: "test"
 
     def args():
         """args empty object"""
@@ -1464,12 +1448,12 @@ def copy_os_format_good():
 
     args.contenturl = "ctest"
     args.versionurl = "vtest"
-    args.format = None
+    args.format = "formattest"
     args.statedir = "/statetest"
     args.fast_install = False
     args.cert_file = None
     swupd_cmd = "swupd verify --install --path=/ --manifest=0 "        \
-                "--contenturl=ctest --versionurl=vtest --format=test " \
+                "--contenturl=ctest --versionurl=vtest --format=formattest " \
                 "--statedir=/statetest"
     commands = [swupd_cmd,
                 True,
@@ -1477,7 +1461,6 @@ def copy_os_format_good():
     ister.copy_os(args, {"Version": 0, "DestinationType": ""}, "/")
     ister.add_bundles = backup_add_bundles
     shutil.which = backup_which
-    ister.get_current_format = backup_get_current_format
     commands_compare_helper(commands)
 
 
@@ -3371,9 +3354,9 @@ def handle_options_good():
         raise Exception("Incorrect default config file set")
     if args.template_file:
         raise Exception("Incorrect default template file set")
-    if args.contenturl != "https://cdn.download.clearlinux.org/update":
+    if args.contenturl:
         raise Exception("Incorrect default contenturl set")
-    if args.versionurl != "https://cdn.download.clearlinux.org/update":
+    if args.versionurl:
         raise Exception("Incorrect default versionurl set")
     if args.format:
         raise Exception("Incorrect default format set")
@@ -5214,7 +5197,6 @@ if __name__ == '__main__':
         setup_mounts_bad,
         setup_mounts_good_units,
         add_bundles_good,
-        get_current_format_good,
         set_hostname_good,
         copy_os_good,
         copy_os_cert_good,
