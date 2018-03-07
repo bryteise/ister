@@ -403,23 +403,21 @@ def add_bundles(template, target_dir):
 def copy_os(args, template, target_dir):
     """Wrapper for running install command
     """
-    LOG.info("Starting swupd. May take several minutes")
+    package_manager = template["SoftwareManager"]
+    LOG.info("Starting {0}. May take several minutes".format(package_manager))
+    if package_manager == "swupd":
+        copy_os_swupd(args, template, target_dir)
+    elif package_manager == "dnf":
+        copy_os_dnf(args, template, target_dir)
+
+
+def copy_os_swupd(args, template, target_dir):
+    """Wrapper for running install command with swupd
+    """
     add_bundles(template, target_dir)
-    swupd_command = "swupd verify --install --path={0} " \
-                    "--manifest={1}".format(target_dir, template["Version"])
-    if shutil.which("stdbuf"):
-        swupd_command = "stdbuf -o 0 {0}".format(swupd_command)
-    if args.contenturl:
-        swupd_command += " --contenturl={0}".format(args.contenturl)
-    if args.versionurl:
-        swupd_command += " --versionurl={0}".format(args.versionurl)
-    if args.format:
-        swupd_command += " --format={0}".format(args.format)
+
     if args.fast_install:
         args.statedir = "{0}/tmp/swupd".format(target_dir)
-    swupd_command += " --statedir={0}".format(args.statedir)
-    if args.cert_file:
-        swupd_command += " -C {0}".format(args.cert_file)
 
     if template["DestinationType"] == "physical":
         os.makedirs(args.statedir, exist_ok=True)
@@ -428,15 +426,50 @@ def copy_os(args, template, target_dir):
         os.chmod("{0}/var/tmp".format(target_dir), stat.S_IRWXU)
         run_command("mount --bind {0}/var/tmp {1}"
                     .format(target_dir, args.statedir))
-    swupd_env = os.environ
-    if template.get("HTTPSProxy"):
-        swupd_env["https_proxy"] = template["HTTPSProxy"]
-        LOG.debug("https_proxy: {}".format(template["HTTPSProxy"]))
 
-    run_command(swupd_command, environ=swupd_env, show_output=True)
+    cmd = "swupd verify --install"
+    cmd += " --path={0}".format(target_dir)
+    cmd += " --manifest={0}".format(template["Version"])
+    if args.contenturl:
+        cmd += " --contenturl={0}".format(args.contenturl)
+    if args.versionurl:
+        cmd += " --versionurl={0}".format(args.versionurl)
+    if args.format:
+        cmd += " --format={0}".format(args.format)
+    cmd += " --statedir={0}".format(args.statedir)
+    if args.cert_file:
+        cmd += " --certpath={0}".format(args.cert_file)
+    if shutil.which("stdbuf"):
+        cmd = "stdbuf -o 0 {0}".format(cmd)
+    cmd_env = get_cmd_env(template)
+    run_command(cmd, environ=cmd_env, show_output=True)
 
     if args.fast_install:
         run_command("rm -rf {0}".format(args.statedir))
+
+
+def copy_os_dnf(args, template, target_dir):
+    """Wrapper for running install command with dnf
+    """
+    cmd = "dnf install --assumeyes"
+    if args.dnf_config:
+        cmd += " --config {0}".format(args.dnf_config)
+    cmd += " --installroot {0}".format(target_dir)
+    cmd += " {0}".format(" ".join(template["Bundles"]))
+    if shutil.which("stdbuf"):
+        cmd = "stdbuf -o 0 {0}".format(cmd)
+    cmd_env = get_cmd_env(template)
+    run_command(cmd, environ=cmd_env, show_output=True)
+
+
+def get_cmd_env(template):
+    """Get the environment variables with which commands will execute
+    """
+    cmd_env = os.environ
+    if template.get("HTTPSProxy"):
+        cmd_env["https_proxy"] = template["HTTPSProxy"]
+        LOG.debug("https_proxy: {}".format(template["HTTPSProxy"]))
+    return cmd_env
 
 
 class ChrootOpen(object):
@@ -760,7 +793,11 @@ def get_template(template_location):
     """Fetch JSON template file for installer
     """
     json_file = request.urlopen(template_location)
-    return json.loads(json_file.read().decode("utf-8"))
+    parsed_json = json.loads(json_file.read().decode("utf-8"))
+    # Supply default SoftwareManager value if not defined for backwards compatibility
+    if not parsed_json.get("SoftwareManager"):
+        parsed_json["SoftwareManager"] = "swupd"
+    return parsed_json
 
 
 def validate_layout(template):
@@ -934,6 +971,24 @@ def validate_disk_template(template):
     validate_partition_mounts(template, partition_fstypes)
 
 
+def validate_version_template(template):
+    """Attempt to verify the version is sane
+    """
+    version = template["Version"]
+    if isinstance(version, int) and version <= 0:
+        raise Exception("Invalid version number")
+    if isinstance(version, str) and version != "latest":
+        raise Exception("Invalid version string (must be 'latest')")
+
+
+def validate_softmgr_template(template):
+    """Attempt to verify the package manager is sane
+    """
+    package_manager = template["SoftwareManager"]
+    if package_manager != "dnf" and package_manager != "swupd":
+        raise Exception("Invalid package manager.  Use either swupd or dnf")
+
+
 def validate_user_template(users):
     """Attempt to verify all user related information is sane
 
@@ -1084,11 +1139,8 @@ def validate_template(template):
         raise Exception("Missing Bundles field")
     validate_type_template(template)
     validate_disk_template(template)
-    version = template["Version"]
-    if isinstance(version, int) and version <= 0:
-        raise Exception("Invalid version number")
-    if isinstance(version, str) and version != "latest":
-        raise Exception("Invalid version string (must be 'latest')")
+    validate_version_template(template)
+    validate_softmgr_template(template)
     if template.get("Users"):
         validate_user_template(template["Users"])
     if template.get("Hostname") is not None:
@@ -1426,6 +1478,9 @@ def handle_options():
                         help="Path to swupd state dir")
     group.add_argument("-F", "--fast-install", action="store_true",
                         help="Move swupd state dir inside image for a faster install")
+    parser.add_argument("-d", "--dnf-config", action="store",
+                        default=None,
+                        help="DNF configuration file for installing packages")
     args = parser.parse_args()
     return args
 
