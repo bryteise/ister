@@ -3290,7 +3290,7 @@ def handle_options_good():
     # Test short options first
     sys.argv = ["ister.py", "-c", "cfg", "-t", "tpt", "-C", "/", "-V", "/",
                 "-f", "1", "-v", "-l", "log", "-L", "debug", "-S", "/",
-                "-s", "./cert"]
+                "-s", "./cert", "-k", "/cmdline"]
     try:
         args = ister.handle_options()
     except Exception:
@@ -3313,13 +3313,18 @@ def handle_options_good():
         raise Exception("Failed to correctly set short loglevel")
     if args.statedir != "/":
         raise Exception("Failed to correctly set short state dir")
+    if args.fast_install:
+        raise Exception("Failed to correctly set fast install")
     if args.cert_file != "./cert":
         raise Exception("Failed to correctly set short cert file")
+    if args.kcmdline != "/cmdline":
+        raise Exception("Failed to correctly set kcmdline")
+
     # Test long options next
     sys.argv = ["ister.py", "--config-file=cfg", "--template-file=tpt",
                 "--contenturl=/", "--versionurl=/", "--format=1", "--verbose",
                 "--logfile=log", "--loglevel=debug", "--statedir=/",
-                "--cert-file=./cert"]
+                "--cert-file=./cert", "--kcmdline=/cmdline"]
     try:
         args = ister.handle_options()
     except Exception:
@@ -3342,8 +3347,13 @@ def handle_options_good():
         raise Exception("Failed to correctly set long loglevel")
     if args.statedir != "/":
         raise Exception("Failed to correctly set long state dir")
+    if args.fast_install:
+        raise Exception("Failed to correctly set long fast install")
     if args.cert_file != "./cert":
         raise Exception("Failed to correctly set long cert file")
+    if args.kcmdline != "/cmdline":
+        raise Exception("Failed to correctly set long kcmdline")
+
     # Test default options
     sys.argv = ["ister.py"]
     try:
@@ -3368,8 +3378,12 @@ def handle_options_good():
         raise Exception("Incorrect default loglevel set")
     if args.statedir != "/var/lib/swupd":
         raise Exception("Incorrect default state dir set")
+    if args.fast_install:
+        raise Exception("Incorrect default fast install set")
     if args.cert_file:
         raise Exception("Incorrect default cert file set")
+    if args.kcmdline != "/proc/cmdline":
+        raise Exception("Incorrect default kcmdline set")
 
 
 def handle_logging_good():
