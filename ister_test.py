@@ -53,14 +53,6 @@ import tempfile
 import urllib.request as request
 import pycurl
 import netifaces
-import types
-try:
-    import pycryptsetup
-except:
-    pycrypts = types.ModuleType("pycryptsetup")
-    pycrypts.CryptSetup = types.new_class("CryptSetup")
-    sys.modules["pycryptsetup"] = pycrypts
-    import pycryptsetup
 
 import ister
 import ister_gui
@@ -140,50 +132,6 @@ def good_template_string_partitions():
     "Version" : 800, "Bundles" : ["linux-kvm"], \
     "HTTPSProxy" : "https://proxy.clear.com", \
     "SoftwareManager": "swupd"}'
-
-
-def cryptsetup_wrapper(func):
-    """Wrapprt for test whose function use pycryptsetup"""
-    @functools.wraps(func)
-    def wrapper():
-        """CryptSetup Mock Class"""
-        class mock_CryptSetup:
-            def __init__(self, device=None, name=None):
-                if device:
-                    COMMAND_RESULTS.append(device)
-                if name:
-                    COMMAND_RESULTS.append(name)
-
-            def luksFormat(self, cipher=None, cipherMode=None,
-                keysize=None, hashMode=None):
-                if cipher:
-                    COMMAND_RESULTS.append(cipher)
-                if cipherMode:
-                    COMMAND_RESULTS.append(cipherMode)
-                if keysize:
-                    COMMAND_RESULTS.append(keysize)
-                if hashMode:
-                    COMMAND_RESULTS.append(hashMode)
-
-            def addKeyByPassphrase(self, passphrase1, passphrase2):
-                COMMAND_RESULTS.append(
-                    "{0} - {1}".format(passphrase1, passphrase2))
-
-            def activate(self, name='', passphrase=''):
-                COMMAND_RESULTS.append("activating")
-
-            def deactivate(self):
-                COMMAND_RESULTS.append("deactivating")
-
-        pycrypt = pycryptsetup.CryptSetup
-        pycryptsetup.CryptSetup = mock_CryptSetup
-        try:
-            func()
-        except Exception as e:
-            raise e
-        finally:
-            pycryptsetup.CryptSetup = pycrypt
-    return wrapper
 
 
 def run_command_wrapper(func):
@@ -908,56 +856,6 @@ def get_part_devname_exception():
         raise Exception("Result was {}, expected None".format(res))
 
 
-@cryptsetup_wrapper
-@run_command_wrapper
-def create_filesystems_encrypted_good():
-    """Create filesystems without options"""
-    listdir_backup = os.listdir
-
-    def mock_listdir(directory):
-        """mock_listdir wrapper"""
-        del directory
-        return ["sda", "sda1", "sda2", "sda3", "sda4",
-                "sdb", "sdb1", "sdb2", "sdb3"]
-
-    template = {"FilesystemTypes": [{"disk": "sda", "type": "ext2",
-                                     "partition": 1},
-                                    {"disk": "sda", "type": "ext3",
-                                     "partition": 2},
-                                    {"disk": "sda", "type": "ext4",
-                                     "partition": 3},
-                                    {"disk": "sda", "type": "btrfs",
-                                     "partition": 4},
-                                    {"disk": "sdb", "type": "vfat",
-                                     "partition": 1},
-                                    {"disk": "sdb", "type": "swap",
-                                     "partition": 2},
-                                    {"disk": "sdb", "type": "xfs",
-                                     "partition": 3, "encryption": {
-                                        "passphrase":"abc@123",
-                                        "name" : "mapper_name"}}]}
-    commands = ["mkfs.ext2 -F /dev/sda1",
-                "mkfs.ext3 -F /dev/sda2",
-                "mkfs.ext4 -F /dev/sda3",
-                "mkfs.btrfs -f /dev/sda4",
-                "mkfs.vfat /dev/sdb1",
-                "sgdisk /dev/sdb "
-                "--typecode=2:0657fd6d-a4ab-43c4-84e5-0933c84b4f4f",
-                "mkswap /dev/sdb2",
-                "swapon /dev/sdb2",
-                False,
-                '/dev/sdb3', 'aes',
-                'xts-plain64', 512, 'sha256',
-                'abc@123 - abc@123',
-                'activating',
-                'mkfs.xfs -f /dev/mapper/mapper_name'
-                ]
-    os.listdir = mock_listdir
-    ister.create_filesystems(template)
-    os.listdir = listdir_backup
-    commands_compare_helper(commands)
-
-
 @run_command_wrapper
 def create_filesystems_good():
     """Create filesystems without options"""
@@ -1089,58 +987,6 @@ def create_filesystems_good_options():
     os.listdir = mock_listdir
     ister.create_filesystems(template)
     os.listdir = listdir_backup
-    commands_compare_helper(commands)
-
-
-@cryptsetup_wrapper
-@run_command_wrapper
-def setup_mounts_encryption_good():
-    """Setup mount points for install"""
-    backup_mkdtemp = tempfile.mkdtemp
-    backup_listdir = os.listdir
-
-    def mock_mkdtemp(*_, **kwargs):
-        """mock_mkdtemp wrapper"""
-        if not kwargs.get("prefix"):
-            raise Exception("Missing prefix argument to mkdtemp")
-        COMMAND_RESULTS.append(kwargs["prefix"])
-        return "/tmp"
-
-    def mock_listdir(_):
-        return ['sda', 'sda1']
-
-    tempfile.mkdtemp = mock_mkdtemp
-    os.listdir = mock_listdir
-    template = {"PartitionMountPoints": [{"mount": "/", "disk": "sda",
-                                          "partition": 1,
-                                          "encryption" : {
-                                            "name" : "mapper_name"}},
-                                         {"mount": "/boot", "disk": "sda",
-                                          "partition": 2}],
-                "FilesystemTypes": [{"disk": "sda", "partition": 1,
-                                     "type": "vfat",
-                                          "encryption" : {
-                                            "name" : "mapper_name",
-                                            "passphrase" : "123"}},
-                                    {"disk": "sda", "partition": 2,
-                                     "type": "ext4"}],
-                "Version": 10}
-    commands = ["ister-10-",
-                "sgdisk /dev/sda "
-                "--typecode=1:4f68bce3-e8cd-4db1-96e7-fbcaf984b709",
-                "mount /dev/mapper/mapper_name /tmp/",
-                "sgdisk /dev/sda "
-                "--typecode=2:c12a7328-f81f-11d2-ba4b-00a0c93ec93b",
-                "mkdir -p /tmp/boot",
-                "mount /dev/sda2 /tmp/boot"]
-    try:
-        target_dir = ister.setup_mounts(template)
-    finally:
-        tempfile.mkdtemp = backup_mkdtemp
-        os.listdir = backup_listdir
-    if target_dir != "/tmp":
-        raise Exception("Target dir doesn't match expected: {0}"
-                        .format(target_dir))
     commands_compare_helper(commands)
 
 
@@ -2137,42 +1983,6 @@ def post_install_chroot_shell_good():
     commands_compare_helper(commands)
 
 
-@cryptsetup_wrapper
-@run_command_wrapper
-def cleanup_physical_encrypted_good():
-    """Test cleanup of physical device"""
-    backup_isdir = os.path.isdir
-
-    def mock_isdir(path):
-        """mock_isdir wrapper"""
-        COMMAND_RESULTS.append(path)
-        return True
-    os.path.isdir = mock_isdir
-
-    def args():
-        """args empty object"""
-        pass
-    args.statedir = '/swupd/state'
-
-    template = {
-        "FilesystemTypes": [],
-        'PartitionMountPoints':[{
-            "disk" : "/dev/sda",
-            "partition" : 1,
-            "mount" : "/",
-            "encryption" : {"name" : "mapper_name"}}]}
-    commands = ["/tmp/var/tmp",
-                "umount /swupd/state",
-                "rm -fr /tmp/var/tmp",
-                "umount -R /tmp",
-                "rm -fr /tmp",
-                "mapper_name",
-                'deactivating']
-    ister.cleanup(args, template, "/tmp")
-    os.path.isdir = backup_isdir
-    commands_compare_helper(commands)
-
-
 @run_command_wrapper
 def cleanup_physical_good():
     """Test cleanup of physical device"""
@@ -2189,8 +1999,7 @@ def cleanup_physical_good():
         pass
     args.statedir = '/swupd/state'
 
-    template = {"FilesystemTypes": [],
-                'PartitionMountPoints':[]}
+    template = {"FilesystemTypes": []}
     commands = ["/tmp/var/tmp",
                 "umount /swupd/state",
                 "rm -fr /tmp/var/tmp",
@@ -2217,8 +2026,7 @@ def cleanup_virtual_good():
         pass
 
     template = {"dev": "image",
-                "FilesystemTypes": [],
-                'PartitionMountPoints':[]}
+                "FilesystemTypes": []}
     commands = ["/tmp/var/tmp",
                 "umount -R /tmp",
                 "rm -fr /tmp",
@@ -2244,7 +2052,6 @@ def cleanup_virtual_swap_good():
         pass
 
     template = {"dev": "/dev/loop0",
-                'PartitionMountPoints':[],
                 "FilesystemTypes": [{"disk": "fake",
                                      "partition": 1,
                                      "type": "swap"}]}
@@ -3606,7 +3413,7 @@ def handle_options_good():
                 "-f", "1", "-v", "-l", "log", "-L", "debug", "-S", "/",
                 "-s", "./cert", "-k", "/cmdline", "-d", "./dnf.conf"]
     try:
-        args = ister.handle_options(sys.argv[1:])
+        args = ister.handle_options()
     except Exception:
         raise Exception("Unable to parse short arguments")
     if args.config_file != "cfg":
@@ -3642,7 +3449,7 @@ def handle_options_good():
                 "--logfile=log", "--loglevel=debug", "--statedir=/",
                 "--cert-file=./cert", "--kcmdline=/cmdline", "--dnf-config=./dnf.conf"]
     try:
-        args = ister.handle_options(sys.argv[1:])
+        args = ister.handle_options()
     except Exception:
         raise Exception("Unable to parse long arguments")
     if args.config_file != "cfg":
@@ -3675,7 +3482,7 @@ def handle_options_good():
     # Test default options
     sys.argv = ["ister.py"]
     try:
-        args = ister.handle_options(sys.argv[1:])
+        args = ister.handle_options()
     except Exception:
         raise Exception("Unable to parse default arguments")
     if args.config_file:
@@ -5519,12 +5326,10 @@ if __name__ == '__main__':
         get_part_devname_with_devname,
         get_part_devname_with_no_input,
         get_part_devname_exception,
-        create_filesystems_encrypted_good,
         create_filesystems_good,
         create_filesystems_virtual_good,
         create_filesystems_mmcblk_good,
         create_filesystems_good_options,
-        setup_mounts_encryption_good,
         setup_mounts_good,
         setup_mounts_good_mbr,
         setup_mounts_good_no_boot,
@@ -5566,7 +5371,6 @@ if __name__ == '__main__':
         post_install_nonchroot_shell_good,
         post_install_chroot_good,
         post_install_chroot_shell_good,
-        cleanup_physical_encrypted_good,
         cleanup_physical_good,
         cleanup_virtual_good,
         cleanup_virtual_swap_good,
