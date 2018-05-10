@@ -720,9 +720,6 @@ def post_install_nonchroot(template, target_dir):
 
     The mount root for the install is passed as an argument to each script.
     """
-    # Always run some post install jobs
-    run_command("ldconfig -r {}".format(target_dir))
-
     if not template.get("PostNonChroot"):
         return
     LOG.info("Running post non-chroot scripts")
