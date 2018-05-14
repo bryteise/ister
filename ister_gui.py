@@ -350,7 +350,7 @@ def required_bundles(config):
     for partition in config['PartitionMountPoints']:
         if 'encryption' in partition and partition['mount'] == '/':
             reqd_bundles.extend([{
-                'name':'bundle-extras',
+                'name':'bootloader-extras',
                 'desc':'Required to boot encrypted root partition'}])
 
     # configure dynamically required bundles (sysadmin-basic, telemetrics)
@@ -3269,6 +3269,7 @@ class Installation(object):
         ister_log = '/var/log/ister.log'
         self.logger.debug(' '.join(ister_cmd))
         args = ister.handle_options(ister_cmd)
+        self.installation_d["SoftwareManager"] = "swupd"
 
         ister.LOG = ister.logging.getLogger('ister')
         ister.handle_logging(args.loglevel, ister_log, AlertLoggerHandler)
