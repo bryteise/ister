@@ -41,7 +41,7 @@ def spin_up_installer():
     cp.check_returncode()
 
 
-def validate_installer(args, expectfile, unitfile):
+def validate_installer(args, expectfile, unitfile, alternative_check=None):
     print(">>> Configuring installer-val.img to be driven by expect using new ister and gui")
     cp = subprocess.run(['sudo', './update_gui_expect.sh', 'installer-val.img',
                          expectfile, unitfile])
@@ -63,23 +63,28 @@ def validate_installer(args, expectfile, unitfile):
                          '-bios', args.bios])
     cp.check_returncode()
 
-    print(">>> Installing boot canary into installer-target.mg")
-    cp = subprocess.run(['sudo', './install-canary.sh', 'installer-target.img'])
-    cp.check_returncode()
+    if not alternative_check:
+        print(">>> Installing boot canary into installer-target.mg")
+        cp = subprocess.run(['sudo', './install-canary.sh', 'installer-target.img'])
+        cp.check_returncode()
 
-    print(">>> Booting installer-target.img")
-    cp = subprocess.run(['sudo', 'qemu-system-x86_64', '-enable-kvm', '-m',
-                         '1024', '-vnc', '0.0.0.0:{}'.format(args.vnc), '-cpu', 'host', '-drive',
-                         'file=installer-target.img,if=virtio,aio=threads',
-                         '-net', 'nic,model=virtio', '-net',
-                         'user,hostfwd=tcp::2233-:22', '-smp', '2',
-                         '-bios', args.bios])
-    cp.check_returncode()
+        print(">>> Booting installer-target.img")
+        cp = subprocess.run(['sudo', 'qemu-system-x86_64', '-enable-kvm', '-m',
+                             '1024', '-vnc', '0.0.0.0:{}'.format(args.vnc), '-cpu', 'host', '-drive',
+                             'file=installer-target.img,if=virtio,aio=threads',
+                             '-net', 'nic,model=virtio', '-net',
+                             'user,hostfwd=tcp::2233-:22', '-smp', '2',
+                             '-bios', args.bios])
+        cp.check_returncode()
 
-    # Check for boot canary
-    cp = subprocess.run(['sudo', './check-canary.sh', 'installer-target.img'])
+        # Check for boot canary
+        cp = subprocess.run(['sudo', './check-canary.sh', 'installer-target.img'])
 
-    if cp.returncode == 0:
+        status_code = cp.returncode
+    else:
+        status_code = alternative_check(args)
+
+    if status_code == 0:
         status = ">>> SUCCESS! Boot Canary detected!"
     else:
         status = ">>> Failure: installer-target.img failed to boot"
@@ -87,6 +92,10 @@ def validate_installer(args, expectfile, unitfile):
     print(status)
     return status
 
+def encryption_validation(args):
+    cp = subprocess.run(['sudo', './post-encryption.expect', args.bios])
+    cp.check_returncode()
+    return cp.returncode
 
 def main():
     """Start the installer
@@ -96,8 +105,10 @@ def main():
         spin_up_installer()
         autostatus = validate_installer(args, 'autoinstall.expect', 'ister-expect.service')
         manstatus = validate_installer(args, 'maninstall.expect', 'ister-manexpect.service')
+        encryptstatus = validate_installer(args, 'encryption.expect', 'ister-encryption.service', encryption_validation)
         print('\nAutomatic Installation', autostatus)
         print('Manual Installation   ', manstatus)
+        print('Manual Installation root Encrypted   ', encryptstatus)
     except Exception as exep:
         print("Failed: {}".format(exep))
         sys.exit(-1)

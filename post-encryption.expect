@@ -1,0 +1,12 @@
+#!/usr/bin/expect -f
+set ovmf [lindex $argv 0]
+spawn sudo qemu-system-x86_64 -enable-kvm -nographic -m 1024 -cpu host -drive file=installer-target.img,if=virtio,aio=threads -net nic,model=virtio -net user,hostfwd=tcp::2233-:22 -smp 2 -bios $ovmf
+expect -re ".*Please enter passphrase.*"
+send -- "123\r"
+expect -re ".*login:.*"
+send -- "uname\r"
+send -- "UserPass\r"
+expect -re "\$$"
+send -- "sudo poweroff\r"
+expect -re ".*assword:.*"
+send -- "UserPass\r"
