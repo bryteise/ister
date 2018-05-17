@@ -3272,9 +3272,9 @@ class Installation(object):
         self.installation_d["SoftwareManager"] = "swupd"
 
         ister.LOG = ister.logging.getLogger('ister')
-        ister.handle_logging(args.loglevel, ister_log, AlertLoggerHandler)
 
         try:
+            ister.handle_logging(args.loglevel, ister_log, AlertLoggerHandler(title))
             ister.install_os(args, self.installation_d)
             ister.LOG.info("", extra={'block':True})
             message = ('Successful installation, the system will be rebooted\n'
