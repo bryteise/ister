@@ -4460,9 +4460,9 @@ def modify_cloud_init_service_file_good():
     COMMAND_RESULTS = []
 
     ister.modify_cloud_init_service_file("/dir")
-    commands = ["/dir/usr/lib/systemd/system/cloud-init.service", "r",
+    commands = ["/dir/usr/lib/systemd/system/ucd.service", "r",
                 "readlines",
-                "/dir/usr/lib/systemd/system/cloud-init.service", "w",
+                "/dir/usr/lib/systemd/system/ucd.service", "w",
                 "line1",
                 "ExecStart=/usr/bin/cloud-init --fix-disk "
                 "--user-data-file /etc/cloud-init-user-data"]

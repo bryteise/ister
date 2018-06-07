@@ -1330,7 +1330,7 @@ def modify_cloud_init_service_file(target_dir):
         that was just installed.
     """
     LOG.debug("Updating cloud-init.service to user role file for user-data")
-    cloud_init_file = target_dir + "/usr/lib/systemd/system/cloud-init.service"
+    cloud_init_file = target_dir + "/usr/lib/systemd/system/ucd.service"
 
     with open(cloud_init_file, "r") as service_file:
         lines = service_file.readlines()
