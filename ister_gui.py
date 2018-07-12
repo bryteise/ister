@@ -427,6 +427,40 @@ def interface_list():
     return [ifc for ifc in netifaces.interfaces() if ifc.startswith('e')]
 
 
+def get_swupd_content_url():
+    """
+    Find and return the content url that swupd determines
+    """
+    cmd = ['swupd', 'mirror']
+    try:
+        output = subprocess.check_output(cmd).decode('utf-8')
+    except:
+        return None
+
+    for line in output.split('\n'):
+        if re.match('^Content URL:\s+', line):
+            return (re.split(r'\s+',line)[-1]).strip()
+
+    return None
+
+
+def get_swupd_version_url():
+    """
+    Find and return the version url that swupd determines
+    """
+    cmd = ['swupd', 'mirror']
+    try:
+        output = subprocess.check_output(cmd).decode('utf-8')
+    except:
+        return None
+
+    for line in output.split('\n'):
+        if re.match('^Version URL:\s+', line):
+            return (re.split(r'\s+',line)[-1]).strip()
+
+    return None
+
+
 class Alert(object):
     """Class to display alerts or confirm boxes"""
     # pylint: disable=R0902
@@ -1479,7 +1513,6 @@ class NetworkControl(object):
         self.gateway = urwid.Columns([self.gateway_e, gateway])
         self.dns = urwid.Columns([self.dns_e, dns])
         self.widgets = [self.title,
-                        urwid.Divider(),
                         PopUpWidget('Show available interfaces',
                                     '\n'.join(interface_list()),
                                     'close'),
@@ -1633,15 +1666,32 @@ class NetworkRequirements(ProcessStep):
         super(NetworkRequirements, self).__init__()
         self.content_url = content_url
         self.version_url = version_url
+
+        # if not set on command line, find the swupd defaults via the swupd command
+        if self.content_url is None:
+            self.content_url = get_swupd_content_url()
+        if self.version_url is None:
+            self.version_url = get_swupd_version_url()
+
         left = 8  # padding desired left of buttons, modifiable
         # configure proxy section
         self.proxy_header = urwid.Text('Proxy Settings')
         self.proxy_button = ister_button('Set proxy configuration',
                                          on_press=self._set_proxy,
                                          left=left)
+        # configure mirror/version section
+        self.mirror_header = urwid.Text('Mirror Settings (Optional)')
+        self.mirror_button = ister_button('Set mirror URL',
+                                         on_press=self._set_mirror,
+                                         left=left)
+        self.version_button = ister_button('Set version url',
+                                         on_press=self._set_version,
+                                         left=left)
         # initiate necessary instance variables
         self.progress = urwid.Text('Step {} of {}'.format(cur_step, tot_steps))
         self.https_proxy = None
+        self.content_url_alt = None
+        self.version_url_alt = None
         self.config = None
         self.nettime = False
         self.reset = False
@@ -1690,6 +1740,18 @@ class NetworkRequirements(ProcessStep):
             [self.https_proxy,
              urwid.Text(('ex', 'example: http://proxy.url.com:123'),
                         align='center')])
+
+        self.content_url_alt = urwid.Edit(fmt.format('Mirror URL: '),self.content_url)
+        self.version_url_alt = urwid.Edit(fmt.format('Version URL: '),self.version_url)
+        content_col = urwid.Columns(
+            [self.content_url_alt,
+                urwid.Text(('ex', 'example: http://alt.mirror.com/update/'),
+                        align='center')])
+        version_col = urwid.Columns(
+            [self.version_url_alt,
+                urwid.Text(('ex', 'example: http://alt.version.com/update/'),
+                        align='center')])
+
         if self.timeout:
             wired_req = urwid.Text(('warn', self.timeout))
         else:
@@ -1702,13 +1764,16 @@ class NetworkRequirements(ProcessStep):
                                         'install will fail'])
 
         self._ui_widgets = [self.progress,
-                            urwid.Divider(),
                             wired_req,
                             urwid.Divider(),
+                            self.mirror_header,
+                            content_col,
+                            self.mirror_button,
+                            version_col,
+                            self.version_button,
+                            urwid.Divider(),
                             self.proxy_header,
-                            urwid.Divider(),
                             https_col,
-                            urwid.Divider(),
                             self.proxy_button,
                             urwid.Divider()]
         self._ui_widgets.extend(self.netcontrol.widgets)
@@ -1843,6 +1908,35 @@ class NetworkRequirements(ProcessStep):
 
         raise urwid.ExitMainLoop()
 
+    def _set_mirror(self, _):
+        """Set the user defined content mirror url for the installer in the template"""
+        content_default = get_swupd_content_url()
+        if self.content_url_alt.get_edit_text():
+            self.content_url = self.content_url_alt.get_edit_text()
+            if content_default == self.content_url:
+                if self.config.get("MirrorURL"):
+                    self.config.pop('MirrorURL', None)
+            else:
+                self.config['MirrorURL'] = self.content_url
+        else:
+            self.config.pop('MirrorURL', None)
+
+        raise urwid.ExitMainLoop()
+
+    def _set_version(self, _):
+        """Set the user defined content mirror version url for the installer in the template"""
+        version_default = get_swupd_version_url()
+        if self.version_url_alt.get_edit_text():
+            self.version_url = self.version_url_alt.get_edit_text()
+            if version_default == self.version_url:
+                if self.config.get("VersionURL"):
+                    self.config.pop('VersionURL', None)
+            else:
+                self.config['VersionURL'] = self.version_url
+        else:
+            self.config.pop('VersionURL', None)
+
+        raise urwid.ExitMainLoop()
 
 class TelemetryDisclosure(ProcessStep):
     # pylint: disable=R0902
@@ -3314,10 +3408,10 @@ def handle_options():
     """Argument parser for the ui"""
     parser = argparse.ArgumentParser()
     parser.add_argument("-V", "--versionurl", action="store",
-                        default="https://cdn.download.clearlinux.org/update",
+                        default=None,
                         help="URL to use for looking for update versions")
     parser.add_argument("-C", "--contenturl", action="store",
-                        default="https://cdn.download.clearlinux.org/update",
+                        default=None,
                         help="URL to use for looking for update content")
     parser.add_argument("-f", "--format", action="store", default=None,
                         help="format to use for looking for update content")

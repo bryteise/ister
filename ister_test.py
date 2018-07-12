@@ -3245,6 +3245,63 @@ def validate_proxy_url_template_bad():
         raise Exception("Incorrectly validated the following url(s): "
                         "{}".format(", ".join(error)))
 
+def validate_mirror_url_template_good():
+    ister.validate_mirror_url_template("https://download.clearlinux.org/update/")
+
+
+def validate_mirror_url_template_bad():
+    error = []
+    try:
+        ister.validate_mirror_url_template("httpsdownload.clearlinux.org/update/")
+        error.append("httpsdownload.clearlinux.org/update/")
+    except Exception:
+        pass
+
+    try:
+        ister.validate_mirror_url_template("not a url")
+        error.append("not a url")
+    except Exception:
+        pass
+
+    try:
+        ister.validate_mirror_url_template("clear.com")
+        error.append("clear.com")
+    except Exception:
+        pass
+
+    if error:
+        raise Exception("Incorrectly validated the following url(s): "
+                        "{}".format(", ".join(error)))
+
+
+def validate_mirror_version_url_template_good():
+    ister.validate_mirror_version_url_template("https://download.clearlinux.org/update/")
+
+
+def validate_mirror_version_url_template_bad():
+    error = []
+    try:
+        ister.validate_mirror_version_url_template("httpsdownload.clearlinux.org/update/")
+        error.append("httpsdownload.clearlinux.org/update/")
+    except Exception:
+        pass
+
+    try:
+        ister.validate_mirror_version_url_template("not a url")
+        error.append("not a url")
+    except Exception:
+        pass
+
+    try:
+        ister.validate_mirror_version_url_template("clear.com")
+        error.append("clear.com")
+    except Exception:
+        pass
+
+    if error:
+        raise Exception("Incorrectly validated the following url(s): "
+                        "{}".format(", ".join(error)))
+
 
 def validate_template_good():
     """Good validate_template"""
@@ -4897,6 +4954,92 @@ def gui_set_proxy():
             raise Exception("Proxy not set properly in config")
 
 
+def gui_set_mirror():
+    """
+    Setting the mirror URL in the gui results in the mirror URL getting stored
+    in the template (config)
+    """
+    import time
+
+    class Edit():
+        """mock uwrid.Edit class"""
+        def __init__(self, edit_text):
+            self.edit_text = edit_text
+
+        def get_edit_text(self):
+            return self.edit_text
+
+    def mock_sleep(sec):
+        """mock_sleep wrapper so the tests run faster"""
+        del sec
+
+    def mock_service_ready():
+        return True
+
+    sleep_backup = time.sleep
+    time.sleep = mock_sleep
+    service_ready_backup = ister_gui.network_service_ready
+    ister_gui.network_service_ready = mock_service_ready
+
+    netreq = ister_gui.NetworkRequirements(1, 1, "", "")
+    netreq.config = {}
+    netreq.content_url_alt = Edit("https://download.clearlinux.org/update/")
+    try:
+        netreq._set_mirror(None)
+    except Exception:
+        # this method always exits with an exception (urwid.ExitMainLoop)
+        pass
+
+    time.sleep = sleep_backup
+    ister_gui.network_service_ready = service_ready_backup
+    if "MirrorURL" in netreq.config:
+        if netreq.config["MirrorURL"] != "https://download.clearlinux.org/update/":
+            raise Exception("Mirror URL not set properly in config")
+
+
+def gui_set_version():
+    """
+    Setting the version URL in the gui results in the version URL getting stored
+    in the template (config)
+    """
+    import time
+
+    class Edit():
+        """mock uwrid.Edit class"""
+        def __init__(self, edit_text):
+            self.edit_text = edit_text
+
+        def get_edit_text(self):
+            return self.edit_text
+
+    def mock_sleep(sec):
+        """mock_sleep wrapper so the tests run faster"""
+        del sec
+
+    def mock_service_ready():
+        return True
+
+    sleep_backup = time.sleep
+    time.sleep = mock_sleep
+    service_ready_backup = ister_gui.network_service_ready
+    ister_gui.network_service_ready = mock_service_ready
+
+    netreq = ister_gui.NetworkRequirements(1, 1, "", "")
+    netreq.config = {}
+    netreq.content_url_alt = Edit("https://download.clearlinux.org/update/")
+    try:
+        netreq._set_version(None)
+    except Exception:
+        # this method always exits with an exception (urwid.ExitMainLoop)
+        pass
+
+    time.sleep = sleep_backup
+    ister_gui.network_service_ready = service_ready_backup
+    if "VersionURL" in netreq.config:
+        if netreq.config["VersionURL"] != "https://download.clearlinux.org/update/":
+            raise Exception("Version URL not set properly in config")
+
+
 def gui_set_fullname_fname_lname_present():
     """
     Set the user's full name in the gui with first and last names present
@@ -5693,12 +5836,18 @@ if __name__ == '__main__':
         gui_network_connection_curl_exception_version_url,
         gui_static_configuration,
         gui_set_proxy,
+        gui_set_mirror,
+        gui_set_version,
         gui_set_fullname_fname_lname_present,
         gui_set_fullname_fname_present,
         gui_set_fullname_lname_present,
         gui_set_fullname_none_present,
         validate_proxy_url_template_good,
         validate_proxy_url_template_bad,
+        validate_mirror_url_template_good,
+        validate_mirror_url_template_bad,
+        validate_mirror_version_url_template_good,
+        validate_mirror_version_url_template_bad,
         gui_set_hw_time,
         gui_find_current_disk_success,
         gui_find_current_disk_failure,
