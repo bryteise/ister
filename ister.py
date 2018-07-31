@@ -453,18 +453,10 @@ def copy_os_swupd(args, template, target_dir):
     cmd = "swupd verify --install"
     cmd += " --path={0}".format(target_dir)
     cmd += " --manifest={0}".format(template["Version"])
-    if args.contenturl or template.get("MirrorURL"):
-        if template.get("MirrorURL"):
-            cmd_mirror_url =  template.get("MirrorURL")
-        else:
-            cmd_mirror_url =  args.contenturl
-        cmd += " --contenturl={0}".format(cmd_mirror_url)
-    if args.versionurl or template.get("VersionURL"):
-        if template.get("VersionURL"):
-            cmd_version_url =  template.get("VersionURL")
-        else:
-            cmd_version_url =  args.versionurl
-        cmd += " --versionurl={0}".format(cmd_version_url)
+    if args.contenturl:
+        cmd += " --contenturl={0}".format(args.contenturl)
+    if args.versionurl:
+        cmd += " --versionurl={0}".format(args.versionurl)
     if args.format:
         cmd += " --format={0}".format(args.format)
     cmd += " --statedir={0}".format(args.statedir)
@@ -672,9 +664,13 @@ def set_hostname(template, target_dir):
         file.write(hostname)
 
 
-def set_mirror_url(target_mirror_url, target_dir):
+def set_mirror_url(template, target_dir):
     """Writes custom mirror url to <target disk>/etc/swupd/mirror_contenturl
     """
+    target_mirror_url = template.get("MirrorURL")
+    if not target_mirror_url:
+        return
+
     LOG.info("Setting custom mirror url")
     path = '{0}/etc/swupd/'.format(target_dir)
     if not os.path.exists(path):
@@ -684,9 +680,13 @@ def set_mirror_url(target_mirror_url, target_dir):
         file.write(target_mirror_url)
 
 
-def set_mirror_version_url(target_mirror_version_url, target_dir):
+def set_mirror_version_url(template, target_dir):
     """Writes custom mirror version url to <target disk>/etc/swupd/mirror_versionurl
     """
+    target_mirror_version_url = template.get("VersionURL")
+    if not target_mirror_version_url:
+        return
+
     LOG.info("Setting custom mirror version url")
     path = '{0}/etc/swupd/'.format(target_dir)
     if not os.path.exists(path):
@@ -1478,12 +1478,8 @@ def install_os(args, template):
         copy_os(args, template, target_dir)
         add_users(template, target_dir)
         set_hostname(template, target_dir)
-        if template.get("MirrorURL"):
-            cmd_mirror_url =  template.get("MirrorURL")
-            set_mirror_url(cmd_mirror_url,target_dir)
-        if template.get("VersionURL"):
-            cmd_version_url =  template.get("VersionURL")
-            set_mirror_version_url(cmd_version_url,target_dir)
+        set_mirror_url(template,target_dir)
+        set_mirror_version_url(template,target_dir)
         set_static_configuration(template, target_dir)
         set_kernel_cmdline_appends(template, target_dir)
         if template.get("IsterCloudInitSvc"):

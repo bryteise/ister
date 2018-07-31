@@ -3358,6 +3358,10 @@ class Installation(object):
             {'name': 'contenturl', 'out': '--contenturl={0}'},
             {'name': 'versionurl', 'out': '--versionurl={0}'},
             {'name': 'format', 'out': '--format={0}'}]
+        if self.installation_d.get('VersionURL'):
+            self.args['versionurl'] = self.installation_d.get('VersionURL')
+        if self.installation_d.get('MirrorURL'):
+            self.args['contenturl'] = self.installation_d.get('MirrorURL')
         ister_cmd = [item['out'].format(self.args[item['name']])
                  for item in supported if self.args[item['name']] is not None]
         ister_log = '/var/log/ister.log'
