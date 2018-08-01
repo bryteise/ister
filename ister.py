@@ -664,6 +664,38 @@ def set_hostname(template, target_dir):
         file.write(hostname)
 
 
+def set_mirror_url(template, target_dir):
+    """Writes custom mirror url to <target disk>/etc/swupd/mirror_contenturl
+    """
+    target_mirror_url = template.get("MirrorURL")
+    if not target_mirror_url:
+        return
+
+    LOG.info("Setting custom mirror url")
+    path = '{0}/etc/swupd/'.format(target_dir)
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+    with open(path + "mirror_contenturl", "w") as file:
+        file.write(target_mirror_url)
+
+
+def set_mirror_version_url(template, target_dir):
+    """Writes custom mirror version url to <target disk>/etc/swupd/mirror_versionurl
+    """
+    target_mirror_version_url = template.get("VersionURL")
+    if not target_mirror_version_url:
+        return
+
+    LOG.info("Setting custom mirror version url")
+    path = '{0}/etc/swupd/'.format(target_dir)
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+    with open(path + "mirror_versionurl", "w") as file:
+        file.write(target_mirror_version_url)
+
+
 def set_static_configuration(template, target_dir):
     """Writes the configuration on /etc/systemd/network/10-en-static.network
     """
@@ -1135,6 +1167,26 @@ def validate_proxy_url_template(proxy):
         raise Exception("Invalid proxy url: {}".format(proxy))
 
 
+def validate_mirror_url_template(mirror):
+    """Attempt to verify the mirror setting is valid
+
+    This function will raise an Exception on finding an error.
+    """
+    url = urlparse(mirror)
+    if not (url.scheme and url.netloc):
+        raise Exception("Invalid mirror url: {}".format(mirror))
+
+
+def validate_mirror_version_url_template(version):
+    """Attempt to verify the version setting is valid
+
+    This function will raise an Exception on finding an error.
+    """
+    url = urlparse(version)
+    if not (url.scheme and url.netloc):
+        raise Exception("Invalid version url: {}".format(version))
+
+
 def validate_cmdline_template(cmdline):
     """Attempt to verify the cmdline configuration
 
@@ -1180,6 +1232,10 @@ def validate_template(template):
         validate_proxy_url_template(template["HTTPSProxy"])
     if template.get("HTTPProxy"):
         validate_proxy_url_template(template["HTTPProxy"])
+    if template.get("MirrorURL"):
+        validate_mirror_url_template(template["MirrorURL"])
+    if template.get("VersionURL"):
+        validate_mirror_version_url_template(template["VersionURL"])
     if template.get("cmdline"):
         validate_cmdline_template(template["cmdline"])
     LOG.debug("Configuration is valid:")
@@ -1422,6 +1478,8 @@ def install_os(args, template):
         copy_os(args, template, target_dir)
         add_users(template, target_dir)
         set_hostname(template, target_dir)
+        set_mirror_url(template,target_dir)
+        set_mirror_version_url(template,target_dir)
         set_static_configuration(template, target_dir)
         set_kernel_cmdline_appends(template, target_dir)
         if template.get("IsterCloudInitSvc"):
