@@ -810,6 +810,10 @@ def post_install_chroot_shell(template, target_dir):
 def cleanup(args, template, target_dir, raise_exception=True):
     """Unmount and remove temporary files
     """
+    if args.no_unmount:
+        LOG.info("Skip unmounting target image at {0}".format(target_dir))
+        return
+
     LOG.info("Cleaning up")
     if target_dir:
         if os.path.isdir("{0}/var/tmp".format(target_dir)):
@@ -1573,6 +1577,8 @@ def handle_options(sys_args):
     parser.add_argument("-D", "--target-dir", action="store",
                         default=None,
                         help="Target root directory path, 'mktemp' by default")
+    parser.add_argument("-m", "--no-unmount", action="store_true",
+                        help="Do not unmount the target file-systems when done")
     parser.add_argument("-d", "--dnf-config", action="store",
                         default=None,
                         help="DNF configuration file for installing packages")
