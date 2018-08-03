@@ -1092,12 +1092,10 @@ def create_filesystems_good_options():
     commands_compare_helper(commands)
 
 
-@cryptsetup_wrapper
 @run_command_wrapper
-def setup_mounts_encryption_good():
-    """Setup mount points for install"""
+def create_target_dir_no_arg_good():
+    """create target directory without arg"""
     backup_mkdtemp = tempfile.mkdtemp
-    backup_listdir = os.listdir
 
     def mock_mkdtemp(*_, **kwargs):
         """mock_mkdtemp wrapper"""
@@ -1106,10 +1104,90 @@ def setup_mounts_encryption_good():
         COMMAND_RESULTS.append(kwargs["prefix"])
         return "/tmp"
 
+    def args():
+        """args empty object"""
+        pass
+    args.target_dir = None
+
+    tempfile.mkdtemp = mock_mkdtemp
+    template = {"Version": 10}
+    commands = ["ister-10-"]
+    try:
+        target_dir = ister.create_target_dir(args, template)
+    finally:
+        tempfile.mkdtemp = backup_mkdtemp
+    if target_dir != "/tmp":
+        raise Exception("Target dir doesn't match expected: {0}"
+                        .format(target_dir))
+    commands_compare_helper(commands)
+
+
+@run_command_wrapper
+def create_target_dir_arg_good():
+    """create target directory with arg (no mkdir)"""
+    backup_isdir = os.path.isdir
+
+    def mock_isdir(path):
+        """mock_isdir wrapper"""
+        COMMAND_RESULTS.append(path)
+        return True
+    os.path.isdir = mock_isdir
+
+    def args():
+        """args empty object"""
+        pass
+    args.target_dir = "/tmp"
+
+    commands = ["/tmp"]
+    try:
+        target_dir = ister.create_target_dir(args, None)
+    finally:
+        os.path.isdir = backup_isdir
+    if target_dir != "/tmp":
+        raise Exception("Target dir doesn't match expected: {0}"
+                        .format(target_dir))
+    commands_compare_helper(commands)
+
+
+@run_command_wrapper
+def create_target_dir_arg_bad():
+    """create target dir with arg missing target directory"""
+    exception_flag = False
+    backup_isdir = os.path.isdir
+
+    def mock_isdir(path):
+        """mock_isdir wrapper"""
+        COMMAND_RESULTS.append(path)
+        return False
+    os.path.isdir = mock_isdir
+
+    def args():
+        """args empty object"""
+        pass
+    args.target_dir = "/tmp"
+
+    commands = ["/tmp"]
+    try:
+        target_dir = ister.create_target_dir(args, None)
+    except Exception:
+        exception_flag = True
+    finally:
+        os.path.isdir = backup_isdir
+
+    commands_compare_helper(commands)
+    if not exception_flag:
+        raise Exception("Failed to detect open failure")
+
+
+@cryptsetup_wrapper
+@run_command_wrapper
+def setup_mounts_encryption_good():
+    """Setup mount points for install"""
+    backup_listdir = os.listdir
+
     def mock_listdir(_):
         return ['sda', 'sda1']
 
-    tempfile.mkdtemp = mock_mkdtemp
     os.listdir = mock_listdir
     template = {"PartitionMountPoints": [{"mount": "/", "disk": "sda",
                                           "partition": 1,
@@ -1125,8 +1203,7 @@ def setup_mounts_encryption_good():
                                     {"disk": "sda", "partition": 2,
                                      "type": "ext4"}],
                 "Version": 10}
-    commands = ["ister-10-",
-                "sgdisk /dev/sda "
+    commands = ["sgdisk /dev/sda "
                 "--typecode=1:4f68bce3-e8cd-4db1-96e7-fbcaf984b709",
                 "mount /dev/mapper/mapper_name /tmp/",
                 "sgdisk /dev/sda "
@@ -1134,33 +1211,20 @@ def setup_mounts_encryption_good():
                 "mkdir -p /tmp/boot",
                 "mount /dev/sda2 /tmp/boot"]
     try:
-        target_dir = ister.setup_mounts(template)
+        ister.setup_mounts("/tmp", template)
     finally:
-        tempfile.mkdtemp = backup_mkdtemp
         os.listdir = backup_listdir
-    if target_dir != "/tmp":
-        raise Exception("Target dir doesn't match expected: {0}"
-                        .format(target_dir))
     commands_compare_helper(commands)
 
 
 @run_command_wrapper
 def setup_mounts_good():
     """Setup mount points for install"""
-    backup_mkdtemp = tempfile.mkdtemp
     backup_listdir = os.listdir
-
-    def mock_mkdtemp(*_, **kwargs):
-        """mock_mkdtemp wrapper"""
-        if not kwargs.get("prefix"):
-            raise Exception("Missing prefix argument to mkdtemp")
-        COMMAND_RESULTS.append(kwargs["prefix"])
-        return "/tmp"
 
     def mock_listdir(_):
         return ['sda', 'sda1']
 
-    tempfile.mkdtemp = mock_mkdtemp
     os.listdir = mock_listdir
     template = {"PartitionMountPoints": [{"mount": "/", "disk": "sda",
                                           "partition": 1},
@@ -1171,8 +1235,7 @@ def setup_mounts_good():
                                     {"disk": "sda", "partition": 2,
                                      "type": "ext4"}],
                 "Version": 10}
-    commands = ["ister-10-",
-                "sgdisk /dev/sda "
+    commands = ["sgdisk /dev/sda "
                 "--typecode=1:4f68bce3-e8cd-4db1-96e7-fbcaf984b709",
                 "mount /dev/sda1 /tmp/",
                 "sgdisk /dev/sda "
@@ -1180,33 +1243,20 @@ def setup_mounts_good():
                 "mkdir -p /tmp/boot",
                 "mount /dev/sda2 /tmp/boot"]
     try:
-        target_dir = ister.setup_mounts(template)
+        ister.setup_mounts("/tmp", template)
     finally:
-        tempfile.mkdtemp = backup_mkdtemp
         os.listdir = backup_listdir
-    if target_dir != "/tmp":
-        raise Exception("Target dir doesn't match expected: {0}"
-                        .format(target_dir))
     commands_compare_helper(commands)
 
 
 @run_command_wrapper
 def setup_mounts_good_mbr():
     """Setup mount points for mbr install"""
-    backup_mkdtemp = tempfile.mkdtemp
     backup_listdir = os.listdir
-
-    def mock_mkdtemp(*_, **kwargs):
-        """mock_mkdtemp wrapper"""
-        if not kwargs.get("prefix"):
-            raise Exception("Missing prefix argument to mkdtemp")
-        COMMAND_RESULTS.append(kwargs["prefix"])
-        return "/tmp"
 
     def mock_listdir(_):
         return ['sda', 'sda1']
 
-    tempfile.mkdtemp = mock_mkdtemp
     os.listdir = mock_listdir
     template = {"PartitionMountPoints": [{"mount": "/", "disk": "sda",
                                           "partition": 1},
@@ -1218,41 +1268,27 @@ def setup_mounts_good_mbr():
                                      "type": "ext4"}],
                 "Version": 10,
                 "LegacyBios": True}
-    commands = ["ister-10-",
-                "sgdisk /dev/sda "
+    commands = ["sgdisk /dev/sda "
                 "--typecode=1:4f68bce3-e8cd-4db1-96e7-fbcaf984b709",
                 "mount /dev/sda1 /tmp/",
                 "sgdisk /dev/sda --attributes=2:set:2",
                 "mkdir -p /tmp/boot",
                 "mount /dev/sda2 /tmp/boot"]
     try:
-        target_dir = ister.setup_mounts(template)
+        ister.setup_mounts("/tmp", template)
     finally:
-        tempfile.mkdtemp = backup_mkdtemp
         os.listdir = backup_listdir
-    if target_dir != "/tmp":
-        raise Exception("Target dir doesn't match expected: {0}"
-                        .format(target_dir))
     commands_compare_helper(commands)
 
 
 @run_command_wrapper
 def setup_mounts_good_no_boot():
     """Setup mount points for install without a /boot (mbr type)"""
-    backup_mkdtemp = tempfile.mkdtemp
     backup_listdir = os.listdir
-
-    def mock_mkdtemp(*_, **kwargs):
-        """mock_mkdtemp wrapper"""
-        if not kwargs.get("prefix"):
-            raise Exception("Missing prefix argument to mkdtemp")
-        COMMAND_RESULTS.append(kwargs["prefix"])
-        return "/tmp"
 
     def mock_listdir(_):
         return ['sda', 'sda1']
 
-    tempfile.mkdtemp = mock_mkdtemp
     os.listdir = mock_listdir
     template = {"PartitionMountPoints": [{"mount": "/", "disk": "sda",
                                           "partition": 1}],
@@ -1260,34 +1296,22 @@ def setup_mounts_good_no_boot():
                                      "type": "vfat"}],
                 "Version": 10,
                 "LegacyBios": True}
-    commands = ["ister-10-",
-                "sgdisk /dev/sda "
+    commands = ["sgdisk /dev/sda "
                 "--typecode=1:4f68bce3-e8cd-4db1-96e7-fbcaf984b709",
                 "sgdisk /dev/sda --attributes=1:set:2",
                 "mount /dev/sda1 /tmp/"]
     try:
-        target_dir = ister.setup_mounts(template)
+        ister.setup_mounts("/tmp", template)
     finally:
-        tempfile.mkdtemp = backup_mkdtemp
         os.listdir = backup_listdir
-    if target_dir != "/tmp":
-        raise Exception("Target dir doesn't match expected: {0}"
-                        .format(target_dir))
     commands_compare_helper(commands)
 
 
 @run_command_wrapper
 def setup_mounts_good_units():
     """Setup mount points for install"""
-    backup_mkdtemp = ister.tempfile.mkdtemp
     backup_run_command = ister.run_command
     backup_listdir = os.listdir
-
-    def mock_mkdtemp(*_, **__):
-        """mock_mkdtemp wrapper"""
-        del __
-        return "/tmp"
-    ister.tempfile.mkdtemp = mock_mkdtemp
 
     def mock_run_command(cmd, *_):
         """mock run for setup mounts test"""
@@ -1340,9 +1364,8 @@ def setup_mounts_good_units():
                 'mount /dev/sda5 /tmp/root',
                 'sgdisk --info=5 /dev/sda']
     try:
-        _ = ister.setup_mounts(template)
+        ister.setup_mounts("/tmp", template)
     finally:
-        ister.tempfile.mkdtemp = backup_mkdtemp
         ister.run_command = backup_run_command
         os.listdir = backup_listdir
     commands_compare_helper(commands)
@@ -1351,15 +1374,7 @@ def setup_mounts_good_units():
 @run_command_wrapper
 def setup_mounts_virtual_good():
     """Setup virtual mount points for install"""
-    backup_mkdtemp = tempfile.mkdtemp
 
-    def mock_mkdtemp(*_, **kwargs):
-        """mock_mkdtemp wrapper"""
-        if not kwargs.get("prefix"):
-            raise Exception("Missing prefix argument to mkdtemp")
-        COMMAND_RESULTS.append(kwargs["prefix"])
-        return "/tmp"
-    tempfile.mkdtemp = mock_mkdtemp
     template = {"PartitionMountPoints": [{"mount": "/", "disk": "test",
                                           "partition": 1},
                                          {"mount": "/boot", "disk": "test",
@@ -1370,8 +1385,7 @@ def setup_mounts_virtual_good():
                                      "type": "ext4"}],
                 "dev": "/dev/loop0",
                 "Version": 10}
-    commands = ["ister-10-",
-                "sgdisk /dev/loop0 "
+    commands = ["sgdisk /dev/loop0 "
                 "--typecode=1:4f68bce3-e8cd-4db1-96e7-fbcaf984b709",
                 "mount /dev/loop0p1 /tmp/",
                 "sgdisk /dev/loop0 "
@@ -1379,12 +1393,9 @@ def setup_mounts_virtual_good():
                 "mkdir -p /tmp/boot",
                 "mount /dev/loop0p2 /tmp/boot"]
     try:
-        target_dir = ister.setup_mounts(template)
-    finally:
-        tempfile.mkdtemp = backup_mkdtemp
-    if target_dir != "/tmp":
-        raise Exception("Target dir doesn't match expected: {0}"
-                        .format(target_dir))
+        ister.setup_mounts("/tmp", template)
+    except:
+        pass
     commands_compare_helper(commands)
 
 
@@ -1398,15 +1409,6 @@ def setup_mounts_mmcblk_good():
         del directory
         return ["sda", "sda1", "sda2", "mmcblk1", "mmcblk1p1", "mmcblk1p2"]
 
-    backup_mkdtemp = tempfile.mkdtemp
-
-    def mock_mkdtemp(*_, **kwargs):
-        """mock_mkdtemp wrapper"""
-        if not kwargs.get("prefix"):
-            raise Exception("Missing prefix argument to mkdtemp")
-        COMMAND_RESULTS.append(kwargs["prefix"])
-        return "/tmp"
-    tempfile.mkdtemp = mock_mkdtemp
     template = {"PartitionMountPoints": [{"mount": "/", "disk": "mmcblk1",
                                           "partition": 1},
                                          {"mount": "/boot", "disk": "mmcblk1",
@@ -1416,8 +1418,7 @@ def setup_mounts_mmcblk_good():
                                     {"disk": "mmcblk1", "partition": 2,
                                      "type": "ext4"}],
                 "Version": 10}
-    commands = ["ister-10-",
-                "sgdisk /dev/mmcblk1 "
+    commands = ["sgdisk /dev/mmcblk1 "
                 "--typecode=1:4f68bce3-e8cd-4db1-96e7-fbcaf984b709",
                 "mount /dev/mmcblk1p1 /tmp/",
                 "sgdisk /dev/mmcblk1 "
@@ -1426,37 +1427,10 @@ def setup_mounts_mmcblk_good():
                 "mount /dev/mmcblk1p2 /tmp/boot"]
     os.listdir = mock_listdir
     try:
-        target_dir = ister.setup_mounts(template)
+        ister.setup_mounts("/tmp", template)
     finally:
-        tempfile.mkdtemp = backup_mkdtemp
         os.listdir = listdir_backup
-    if target_dir != "/tmp":
-        raise Exception("Target dir doesn't match expected: {0}"
-                        .format(target_dir))
     commands_compare_helper(commands)
-
-
-def setup_mounts_bad():
-    """Setup mount points mkdtemp failure"""
-    backup_mkdtemp = tempfile.mkdtemp
-    template = None
-
-    def mock_mkdtemp(*_, **kwargs):
-        """mock_mkdtemp wrapper"""
-        if not kwargs.get("prefix"):
-            # Lack of Exception causes test failure
-            return True
-        raise Exception("mkdtemp")
-    tempfile.mkdtemp = mock_mkdtemp
-    exception_flag = False
-    try:
-        _ = ister.setup_mounts(template)
-    except Exception:
-        exception_flag = True
-    finally:
-        tempfile.mkdtemp = backup_mkdtemp
-    if not exception_flag:
-        raise Exception("Failed to handle mkdtemp failure")
 
 
 @open_wrapper("good", "")
@@ -2152,6 +2126,7 @@ def cleanup_physical_encrypted_good():
         """args empty object"""
         pass
     args.statedir = '/swupd/state'
+    args.target_dir = None
 
     template = {
         "FilesystemTypes": [],
@@ -2187,6 +2162,7 @@ def cleanup_physical_good():
         """args empty object"""
         pass
     args.statedir = '/swupd/state'
+    args.target_dir = None
 
     template = {"FilesystemTypes": [],
                 'PartitionMountPoints':[]}
@@ -2195,6 +2171,34 @@ def cleanup_physical_good():
                 "rm -fr /tmp/var/tmp",
                 "umount -R /tmp",
                 "rm -fr /tmp"]
+    ister.cleanup(args, template, "/tmp")
+    os.path.isdir = backup_isdir
+    commands_compare_helper(commands)
+
+
+@run_command_wrapper
+def cleanup_arg_target_dir_good():
+    """Test cleanup of with target dir arg"""
+    backup_isdir = os.path.isdir
+
+    def mock_isdir(path):
+        """mock_isdir wrapper"""
+        COMMAND_RESULTS.append(path)
+        return True
+    os.path.isdir = mock_isdir
+
+    def args():
+        """args empty object"""
+        pass
+    args.statedir = '/swupd/state'
+    args.target_dir = "/tmp"
+
+    template = {"FilesystemTypes": [],
+                'PartitionMountPoints':[]}
+    commands = ["/tmp/var/tmp",
+                "umount /swupd/state",
+                "rm -fr /tmp/var/tmp",
+                "umount -R /tmp"]
     ister.cleanup(args, template, "/tmp")
     os.path.isdir = backup_isdir
     commands_compare_helper(commands)
@@ -2214,6 +2218,7 @@ def cleanup_virtual_good():
     def args():
         """args empty object"""
         pass
+    args.target_dir = None
 
     template = {"dev": "image",
                 "FilesystemTypes": [],
@@ -2241,6 +2246,7 @@ def cleanup_virtual_swap_good():
     def args():
         """args empty object"""
         pass
+    args.target_dir = None
 
     template = {"dev": "/dev/loop0",
                 'PartitionMountPoints':[],
@@ -3660,7 +3666,8 @@ def handle_options_good():
     # Test short options first
     sys.argv = ["ister.py", "-c", "cfg", "-t", "tpt", "-C", "/", "-V", "/",
                 "-f", "1", "-v", "-l", "log", "-L", "debug", "-S", "/",
-                "-s", "./cert", "-k", "/cmdline", "-d", "./dnf.conf"]
+                "-s", "./cert", "-k", "/cmdline", "-d", "./dnf.conf",
+                "-D", "/tmp"]
     try:
         args = ister.handle_options(sys.argv[1:])
     except Exception:
@@ -3691,12 +3698,15 @@ def handle_options_good():
         raise Exception("Failed to correctly set kcmdline")
     if args.dnf_config != "./dnf.conf":
         raise Exception("Failed to correctly set dnf config")
+    if args.target_dir != "/tmp":
+        raise Exception("Failed to correctly set target directory")
 
     # Test long options next
     sys.argv = ["ister.py", "--config-file=cfg", "--template-file=tpt",
                 "--contenturl=/", "--versionurl=/", "--format=1", "--verbose",
                 "--logfile=log", "--loglevel=debug", "--statedir=/",
-                "--cert-file=./cert", "--kcmdline=/cmdline", "--dnf-config=./dnf.conf"]
+                "--cert-file=./cert", "--kcmdline=/cmdline",
+                "--dnf-config=./dnf.conf", "--target-dir=/tmp"]
     try:
         args = ister.handle_options(sys.argv[1:])
     except Exception:
@@ -3727,6 +3737,8 @@ def handle_options_good():
         raise Exception("Failed to correctly set long kcmdline")
     if args.dnf_config != "./dnf.conf":
         raise Exception("Failed to correctly set long dnf config")
+    if args.target_dir != "/tmp":
+        raise Exception("Failed to correctly set long target directory")
 
     # Test default options
     sys.argv = ["ister.py"]
@@ -3760,6 +3772,8 @@ def handle_options_good():
         raise Exception("Incorrect default kcmdline set")
     if args.dnf_config:
         raise Exception("Incorrect default dnf config set")
+    if args.target_dir:
+        raise Exception("Incorrect default target directory set")
 
 
 def handle_logging_good():
@@ -5666,13 +5680,15 @@ if __name__ == '__main__':
         create_filesystems_virtual_good,
         create_filesystems_mmcblk_good,
         create_filesystems_good_options,
+        create_target_dir_no_arg_good,
+        create_target_dir_arg_good,
+        create_target_dir_arg_bad,
         setup_mounts_encryption_good,
         setup_mounts_good,
         setup_mounts_good_mbr,
         setup_mounts_good_no_boot,
         setup_mounts_virtual_good,
         setup_mounts_mmcblk_good,
-        setup_mounts_bad,
         setup_mounts_good_units,
         add_bundles_good,
         set_hostname_good,
@@ -5710,6 +5726,7 @@ if __name__ == '__main__':
         post_install_chroot_shell_good,
         cleanup_physical_encrypted_good,
         cleanup_physical_good,
+        cleanup_arg_target_dir_good,
         cleanup_virtual_good,
         cleanup_virtual_swap_good,
         get_template_location_good,
