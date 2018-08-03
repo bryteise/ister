@@ -828,7 +828,6 @@ def cleanup(args, template, target_dir, raise_exception=True):
                     raise_exception=raise_exception)
     for dev_entry in template['PartitionMountPoints']:
         if 'encryption' in dev_entry:
-            c_dev = "{0}{1}".format(dev_entry['disk'], dev_entry['partition'])
             c = pycryptsetup.CryptSetup(name=dev_entry['encryption']['name'])
             c.deactivate()
 
