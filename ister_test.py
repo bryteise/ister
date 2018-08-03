@@ -2152,6 +2152,7 @@ def cleanup_physical_encrypted_good():
         """args empty object"""
         pass
     args.statedir = '/swupd/state'
+    args.no_unmount = False
 
     template = {
         "FilesystemTypes": [],
@@ -2187,6 +2188,7 @@ def cleanup_physical_good():
         """args empty object"""
         pass
     args.statedir = '/swupd/state'
+    args.no_unmount = False
 
     template = {"FilesystemTypes": [],
                 'PartitionMountPoints':[]}
@@ -2214,6 +2216,7 @@ def cleanup_virtual_good():
     def args():
         """args empty object"""
         pass
+    args.no_unmount = False
 
     template = {"dev": "image",
                 "FilesystemTypes": [],
@@ -2241,6 +2244,7 @@ def cleanup_virtual_swap_good():
     def args():
         """args empty object"""
         pass
+    args.no_unmount = False
 
     template = {"dev": "/dev/loop0",
                 'PartitionMountPoints':[],

@@ -311,7 +311,25 @@ def create_filesystems(template):
                             raise_exception=False)
 
 
-def setup_mounts(template):
+def create_target_dir(args, template):
+    """Create the target root directory
+    """
+
+    if args.target_dir:
+        target_dir = args.target_dir
+        if not os.path.exists(target_dir):
+            raise Exception("Target directory {0} does not exist".format(target_dir))
+    else:
+        try:
+            prefix = "ister-" + str(template["Version"]) + "-"
+            target_dir = tempfile.mkdtemp(prefix=prefix)
+        except Exception:
+            raise Exception("Failed to setup mounts for install")
+
+    LOG.debug("Installation target directory: {0}".format(target_dir))
+    return target_dir
+
+def setup_mounts(target_dir, template):
     """Mount target folder
 
     Returns target folder name
@@ -319,12 +337,6 @@ def setup_mounts(template):
     This function will raise an Exception on finding an error.
     """
     LOG.info("Setting up mount points")
-    try:
-        prefix = "ister-" + str(template["Version"]) + "-"
-        target_dir = tempfile.mkdtemp(prefix=prefix)
-        LOG.debug("Using temporary directory: {0}".format(target_dir))
-    except Exception:
-        raise Exception("Failed to setup mounts for install")
 
     has_boot = False
 
@@ -800,6 +812,10 @@ def post_install_chroot_shell(template, target_dir):
 def cleanup(args, template, target_dir, raise_exception=True):
     """Unmount and remove temporary files
     """
+    if args.no_unmount:
+        LOG.info("Skip unmounting target image at {0}".format(target_dir))
+        return
+
     LOG.info("Cleaning up")
     if target_dir:
         if os.path.isdir("{0}/var/tmp".format(target_dir)):
@@ -813,8 +829,10 @@ def cleanup(args, template, target_dir, raise_exception=True):
             run_command("lsof {}/boot".format(target_dir),
                         raise_exception=raise_exception)
 
-        run_command("rm -fr {}".format(target_dir),
-                    raise_exception=raise_exception)
+        if not args.target_dir:
+            # --target-dir was not used.
+            run_command("rm -fr {}".format(target_dir),
+                        raise_exception=raise_exception)
 
     # Turn off any swap devices we enabled
     for fst in template["FilesystemTypes"]:
@@ -1474,7 +1492,8 @@ def install_os(args, template):
         if template["DestinationType"] == "virtual":
             map_loop_device(template)
         create_filesystems(template)
-        target_dir = setup_mounts(template)
+        target_dir = create_target_dir(args, template)
+        setup_mounts(target_dir, template)
         copy_os(args, template, target_dir)
         add_users(template, target_dir)
         set_hostname(template, target_dir)
@@ -1557,6 +1576,11 @@ def handle_options(sys_args):
                         help="Path to swupd state dir")
     group.add_argument("-F", "--fast-install", action="store_true",
                         help="Move swupd state dir inside image for a faster install")
+    parser.add_argument("--target-dir", action="store",
+                        default=None,
+                        help="Target root directory path, 'mktemp' by default")
+    parser.add_argument("--no-unmount", action="store_true",
+                        help="Do not unmount the target file-systems when done")
     parser.add_argument("-d", "--dnf-config", action="store",
                         default=None,
                         help="DNF configuration file for installing packages")
