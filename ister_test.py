@@ -2127,6 +2127,7 @@ def cleanup_physical_encrypted_good():
         pass
     args.statedir = '/swupd/state'
     args.target_dir = None
+    args.no_unmount = False
 
     template = {
         "FilesystemTypes": [],
@@ -2163,6 +2164,7 @@ def cleanup_physical_good():
         pass
     args.statedir = '/swupd/state'
     args.target_dir = None
+    args.no_unmount = False
 
     template = {"FilesystemTypes": [],
                 'PartitionMountPoints':[]}
@@ -2192,6 +2194,7 @@ def cleanup_arg_target_dir_good():
         pass
     args.statedir = '/swupd/state'
     args.target_dir = "/tmp"
+    args.no_unmount = False
 
     template = {"FilesystemTypes": [],
                 'PartitionMountPoints':[]}
@@ -2201,6 +2204,19 @@ def cleanup_arg_target_dir_good():
                 "umount -R /tmp"]
     ister.cleanup(args, template, "/tmp")
     os.path.isdir = backup_isdir
+    commands_compare_helper(commands)
+
+
+@run_command_wrapper
+def cleanup_arg_no_umount_good():
+    """Test cleanup without umount"""
+    def args():
+        """args empty object"""
+        pass
+    args.no_unmount = True
+
+    commands = []
+    ister.cleanup(args, None, None)
     commands_compare_helper(commands)
 
 
@@ -2219,6 +2235,7 @@ def cleanup_virtual_good():
         """args empty object"""
         pass
     args.target_dir = None
+    args.no_unmount = False
 
     template = {"dev": "image",
                 "FilesystemTypes": [],
@@ -2247,6 +2264,7 @@ def cleanup_virtual_swap_good():
         """args empty object"""
         pass
     args.target_dir = None
+    args.no_unmount = False
 
     template = {"dev": "/dev/loop0",
                 'PartitionMountPoints':[],
@@ -3667,7 +3685,7 @@ def handle_options_good():
     sys.argv = ["ister.py", "-c", "cfg", "-t", "tpt", "-C", "/", "-V", "/",
                 "-f", "1", "-v", "-l", "log", "-L", "debug", "-S", "/",
                 "-s", "./cert", "-k", "/cmdline", "-d", "./dnf.conf",
-                "-D", "/tmp"]
+                "-D", "/tmp", "-m"]
     try:
         args = ister.handle_options(sys.argv[1:])
     except Exception:
@@ -3700,13 +3718,16 @@ def handle_options_good():
         raise Exception("Failed to correctly set dnf config")
     if args.target_dir != "/tmp":
         raise Exception("Failed to correctly set target directory")
+    if args.no_unmount == False:
+        raise Exception("Failed to correctly set no unmount")
 
     # Test long options next
     sys.argv = ["ister.py", "--config-file=cfg", "--template-file=tpt",
                 "--contenturl=/", "--versionurl=/", "--format=1", "--verbose",
                 "--logfile=log", "--loglevel=debug", "--statedir=/",
                 "--cert-file=./cert", "--kcmdline=/cmdline",
-                "--dnf-config=./dnf.conf", "--target-dir=/tmp"]
+                "--dnf-config=./dnf.conf", "--target-dir=/tmp",
+                "--no-unmount"]
     try:
         args = ister.handle_options(sys.argv[1:])
     except Exception:
@@ -3739,6 +3760,8 @@ def handle_options_good():
         raise Exception("Failed to correctly set long dnf config")
     if args.target_dir != "/tmp":
         raise Exception("Failed to correctly set long target directory")
+    if args.no_unmount == False:
+        raise Exception("Failed to correctly set long no unmount")
 
     # Test default options
     sys.argv = ["ister.py"]
@@ -3774,6 +3797,8 @@ def handle_options_good():
         raise Exception("Incorrect default dnf config set")
     if args.target_dir:
         raise Exception("Incorrect default target directory set")
+    if args.no_unmount == True:
+        raise Exception("Incorrect default no unmount set")
 
 
 def handle_logging_good():
@@ -5727,6 +5752,7 @@ if __name__ == '__main__':
         cleanup_physical_encrypted_good,
         cleanup_physical_good,
         cleanup_arg_target_dir_good,
+        cleanup_arg_no_umount_good,
         cleanup_virtual_good,
         cleanup_virtual_swap_good,
         get_template_location_good,
