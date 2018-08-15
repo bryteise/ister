@@ -853,9 +853,9 @@ def get_template_location(path):
 
     This function will raise an Exception on finding an error.
     """
-    conf_file = open(path, "r")
-    contents = conf_file.readline().rstrip().split('=')
-    conf_file.close()
+    with open(path, "r") as conf_file:
+        contents = conf_file.readline().rstrip().split('=')
+
     if contents[0] != "template" or len(contents) != 2:
         # This does not look like a valid configuration file. Let's assume this
         # is the template.
