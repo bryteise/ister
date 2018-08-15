@@ -267,13 +267,13 @@ def create_filesystems(template):
     """
 
     # Filesystem-specific format tool options.
-    fs_util = {"ext2": {"cmd" : "mkfs.ext2 -F"},
-               "ext3": {"cmd" : "mkfs.ext3 -F"},
-               "ext4": {"cmd" : "mkfs.ext4 -F"},
-               "btrfs": {"cmd" : "mkfs.btrfs -f"},
-               "vfat": {"cmd" : "mkfs.vfat"},
-               "swap": {"cmd" : "mkswap"},
-               "xfs": {"cmd" : "mkfs.xfs -f"}}
+    fs_util = {"ext2": {"cmd" : "mkfs.ext2 -F", "label" : "-L"},
+               "ext3": {"cmd" : "mkfs.ext3 -F", "label" : "-L"},
+               "ext4": {"cmd" : "mkfs.ext4 -F", "label" : "-L"},
+               "btrfs": {"cmd" : "mkfs.btrfs -f", "label" : "-L"},
+               "vfat": {"cmd" : "mkfs.vfat", "label" : "-n"},
+               "swap": {"cmd" : "mkswap", "label" : "-L"},
+               "xfs": {"cmd" : "mkfs.xfs -f", "label" : "-L"}}
 
     LOG.info("Creating file systems")
     for fst in template["FilesystemTypes"]:
@@ -285,6 +285,8 @@ def create_filesystems(template):
         opts = fst.get("options", "")
         if opts:
             opts = " " + opts
+        if "label" in fst:
+            opts += " {0} {1}".format(fsu["label"], fst["label"])
         command = "{0}{1} {2}{3}".format(fsu["cmd"], opts, dev,
                                           fst["partition"])
         if fst["type"] == "swap":
