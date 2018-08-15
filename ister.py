@@ -265,21 +265,27 @@ def get_device_name(template, disk):
 def create_filesystems(template):
     """Create filesystems according to template configuration
     """
+
+    # Filesystem-specific format tool options.
+    fs_util = {"ext2": {"cmd" : "mkfs.ext2 -F"},
+               "ext3": {"cmd" : "mkfs.ext3 -F"},
+               "ext4": {"cmd" : "mkfs.ext4 -F"},
+               "btrfs": {"cmd" : "mkfs.btrfs -f"},
+               "vfat": {"cmd" : "mkfs.vfat"},
+               "swap": {"cmd" : "mkswap"},
+               "xfs": {"cmd" : "mkfs.xfs -f"}}
+
     LOG.info("Creating file systems")
-    fs_util = {"ext2": "mkfs.ext2 -F", "ext3": "mkfs.ext3 -F",
-               "ext4": "mkfs.ext4 -F", "btrfs": "mkfs.btrfs -f",
-               "vfat": "mkfs.vfat", "swap": "mkswap", "xfs": "mkfs.xfs -f"}
     for fst in template["FilesystemTypes"]:
         (dev, prefix) = get_device_name(template, fst["disk"])
+        fsu = fs_util[fst["type"]]
         LOG.debug("Creating file system {0} in {1}{2}"
                   .format(fst["type"], dev, fst["partition"]))
         if fst.get("options"):
-            command = "{0} {1} {2}{3}".format(fs_util[fst["type"]],
-                                              fst["options"], dev,
+            command = "{0} {1} {2}{3}".format(fsu["cmd"], fst["options"], dev,
                                               fst["partition"])
         else:
-            command = "{0} {1}{2}".format(fs_util[fst["type"]], dev,
-                                          fst["partition"])
+            command = "{0} {1}{2}".format(fsu["cmd"], dev, fst["partition"])
         if fst["type"] == "swap":
             if prefix:
                 base_dev = dev[:-1]
@@ -299,11 +305,11 @@ def create_filesystems(template):
                 c.activate(name=fst["encryption"]["name"],
                     passphrase=fst["encryption"]["passphrase"])
                 if fst.get("options"):
-                    command = "{0} {1} /dev/mapper/{2}".format(fs_util[fst["type"]],
+                    command = "{0} {1} /dev/mapper/{2}".format(fsu["cmd"],
                                               fst["options"],
                                               fst["encryption"]["name"])
                 else:
-                    command = "{0} /dev/mapper/{1}".format(fs_util[fst["type"]],
+                    command = "{0} /dev/mapper/{1}".format(fsu["cmd"],
                                               fst["encryption"]["name"])
             run_command(command)
             if fst["type"] == "swap":
