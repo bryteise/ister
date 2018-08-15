@@ -2348,27 +2348,11 @@ def get_template_location_bad_missing():
         raise Exception("No error when reading from a nonexistant file")
 
 
-def get_template_location_bad_no_equal():
-    """Bad get_template_location test '=' content missing"""
-    exception_flag = False
-    try:
-        _ = ister.get_template_location("bad-ister1.conf")
-    except Exception:
-        exception_flag = True
-    if not exception_flag:
-        raise Exception("No error from loading no '=' template file")
-
-
-def get_template_location_bad_malformed():
-    """Bad get_template_location test (template variable missing)"""
-    exception_flag = False
-    try:
-        _ = ister.get_template_location("bad-ister2.conf")
-    except Exception:
-        exception_flag = True
-    if not exception_flag:
-        raise Exception("No error from loading malformed template file")
-
+def get_template_location_fallback():
+    """Test that we handle the case when a template is given instead of a config file."""
+    path = ister.get_template_location("ister.json")
+    if not path.startswith("file://"):
+        raise Exception("template was rejected, but it should not")
 
 def get_template_good():
     """Test loading valid json file"""
@@ -5806,8 +5790,7 @@ if __name__ == '__main__':
         cleanup_virtual_swap_good,
         get_template_location_good,
         get_template_location_bad_missing,
-        get_template_location_bad_no_equal,
-        get_template_location_bad_malformed,
+        get_template_location_fallback,
         get_template_good,
         validate_layout_good,
         validate_layout_good_missing_efi_virtual,
