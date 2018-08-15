@@ -1091,6 +1091,54 @@ def create_filesystems_good_options():
     os.listdir = listdir_backup
     commands_compare_helper(commands)
 
+@run_command_wrapper
+def create_filesystems_good_options_label():
+    """Create filesystems with options"""
+    listdir_backup = os.listdir
+
+    def mock_listdir(directory):
+        """mock_listdir wrapper"""
+        del directory
+        return ["sda", "sda1", "sda2", "sda3", "sda4",
+                "sdb", "sdb1", "sdb2", "sdb3"]
+
+    template = {"FilesystemTypes": [{"disk": "sda", "type": "ext2",
+                                     "partition": 1, "options": "opt",
+                                     "label" : "foobar"},
+                                    {"disk": "sda", "type": "ext3",
+                                     "partition": 2, "options": "opt",
+                                     "label" : "FooBar"},
+                                    {"disk": "sda", "type": "ext4",
+                                     "partition": 3, "options": "opt",
+                                     "label" : "fooBar"},
+                                    {"disk": "sda", "type": "btrfs",
+                                     "partition": 4, "options": "opt",
+                                     "label" : "Foobar"},
+                                    {"disk": "sdb", "type": "vfat",
+                                     "partition": 1, "options": "opt",
+                                     "label" : "FOOBAR"},
+                                    {"disk": "sdb", "type": "swap",
+                                     "partition": 2, "options": "opt",
+                                     "label" : "FOObar"},
+                                    {"disk": "sdb", "type": "xfs",
+                                     "partition": 3, "options": "opt",
+                                     "label" : "fooBAR"}]}
+    commands = ["mkfs.ext2 -F opt -L foobar /dev/sda1",
+                "mkfs.ext3 -F opt -L FooBar /dev/sda2",
+                "mkfs.ext4 -F opt -L fooBar /dev/sda3",
+                "mkfs.btrfs -f opt -L Foobar /dev/sda4",
+                "mkfs.vfat opt -n FOOBAR /dev/sdb1",
+                "sgdisk /dev/sdb "
+                "--typecode=2:0657fd6d-a4ab-43c4-84e5-0933c84b4f4f",
+                "mkswap opt -L FOObar /dev/sdb2",
+                "swapon /dev/sdb2",
+                False,
+                "mkfs.xfs -f opt -L fooBAR /dev/sdb3"]
+    os.listdir = mock_listdir
+    ister.create_filesystems(template)
+    os.listdir = listdir_backup
+    commands_compare_helper(commands)
+
 
 @run_command_wrapper
 def create_target_dir_no_arg_good():
@@ -5705,6 +5753,7 @@ if __name__ == '__main__':
         create_filesystems_virtual_good,
         create_filesystems_mmcblk_good,
         create_filesystems_good_options,
+        create_filesystems_good_options_label,
         create_target_dir_no_arg_good,
         create_target_dir_arg_good,
         create_target_dir_arg_bad,
