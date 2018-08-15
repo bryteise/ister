@@ -281,11 +281,12 @@ def create_filesystems(template):
         fsu = fs_util[fst["type"]]
         LOG.debug("Creating file system {0} in {1}{2}"
                   .format(fst["type"], dev, fst["partition"]))
-        if fst.get("options"):
-            command = "{0} {1} {2}{3}".format(fsu["cmd"], fst["options"], dev,
-                                              fst["partition"])
-        else:
-            command = "{0} {1}{2}".format(fsu["cmd"], dev, fst["partition"])
+
+        opts = fst.get("options", "")
+        if opts:
+            opts = " " + opts
+        command = "{0}{1} {2}{3}".format(fsu["cmd"], opts, dev,
+                                          fst["partition"])
         if fst["type"] == "swap":
             if prefix:
                 base_dev = dev[:-1]
@@ -304,13 +305,8 @@ def create_filesystems(template):
                     fst["encryption"]["passphrase"])
                 c.activate(name=fst["encryption"]["name"],
                     passphrase=fst["encryption"]["passphrase"])
-                if fst.get("options"):
-                    command = "{0} {1} /dev/mapper/{2}".format(fsu["cmd"],
-                                              fst["options"],
-                                              fst["encryption"]["name"])
-                else:
-                    command = "{0} /dev/mapper/{1}".format(fsu["cmd"],
-                                              fst["encryption"]["name"])
+                command = "{0}{1} /dev/mapper/{2}".format(fsu["cmd"],
+                                          opts, fst["encryption"]["name"])
             run_command(command)
             if fst["type"] == "swap":
                 run_command("swapon {0}{1}".format(dev, fst["partition"]),
