@@ -3323,9 +3323,6 @@ class Installation(object):
         """Starts up the installer ui"""
         pprint.PrettyPrinter(indent=4)
         step = self.start
-        # initiate the bundles list at the start, not in a screen, so it does
-        # not get overwritten when a user returns to that screen.
-        self.installation_d['Bundles'] = list()
         i = 0
         while not isinstance(step, RunInstallation):
             action = step.handler(self.installation_d)
