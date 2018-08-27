@@ -85,32 +85,25 @@ def run_command(cmd, raise_exception=True, log_output=True, environ=None,
         proc = subprocess.Popen(full_cmd,
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE,
-                                env=environ,
-                                shell=shell)
-        lines = proc.stdout
-        stdout = []
-        for line in lines:
-            decoded_line = line.decode('ascii', 'ignore').rstrip()
-            stdout.append(decoded_line)
-            if show_output:
-                LOG.info(decoded_line)
-            elif log_output:
-                LOG.debug(decoded_line)
-        lines = proc.stderr
-        stderr = []
-        for line in lines:
-            decoded_line = line.decode('ascii', 'ignore').rstrip()
-            stderr.append(decoded_line)
-            if show_output:
-                LOG.info(decoded_line)
-            elif log_output:
-                LOG.debug(decoded_line)
+                                env=environ, shell=shell)
+
+        output = []
+        for stream in (proc.stdout, proc.stderr):
+            lines = []
+            output.append(lines)
+            for line in stream:
+                decoded_line = line.decode('ascii', 'ignore').rstrip()
+                lines.append(decoded_line)
+                if show_output:
+                    LOG.info(decoded_line)
+                elif log_output:
+                    LOG.debug(decoded_line)
 
         if proc.poll() and raise_exception:
-            if stderr:
-                LOG.debug("Error {0}".format('\n'.join(stderr)))
+            if output[1]:
+                LOG.debug("Error {0}".format('\n'.join(output[1])))
             raise Exception("{0}".format(cmd))
-        return stdout, proc.returncode
+        return output[0], proc.returncode
     except Exception as exep:
         if raise_exception:
             raise Exception("{0} failed: {1}".format(cmd, exep))
