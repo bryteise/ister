@@ -67,7 +67,10 @@ DEBUG = False
 
 def run_command(cmd, raise_exception=True, log_output=True, environ=None,
                 show_output=False, shell=False):
-    """Execute given command in a subprocess
+    """
+    Execute given command in a subprocess and return a (stdout, exitcode) tuple,
+    where 'stdout' is the standard output of the command and 'exitcode' is the
+    exit status.
 
     This function will raise an Exception if the command fails unless
     raise_exception is False.
