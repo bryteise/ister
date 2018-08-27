@@ -87,6 +87,15 @@ def run_command(cmd, raise_exception=True, log_output=True, environ=None,
                                 stderr=subprocess.PIPE,
                                 env=environ, shell=shell)
 
+        # The following code makes an assumption that 'cmd' outputs to 'stdout',
+        # but uses 'stderr' only in case of failure. Therefore we first exhaust
+        # the 'stdout' pipe and then look to the 'stderr' pipe. If 'cmd' outputs
+        # to 'stderr' as part of its normal operation, the below code may cause
+        # a deadlock:
+        # * 'cmd' prints to 'stderr'
+        # * 'stderr' pipe is full and 'cmd' gets blocked
+        # * we keep waiting on 'stdout'
+        # * deadlock
         output = []
         for stream in (proc.stdout, proc.stderr):
             lines = []
