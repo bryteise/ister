@@ -1110,8 +1110,16 @@ def validate_user_template(users):
                                 .format(user))
 
         if key:
-            with open(user["key"], "r") as key_file:
-                user["key"] = key_file.read()
+            try:
+                with open(user["key"], "r") as key_file:
+                    user["key"] = key_file.read()
+            except FileNotFoundError:
+                # Let's assume this is the public key value, not the file name
+                # containing the public key.
+                pass
+            except OSError as err:
+                raise Exception("failed to read public SSH key file for user "
+                                "'{0}': {1}".format(name, err))
 
 
 def validate_hostname_template(hostname):
