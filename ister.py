@@ -1610,9 +1610,9 @@ def main():
         template = get_template(configuration["template"])
         install_os(args, template)
     except Exception as exep:
-        LOG.debug("Failed: {}".format(repr(exep)))
         if args.loglevel == "debug":
             traceback.print_exc()
+        LOG.error("Failed: {}".format(repr(exep)))
         sys.exit(-1)
     LOG.info("Successful installation")
     sys.exit(0)
