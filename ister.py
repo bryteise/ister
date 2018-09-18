@@ -1611,9 +1611,7 @@ def main():
         install_os(args, template)
     except Exception as exep:
         LOG.debug("Failed: {}".format(repr(exep)))
-        # TODO: Add arg for loglevel to -v
-        # And change this to trigger on DEBUG level
-        if DEBUG:
+        if args.loglevel == "debug":
             traceback.print_exc()
         sys.exit(-1)
     LOG.info("Successful installation")
