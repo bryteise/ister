@@ -62,9 +62,6 @@ import pycryptsetup
 
 LOG = None
 
-DEBUG = False
-
-
 def run_command(cmd, raise_exception=True, log_output=True, environ=None,
                 show_output=False, shell=False):
     """
