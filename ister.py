@@ -52,6 +52,8 @@ import subprocess
 import sys
 import tempfile
 import time
+import base64
+import binascii
 import traceback
 import urllib.request as request
 from urllib.error import URLError, HTTPError
@@ -1120,6 +1122,18 @@ def validate_user_template(users):
             except OSError as err:
                 raise Exception("failed to read public SSH key file for user "
                                 "'{0}': {1}".format(name, err))
+            # Basic key validation: check that it consists of 3 components
+            # (type, str, comment) and the str part is a base64-ecoded string.
+            key = user["key"].split()
+            if len(key) < 3:
+                raise Exception("Invalid public SSH for user '{}'".format(name))
+            try:
+                # SSH keys are not necessarioly padded as base64 requires, so
+                # pad the key before running the check.
+               base64.b64decode(key[1], validate=True)
+            except binascii.Error as err:
+                raise Exception("Invalid public SSH for user '{0}', base64 "
+                                "decoding failed: {1}".format(name, err))
 
 
 def validate_hostname_template(hostname):
