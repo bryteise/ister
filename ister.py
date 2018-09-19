@@ -548,6 +548,12 @@ class ChrootOpen(object):
             raise Exception("Unable to restore real root after chroot")
 
 
+def get_user_homedir(username):
+    """Returns user's home directory path."""
+    if username == "root":
+        return os.path.join(os.sep, "root")
+    return os.path.join(os.sep, "home", username)
+
 def create_account(user, target_dir):
     """Add user to the system
 
@@ -555,7 +561,7 @@ def create_account(user, target_dir):
     passwordless login. Also add a new group with same name as the user
     """
 
-    os.makedirs(target_dir + "/home", exist_ok=True)
+    os.makedirs(target_dir + get_user_homedir(user["username"]), exist_ok=True)
     if user.get("uid"):
         command = "useradd -U -m -u {0} {1}"\
             .format(user["uid"], user["username"])
@@ -594,19 +600,19 @@ def add_user_key(user, target_dir):
     # Must run pwd.getpwnam outside of chroot to load installer shared
     # lib instead of target which prevents umount on cleanup
     pwd.getpwnam("root")
+
+    sshdir = os.path.join(get_user_homedir(user["username"]), ".ssh")
+    akey_path = os.path.join(sshdir, "authorized_keys")
     with ChrootOpen(target_dir) as _:
         try:
-            os.makedirs("/home/{0}/.ssh".format(user["username"]), mode=0o0700)
+            os.makedirs(sshdir, mode=0o0700)
             pwinfo = pwd.getpwnam(user["username"])
             uid = pwinfo[2]
             gid = pwinfo[3]
-            os.chown("/home/{0}/.ssh".format(user["username"]), uid, gid)
-            akey = open("/home/{0}/.ssh/authorized_keys"
-                        .format(user["username"]), "a")
-            akey.write(user["key"])
-            akey.close()
-            os.chown("/home/{0}/.ssh/authorized_keys"
-                     .format(user["username"]), uid, gid)
+            os.chown(sshdir, uid, gid)
+            with open(akey_path, "a") as akey_fobj:
+                akey_fobj.write(user["key"])
+            os.chown(akey_path, uid, gid)
         except Exception as exep:
             raise Exception("Unable to add {0}'s ssh key to authorized "
                             "keys: {1}".format(user["username"], exep))
