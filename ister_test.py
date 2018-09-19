@@ -3118,6 +3118,14 @@ def validate_user_template_good():
     ister.validate_user_template(template)
 
 
+def validate_user_template_good_key_inline():
+    """Good validate_user_template with key inline"""
+    template = [{"username": "user", "uid": "1000", "sudo": True,
+                 "key": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDFi7nDjBmPOa244cTByh4ttV4UuMd53wIsSzMwTtEuoRlLn1ROEe79tpxT1UkSnipEO9eFO5Dp/rx3dkWtkhsdTOMKIB+7EF9sv3QDijYLgWw7GLXY4PJLNygYLIK3dh5rxq4Glo75SrnPe1abuIfYwE2csW62AVeC//6M64/D5cC/qtRk/tb8khqbEp+FOvDCEPFBcO/2ZP1i0oPkMm/UIhP1jvOU1GNlKxPKzVHRYO9uyyQQmVRz6mKM1Q4tKXciy7pTmehPWFoBKfo59bMpZKb1m9/v+v+ePxZ3fylizl67+UH7sRU8oaRnSUafwR8fKFhwtJV8ygtj7TeI86GR !!!ister-test-key",
+                 "password": "test"}]
+    ister.validate_user_template(template)
+
+
 def validate_user_template_good_no_sudo():
     """Good validate_user_template with sudo inactive"""
     template = [{"username": "user", "uid": "1000", "sudo": False,
@@ -3130,6 +3138,34 @@ def validate_user_template_good_key_missing_password():
     template = [{"username": "user", "uid": "1000", "sudo": True,
                  "key": "{}/key.pub".format(os.getcwd())}]
     ister.validate_user_template(template)
+
+
+def validate_user_template_bad_key_inline():
+    """Good validate_user_template with key inline"""
+    exception_flag = False
+    template = [{"username": "user", "uid": "1000", "sudo": True,
+                 "key": "ssh-rsa",
+                 "password": "test"}]
+    try:
+        ister.validate_user_template(template)
+    except Exception:
+        exception_flag = True
+    if not exception_flag:
+        raise Exception("Failed to detect bad ssh key")
+
+
+def validate_user_template_bad_key_encode_inline():
+    """Good validate_user_template with key inline"""
+    exception_flag = False
+    template = [{"username": "user", "uid": "1000", "sudo": True,
+                 "key": "ssh-rsa a b",
+                 "password": "test"}]
+    try:
+        ister.validate_user_template(template)
+    except Exception:
+        exception_flag = True
+    if not exception_flag:
+        raise Exception("Failed to detect badly encoded ssh key")
 
 
 def validate_user_template_bad_missing_name():
@@ -5845,8 +5881,11 @@ if __name__ == '__main__':
         validate_type_template_good_virtual,
         validate_type_template_bad,
         validate_user_template_good,
+        validate_user_template_good_key_inline,
         validate_user_template_good_no_sudo,
         validate_user_template_good_key_missing_password,
+        validate_user_template_bad_key_inline,
+        validate_user_template_bad_key_encode_inline,
         validate_user_template_bad_missing_name,
         validate_user_template_bad_duplicate_name,
         validate_user_template_bad_missing_password,
