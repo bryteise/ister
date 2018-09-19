@@ -1948,7 +1948,6 @@ def add_user_key_good():
                 "/home/user/.ssh/authorized_keys",
                 "a",
                 "public",
-                "close",
                 "/home/user/.ssh/authorized_keys",
                 1000,
                 1000]
