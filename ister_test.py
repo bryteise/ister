@@ -4001,17 +4001,11 @@ def process_kernel_cmdline_good():
         COMMAND_RESULTS.append(a.read())
         COMMAND_RESULTS.append(b.read())
 
-    def mock_os_unlink(path):
-        """ breadcrumb for os.unlink """
-        COMMAND_RESULTS.append("unlink_{0}".format(path))
-
     mkstemp_orig = tempfile.mkstemp
     cfo_orig = shutil.copyfileobj
-    unlink_orig = os.unlink
 
     tempfile.mkstemp = mock_mkstemp
     shutil.copyfileobj = mock_copyfileobj
-    os.unlink = mock_os_unlink
     commands = []
 
     try:
@@ -4021,7 +4015,6 @@ def process_kernel_cmdline_good():
     finally:
         tempfile.mkstemp = mkstemp_orig
         shutil.copyfileobj = cfo_orig
-        os.unlink = unlink_orig
 
     commands = ['foo', 'r', 'read', 'mkstemp',
                 'http://localhost/', 42, 'wb', 'read',
@@ -4048,17 +4041,11 @@ def process_kernel_cmdline_bad_no_isterconf():
         COMMAND_RESULTS.append(a.read())
         COMMAND_RESULTS.append(b.read())
 
-    def mock_os_unlink(path):
-        """ breadcrumb for os.unlink """
-        COMMAND_RESULTS.append("unlink_{0}".format(path))
-
     mkstemp_orig = tempfile.mkstemp
     cfo_orig = shutil.copyfileobj
-    unlink_orig = os.unlink
 
     tempfile.mkstemp = mock_mkstemp
     shutil.copyfileobj = mock_copyfileobj
-    os.unlink = mock_os_unlink
 
     try:
         ister.process_kernel_cmdline("foo")
@@ -4067,7 +4054,6 @@ def process_kernel_cmdline_bad_no_isterconf():
     finally:
         tempfile.mkstemp = mkstemp_orig
         shutil.copyfileobj = cfo_orig
-        os.unlink = unlink_orig
 
     commands = ['foo', 'r', 'read']
     commands_compare_helper(commands)
@@ -4092,17 +4078,11 @@ def process_kernel_cmdline_bad_urlopen_fails():
         COMMAND_RESULTS.append(a.read())
         COMMAND_RESULTS.append(b.read())
 
-    def mock_os_unlink(path):
-        """ breadcrumb for os.unlink """
-        COMMAND_RESULTS.append("unlink_{0}".format(path))
-
     mkstemp_orig = tempfile.mkstemp
     cfo_orig = shutil.copyfileobj
-    unlink_orig = os.unlink
 
     tempfile.mkstemp = mock_mkstemp
     shutil.copyfileobj = mock_copyfileobj
-    os.unlink = mock_os_unlink
 
     try:
         ister.process_kernel_cmdline("foo")
@@ -4111,7 +4091,6 @@ def process_kernel_cmdline_bad_urlopen_fails():
     finally:
         tempfile.mkstemp = mkstemp_orig
         shutil.copyfileobj = cfo_orig
-        os.unlink = unlink_orig
     if not exception_flag:
         raise Exception("Failed to fail getting bad url")
 
@@ -4135,17 +4114,11 @@ def process_kernel_cmdline_bad_fdopen_fails():
         COMMAND_RESULTS.append(a.read())
         COMMAND_RESULTS.append(b.read())
 
-    def mock_os_unlink(path):
-        """ breadcrumb for os.unlink """
-        COMMAND_RESULTS.append("unlink_{0}".format(path))
-
     mkstemp_orig = tempfile.mkstemp
     cfo_orig = shutil.copyfileobj
-    unlink_orig = os.unlink
 
     tempfile.mkstemp = mock_mkstemp
     shutil.copyfileobj = mock_copyfileobj
-    os.unlink = mock_os_unlink
 
     try:
         ister.process_kernel_cmdline("foo")
@@ -4154,7 +4127,6 @@ def process_kernel_cmdline_bad_fdopen_fails():
     finally:
         tempfile.mkstemp = mkstemp_orig
         shutil.copyfileobj = cfo_orig
-        os.unlink = unlink_orig
     if not exception_flag:
         raise Exception("Failed to fail on fdopen")
 
