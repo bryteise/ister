@@ -1364,7 +1364,7 @@ def setup_mounts_good_units():
     def mock_run_command(cmd, *_):
         """mock run for setup mounts test"""
         COMMAND_RESULTS.append(cmd)
-        return (["", "X"],)
+        return (["", "X"], [], 0)
 
     def mock_listdir(_):
         return ['sda', 'sda1']
@@ -4196,7 +4196,7 @@ def get_iface_for_host_good():
     def mock_run_command(cmd):
         """ yield result of ip show route... """
         return ["default via 192.168.1.1 dev enp0s25 proto "
-                "static metric 600"], 0
+                "static metric 600"], [], 0
 
     gethostbyname_orig = socket.gethostbyname
     run_command_orig = ister.run_command
@@ -4222,7 +4222,7 @@ def get_iface_for_host_bad_no_route():
 
     def mock_run_command(cmd):
         """ ip show route runs into error """
-        return ["error"], 1
+        return ["error"], [], 1
 
     gethostbyname_orig = socket.gethostbyname
     run_command_orig = ister.run_command
@@ -4247,7 +4247,7 @@ def get_iface_for_host_bad_hostname():
 
     def mock_run_command(cmd):
         """ Result of ip show route on empty host... """
-        return ["Error: an inet prefix is expected rather than \"\"."], 1
+        return ["Error: an inet prefix is expected rather than \"\"."], [], 1
 
     gethostbyname_orig = socket.gethostbyname
     run_command_orig = ister.run_command
