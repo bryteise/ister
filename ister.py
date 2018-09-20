@@ -562,18 +562,27 @@ def create_account(user, target_dir):
     """
 
     os.makedirs(target_dir + get_user_homedir(user["username"]), exist_ok=True)
-    if user.get("uid"):
-        command = "useradd -U -m -u {0} {1}"\
-            .format(user["uid"], user["username"])
+    if user.get("password"):
+        opts = "-p '{0}'".format(user["password"])
     else:
-        command = "useradd -U -m {}".format(user["username"])
+        opts = "-p ''"
+    if user.get("uid"):
+        opts += " -u {0}".format(user["uid"])
 
-    command += (" -p {0}".format(user["password"])
-                if user.get("password") else " -p ''")
+    command = "useradd -U -m {0} {1}".format(opts, user["username"])
 
     with ChrootOpen(target_dir) as _:
-        run_command(command)
-
+        _, stderr, ret = run_command(command, raise_exception=False)
+        if ret == 9:
+            # '9' is a documented exit code for the "user already exists" case.
+            # In this case just modify the existing user settings.
+            command = "usermod {0} {1}".format(opts, user["username"])
+            run_command(command)
+        elif ret != 0 or stderr:
+            if stderr:
+                LOG.debug(stderr)
+            raise Exception("failed to create user '{0}', 'useradd' returned "
+                            "exit status '{1}'".format(user["username"], ret))
 
 def add_user_fullname(user, target_dir):
     """Add user's full name to /etc/passwd
