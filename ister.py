@@ -307,11 +307,11 @@ def create_filesystems(template):
             if "encryption" in fst:
                 encr = fst["encryption"]
                 c_dev = "{0}{1}".format(dev, fst["partition"])
-                c = pycryptsetup.CryptSetup(device=c_dev)
-                c.luksFormat(cipher="aes", cipherMode="xts-plain64",
-                             keysize=512, hashMode="sha256")
-                c.addKeyByPassphrase(encr["passphrase"], encr["passphrase"])
-                c.activate(name=encr["name"], passphrase=encr["passphrase"])
+                crs = pycryptsetup.CryptSetup(device=c_dev)
+                crs.luksFormat(cipher="aes", cipherMode="xts-plain64",
+                               keysize=512, hashMode="sha256")
+                crs.addKeyByPassphrase(encr["passphrase"], encr["passphrase"])
+                crs.activate(name=encr["name"], passphrase=encr["passphrase"])
                 command = "{0}{1} /dev/mapper/{2}".format(fsu["cmd"], opts,
                                                           encr["name"])
             run_command(command)
@@ -853,8 +853,8 @@ def cleanup(args, template, target_dir, raise_exception=True):
                     raise_exception=raise_exception)
     for dev_entry in template['PartitionMountPoints']:
         if 'encryption' in dev_entry:
-            c = pycryptsetup.CryptSetup(name=dev_entry['encryption']['name'])
-            c.deactivate()
+            crs = pycryptsetup.CryptSetup(name=dev_entry['encryption']['name'])
+            crs.deactivate()
 
 
 def get_template_location(path):
