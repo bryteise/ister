@@ -3666,12 +3666,12 @@ def parse_config_good():
     def mock_check_kernel_cmdline_no(path, sleep_time=1):
         """mock_check_kernel_cmdline wrapper"""
         # COMMAND_RESULTS.append("no_kcmdline")
-        return False, ""
+        return None
 
     def mock_check_kernel_cmdline_yes(path, sleep_time=1):
         """mock_check_kernel_cmdline wrapper"""
         COMMAND_RESULTS.append(path)
-        return True, "/tmp/abcxyz"
+        return "/tmp/abcxyz"
 
     try:
 
