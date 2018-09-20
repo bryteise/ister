@@ -1850,6 +1850,7 @@ def chroot_open_class_good():
                 os.O_RDONLY,
                 "/tmp",
                 "/",
+                "/",
                 ".",
                 "/"]
     with ister.ChrootOpen("/tmp") as dest:
