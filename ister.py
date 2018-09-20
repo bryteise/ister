@@ -67,9 +67,9 @@ LOG = None
 def run_command(cmd, raise_exception=True, log_output=True, environ=None,
                 show_output=False, shell=False):
     """
-    Execute given command in a subprocess and return a (stdout, exitcode) tuple,
-    where 'stdout' is the standard output of the command and 'exitcode' is the
-    exit status.
+    Execute given command in a subprocess and return a (stdout, stderr,
+    exitcode) tuple, where 'stdout' is the standard output of the command,
+    'stderr' is the standard error, and 'exitcode' is the exit status.
 
     This function will raise an Exception if the command fails unless
     raise_exception is False.
@@ -111,7 +111,7 @@ def run_command(cmd, raise_exception=True, log_output=True, environ=None,
             if output[1]:
                 LOG.debug("Error {0}".format('\n'.join(output[1])))
             raise Exception("{0}".format(cmd))
-        return output[0], proc.returncode
+        return output[0], output[1], proc.returncode
     except Exception as exep:
         if raise_exception:
             raise Exception("{0} failed: {1}".format(cmd, exep))
@@ -1345,7 +1345,7 @@ def get_iface_for_host(host):
     cmd = "ip route show to match {0}".format(ip_addr)
     iface = None
 
-    output, ret = run_command(cmd)
+    output, _, ret = run_command(cmd)
     LOG.debug("Output from ip route show...")
     LOG.debug(output)
     if ret == 0:
