@@ -1941,7 +1941,7 @@ def add_user_key_good():
     commands = ["root",
                 "/home/user/.ssh",
                 448,
-                False,
+                True,
                 "user",
                 "/home/user/.ssh",
                 1000,
