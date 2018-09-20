@@ -3622,7 +3622,7 @@ def parse_config_good():
     COMMAND_RESULTS = []
     backup_isfile = os.path.isfile
     backup_get_template_location = ister.get_template_location
-    backup_check_kernel_cmdline = ister.check_kernel_cmdline
+    backup_process_kernel_cmdline = ister.process_kernel_cmdline
 
     def mock_isfile_true_etc(path):
         """mock_isfile_true_etc wrapper"""
@@ -3663,13 +3663,13 @@ def parse_config_good():
         COMMAND_RESULTS.append(path)
         return "http://pxeserver/config.json"
 
-    def mock_check_kernel_cmdline_no(path, sleep_time=1):
-        """mock_check_kernel_cmdline wrapper"""
+    def mock_process_kernel_cmdline_no(path, sleep_time=1):
+        """mock_process_kernel_cmdline wrapper"""
         # COMMAND_RESULTS.append("no_kcmdline")
         return None
 
-    def mock_check_kernel_cmdline_yes(path, sleep_time=1):
-        """mock_check_kernel_cmdline wrapper"""
+    def mock_process_kernel_cmdline_yes(path, sleep_time=1):
+        """mock_process_kernel_cmdline wrapper"""
         COMMAND_RESULTS.append(path)
         return "/tmp/abcxyz"
 
@@ -3682,7 +3682,7 @@ def parse_config_good():
         args.config_file = None
         args.template_file = None
         # Check config from kernel command line/network
-        ister.check_kernel_cmdline = mock_check_kernel_cmdline_yes
+        ister.process_kernel_cmdline = mock_process_kernel_cmdline_yes
         ister.get_template_location = mock_get_template_location_tmp
         config = ister.parse_config(args)
         commands = ["/proc/cmdline_yes_ister_conf", "/tmp/abcxyz"]
@@ -3692,7 +3692,7 @@ def parse_config_good():
                             "match expected value")
         # Check config from default ister.conf in etc
         COMMAND_RESULTS = []
-        ister.check_kernel_cmdline = mock_check_kernel_cmdline_no
+        ister.process_kernel_cmdline = mock_process_kernel_cmdline_no
         os.path.isfile = mock_isfile_true_etc
         ister.get_template_location = mock_get_template_location_etc
         config = ister.parse_config(args)
@@ -3735,7 +3735,7 @@ def parse_config_good():
     finally:
         os.path.isfile = backup_isfile
         ister.get_template_location = backup_get_template_location
-        ister.check_kernel_cmdline = backup_check_kernel_cmdline
+        ister.process_kernel_cmdline = backup_process_kernel_cmdline
 
 
 def parse_config_bad():
@@ -3985,7 +3985,7 @@ def validate_network_bad():
 @urlopen_wrapper("good", "baz")
 @fdopen_wrapper("good", "")
 @open_wrapper("good", "bar isterconf=http://localhost/")
-def check_kernel_cmdline_good():
+def process_kernel_cmdline_good():
     """ If isterconf is on kernel command line, detect and fetch
     """
     global COMMAND_RESULTS
@@ -4015,7 +4015,7 @@ def check_kernel_cmdline_good():
     commands = []
 
     try:
-        ister.check_kernel_cmdline("foo", sleep_time=0)
+        ister.process_kernel_cmdline("foo", sleep_time=0)
     except Exception as exep:
         raise exep
     finally:
@@ -4032,7 +4032,7 @@ def check_kernel_cmdline_good():
 @urlopen_wrapper("good", "baz")
 @fdopen_wrapper("good", "")
 @open_wrapper("good", "bar x y z")
-def check_kernel_cmdline_bad_no_isterconf():
+def process_kernel_cmdline_bad_no_isterconf():
     """ If isterconf not on kernel command line, do nothing
     """
     global COMMAND_RESULTS
@@ -4061,7 +4061,7 @@ def check_kernel_cmdline_bad_no_isterconf():
     os.unlink = mock_os_unlink
 
     try:
-        ister.check_kernel_cmdline("foo", sleep_time=0)
+        ister.process_kernel_cmdline("foo", sleep_time=0)
     except Exception as exep:
         raise exep
     finally:
@@ -4076,7 +4076,7 @@ def check_kernel_cmdline_bad_no_isterconf():
 @urlopen_wrapper("bad", "baz")
 @fdopen_wrapper("good", "")
 @open_wrapper("good", "bar isterconf=http://localhost/")
-def check_kernel_cmdline_bad_urlopen_fails():
+def process_kernel_cmdline_bad_urlopen_fails():
     """ If url given to isterconf param is bad, exception is raised.
     """
     global COMMAND_RESULTS
@@ -4105,7 +4105,7 @@ def check_kernel_cmdline_bad_urlopen_fails():
     os.unlink = mock_os_unlink
 
     try:
-        ister.check_kernel_cmdline("foo", sleep_time=0)
+        ister.process_kernel_cmdline("foo", sleep_time=0)
     except Exception:
         exception_flag = True
     finally:
@@ -4119,7 +4119,7 @@ def check_kernel_cmdline_bad_urlopen_fails():
 @urlopen_wrapper("good", "baz")
 @fdopen_wrapper("bad", "")
 @open_wrapper("good", "bar isterconf=http://localhost/")
-def check_kernel_cmdline_bad_fdopen_fails():
+def process_kernel_cmdline_bad_fdopen_fails():
     """ Exception raised if result of mkstemp can't be opened.
     """
     global COMMAND_RESULTS
@@ -4148,7 +4148,7 @@ def check_kernel_cmdline_bad_fdopen_fails():
     os.unlink = mock_os_unlink
 
     try:
-        ister.check_kernel_cmdline("foo", sleep_time=0)
+        ister.process_kernel_cmdline("foo", sleep_time=0)
     except Exception:
         exception_flag = True
     finally:
@@ -5942,10 +5942,10 @@ if __name__ == '__main__':
         parse_config_bad,
         handle_options_good,
         handle_logging_good,
-        check_kernel_cmdline_good,
-        check_kernel_cmdline_bad_no_isterconf,
-        check_kernel_cmdline_bad_urlopen_fails,
-        check_kernel_cmdline_bad_fdopen_fails,
+        process_kernel_cmdline_good,
+        process_kernel_cmdline_bad_no_isterconf,
+        process_kernel_cmdline_bad_urlopen_fails,
+        process_kernel_cmdline_bad_fdopen_fails,
         set_kernel_cmdline_appends_good,
         set_kernel_cmdline_appends_not_in_template,
         get_host_from_url_good_1,
