@@ -362,8 +362,8 @@ def setup_mounts(target_dir, template):
         """
         LOG.debug("Creating mount unit for UUID: {0}".format(uuid))
         unit = "[Unit]\nDescription = Mount for %s\n\n" % mount
-        unit += "[Mount]\nWhat = PARTUUID={0}\n\
-Where = {1}\nType = {2}\n\n".format(uuid, mount, fs_type)
+        unit += "[Mount]\nWhat = PARTUUID={0}\nWhere = {1}\n" \
+                "Type = {2}\n\n".format(uuid, mount, fs_type)
         unit += "[Install]\nWantedBy = multi-user.target\n"
         unit_file = open(filename, 'w')
         unit_file.write(unit)
@@ -373,6 +373,7 @@ Where = {1}\nType = {2}\n\n".format(uuid, mount, fs_type)
     for part in parts:
         if part["mount"] == "/boot":
             has_boot = True
+
     for part in parts:
         pnum = part["partition"]
         dev, prefix = get_device_name(template, part["disk"])
@@ -380,42 +381,44 @@ Where = {1}\nType = {2}\n\n".format(uuid, mount, fs_type)
             base_dev = dev[:-1]
         else:
             base_dev = dev
+
         LOG.debug("Mounting {0}{1} in {2}".format(dev, pnum, part["mount"]))
         fs_type = [x["type"] for x in template["FilesystemTypes"]
                    if x['disk'] == part['disk'] and x['partition'] == pnum][-1]
+
         if part["mount"] == "/":
-            run_command("sgdisk {0} --typecode={1}:\
-4f68bce3-e8cd-4db1-96e7-fbcaf984b709"
-                        .format(base_dev, pnum))
+            uuid = "4f68bce3-e8cd-4db1-96e7-fbcaf984b709"
+            cmd = "sgdisk {0} --typecode={1}:{2}".format(base_dev, pnum, uuid)
+            run_command(cmd)
             if not has_boot and template.get("LegacyBios"):
-                run_command("sgdisk {0} --attributes={1}:set:2"
-                            .format(base_dev, pnum))
+                cmd = "sgdisk {0} --attributes={1}:set:2".format(base_dev, pnum)
+                run_command(cmd)
         if part["mount"] == "/boot" and not template.get("LegacyBios"):
-            run_command("sgdisk {0} --typecode={1}:\
-c12a7328-f81f-11d2-ba4b-00a0c93ec93b"
-                        .format(base_dev, pnum))
+            uuid = "c12a7328-f81f-11d2-ba4b-00a0c93ec93b"
+            cmd = "sgdisk {0} --typecode={1}:{2}".format(base_dev, pnum, uuid)
+            run_command(cmd)
         if part["mount"] == "/boot" and template.get("LegacyBios"):
-            run_command("sgdisk {0} --attributes={1}:set:2"
-                        .format(base_dev, pnum))
+            cmd = "sgdisk {0} --attributes={1}:set:2".format(base_dev, pnum)
+            run_command(cmd)
         if part["mount"] == "/srv":
-            run_command("sgdisk {0} --typecode={1}:\
-3B8F8425-20E0-4F3B-907F-1A25A76F98E8"
-                        .format(base_dev, pnum))
+            uuid = "3B8F8425-20E0-4F3B-907F-1A25A76F98E8"
+            cmd = "sgdisk {0} --typecode={1}:{2}".format(base_dev, pnum, uuid)
+            run_command(cmd)
         if part["mount"] == "/home" or part["mount"].startswith('/home/'):
-            run_command("sgdisk {0} --typecode={1}:\
-933AC7E1-2EB4-4F13-B844-0E14E2AEF915"
-                        .format(base_dev, pnum))
+            uuid = "933AC7E1-2EB4-4F13-B844-0E14E2AEF915"
+            cmd = "sgdisk {0} --typecode={1}:{2}".format(base_dev, pnum, uuid)
+            run_command(cmd)
         if part["mount"] != "/":
-            run_command("mkdir -p {0}{1}".format(target_dir, part["mount"]))
+            cmd = "mkdir -p {0}{1}".format(target_dir, part["mount"])
+            run_command(cmd)
         if "encryption" in part:
-            run_command("mount /dev/mapper/{0} {1}{2}".format(
-                                                 part["encryption"]["name"],
-                                                 target_dir,
-                                                 part["mount"]))
+            cmd = "mount /dev/mapper/{0} {1}{2}" \
+                  .format(part["encryption"]["name"], target_dir, part["mount"])
+            run_command(cmd)
         else:
-            command = "mount {0}{1} {2}{3}".format(dev, pnum,
-                                                   target_dir, part["mount"])
-            run_command(command)
+            cmd = "mount {0}{1} {2}{3}".format(dev, pnum, target_dir,
+                                               part["mount"])
+            run_command(cmd)
         if part["mount"] not in ["/", "/boot", "/srv", "/home"]:
             if not part["mount"].startswith("/usr"):
                 filename = part["mount"][1:].replace("/", "-") + ".mount"
