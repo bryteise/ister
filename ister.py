@@ -1410,6 +1410,31 @@ def download_ister_conf(uri, timeout=15):
                                 .format(uri, err))
 
 
+def enable_root_ssh_login():
+    """Configure current environment to passwordless root SSH log in.
+    NOTE: this is not about configuring the final system, this is about
+    configuring the currently running installer system.
+
+    The idea here is to open a possibility for the user to reconfigure the
+    installer system/environment or follow the installation log during the
+    installation process from an outside script.
+    """
+
+    LOG.debug("Enable paswordless root SSH login")
+    # Set empty root password.
+    run_command("usermod -p '' root")
+    # Create a minimal SSH server config file allowing for root login and SFTP.
+    sshdir = os.path.join("etc", "ssh")
+    os.makedirs(sshdir, mode=0o0755, exist_ok=True)
+    with open(os.path.join(sshdir, "sshd_config"), "a") as fobj:
+        os.fchmod(fobj.fileno(), 0o600)
+        fobj.write("# Added by ister due to 'ister.root_ssh'.\n"
+                   "PermitRootLogin yes\n"
+                   "PermitEmptyPasswords yes\n"
+                   "Subsystem sftp /usr/libexec/sftp-server\n")
+    run_command("systemctl enable --now sshd.socket")
+
+
 def process_kernel_cmdline(f_kcmdline):
     """Some ister options can be passed via carnel configuration file. For
     example, 'isterconf=<path>' can be used for passing ister configuration file
@@ -1424,7 +1449,11 @@ def process_kernel_cmdline(f_kcmdline):
     kernel_args = list()
     ister_conf_uri = None
     with open(f_kcmdline, "r") as file:
-        kernel_args = file.read().split(' ')
+        kernel_args = set(file.read().split())
+
+    if "ister.root_ssh" in kernel_args:
+        # Handle the "root_ssh" option first enable root login ASAP.
+        enable_root_ssh_login()
     for opt in kernel_args:
         if opt.startswith("isterconf="):
             ister_conf_uri = opt.split("=")[1]
