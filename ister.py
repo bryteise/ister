@@ -306,7 +306,7 @@ def create_filesystems(template):
         if "disable_format" not in fst:
             if "encryption" in fst:
                 encr = fst["encryption"]
-                c_dev="{0}{1}".format(dev, fst["partition"])
+                c_dev = "{0}{1}".format(dev, fst["partition"])
                 c = pycryptsetup.CryptSetup(device=c_dev)
                 c.luksFormat(cipher="aes", cipherMode="xts-plain64",
                              keysize=512, hashMode="sha256")
@@ -1525,8 +1525,8 @@ def install_os(args, template):
         copy_os(args, template, target_dir)
         add_users(template, target_dir)
         set_hostname(template, target_dir)
-        set_mirror_url(template,target_dir)
-        set_mirror_version_url(template,target_dir)
+        set_mirror_url(template, target_dir)
+        set_mirror_version_url(template, target_dir)
         set_static_configuration(template, target_dir)
         set_kernel_cmdline_appends(template, target_dir)
         if template.get("IsterCloudInitSvc"):
