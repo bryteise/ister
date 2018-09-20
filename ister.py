@@ -614,7 +614,7 @@ def add_user_key(user, target_dir):
     akey_path = os.path.join(sshdir, "authorized_keys")
     with ChrootOpen(target_dir) as _:
         try:
-            os.makedirs(sshdir, mode=0o0700)
+            os.makedirs(sshdir, mode=0o0700, exist_ok=True)
             pwinfo = pwd.getpwnam(user["username"])
             uid = pwinfo[2]
             gid = pwinfo[3]
