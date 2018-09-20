@@ -206,6 +206,7 @@ def run_command_wrapper(func):
                 COMMAND_RESULTS.append(True)
             if shell:
                 COMMAND_RESULTS.append(True)
+            return [], [], 0
         global COMMAND_RESULTS
         COMMAND_RESULTS = []
         run_command = ister.run_command
