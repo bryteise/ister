@@ -1387,10 +1387,9 @@ def validate_template(template):
 
 
 def check_kernel_cmdline(f_kcmdline, sleep_time=15):
-    """Check if ister.conf defined via kernel command line (pxe envs)
-
-    Kernel command line trumps ister invocation args.
-    Return a tuple (True/False, "path")
+    """Check if ister configuration (AKA ister.conf) is defined via kernel
+    command line (PXE environments). If it is defined, then download it and
+    return path to the local copy. Otherwise return 'None'.
     """
     LOG.debug("Inspecting kernel command line for ister.conf location")
     LOG.debug("kernel command line file: {0}".format(f_kcmdline))
@@ -1415,9 +1414,9 @@ def check_kernel_cmdline(f_kcmdline, sleep_time=15):
         with request.urlopen(ister_conf_uri) as response:
             with closing(os.fdopen(tmpfd, "wb")) as out_file:
                 shutil.copyfileobj(response, out_file)
-                return True, abs_path
+                return abs_path
         os.unlink(abs_path)
-    return False, ''
+    return None
 
 
 def get_host_from_url(url):
@@ -1568,9 +1567,9 @@ def parse_config(args):
     LOG.info("Reading configuration")
     config = {}
 
-    kcmdline, kconf_file = check_kernel_cmdline(args.kcmdline)
+    kconf_file = check_kernel_cmdline(args.kcmdline)
 
-    if kcmdline:
+    if kconf_file:
         config["template"] = get_template_location(kconf_file)
     elif args.config_file:
         config["template"] = get_template_location(args.config_file)
