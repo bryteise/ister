@@ -294,7 +294,7 @@ def create_filesystems(template):
         if "label" in fst:
             opts += " {0} {1}".format(fsu["label"], fst["label"])
         command = "{0}{1} {2}{3}".format(fsu["cmd"], opts, dev,
-                                          fst["partition"])
+                                         fst["partition"])
         if fst["type"] == "swap":
             if prefix:
                 base_dev = dev[:-1]
@@ -305,16 +305,15 @@ def create_filesystems(template):
                         .format(base_dev, fst["partition"]))
         if "disable_format" not in fst:
             if "encryption" in fst:
+                encr = fst["encryption"]
                 c_dev="{0}{1}".format(dev, fst["partition"])
                 c = pycryptsetup.CryptSetup(device=c_dev)
-                c.luksFormat(cipher = "aes",
-                    cipherMode= "xts-plain64", keysize = 512, hashMode = "sha256")
-                c.addKeyByPassphrase(fst["encryption"]["passphrase"],
-                    fst["encryption"]["passphrase"])
-                c.activate(name=fst["encryption"]["name"],
-                    passphrase=fst["encryption"]["passphrase"])
-                command = "{0}{1} /dev/mapper/{2}".format(fsu["cmd"],
-                                          opts, fst["encryption"]["name"])
+                c.luksFormat(cipher = "aes", cipherMode= "xts-plain64",
+                             keysize = 512, hashMode = "sha256")
+                c.addKeyByPassphrase(encr["passphrase"], encr["passphrase"])
+                c.activate(name=encr["name"], passphrase=encr["passphrase"])
+                command = "{0}{1} /dev/mapper/{2}".format(fsu["cmd"], opts,
+                                                          encr["name"])
             run_command(command)
             if fst["type"] == "swap":
                 run_command("swapon {0}{1}".format(dev, fst["partition"]),
@@ -416,10 +415,9 @@ c12a7328-f81f-11d2-ba4b-00a0c93ec93b"
                                                  target_dir,
                                                  part["mount"]))
         else:
-            run_command("mount {0}{1} {2}{3}".format(dev,
-                                                 part["partition"],
-                                                 target_dir,
-                                                 part["mount"]))
+            command = "mount {0}{1} {2}{3}".format(dev, part["partition"],
+                                                   target_dir, part["mount"])
+            run_command(command)
         if part["mount"] not in ["/", "/boot", "/srv", "/home"]:
             if not part["mount"].startswith("/usr"):
                 filename = part["mount"][1:].replace("/", "-") + ".mount"
@@ -1601,10 +1599,10 @@ def handle_options(sys_args):
                         help="File to inspect for kernel cmdline opts")
     group = parser.add_mutually_exclusive_group(required=False)
     group.add_argument("-S", "--statedir", action="store",
-                        default="/var/lib/swupd",
-                        help="Path to swupd state dir")
+                       default="/var/lib/swupd",
+                       help="Path to swupd state dir")
     group.add_argument("-F", "--fast-install", action="store_true",
-                        help="Move swupd state dir inside image for a faster install")
+                       help="Move swupd state dir inside image for a faster install")
     parser.add_argument("-D", "--target-dir", action="store",
                         default=None,
                         help="Target root directory path, 'mktemp' by default")
