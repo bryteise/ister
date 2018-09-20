@@ -1401,7 +1401,6 @@ def download_ister_conf(uri, timeout=15):
                 with closing(os.fdopen(tmpfd, "wb")) as out_file:
                     shutil.copyfileobj(response, out_file)
                     return abs_path
-            os.unlink(abs_path)
         except Exception as err:
             # In a PXE environment it's possible systemd launched us before the
             # network is up. Therefore, keep trying for 'timeout' seconds.
