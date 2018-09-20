@@ -1237,7 +1237,7 @@ def validate_mirror_url_template(mirror):
         raise Exception("Invalid mirror url: {}".format(mirror))
 
 
-def validate_mirror_version_url_template(version):
+def validate_mirror_version_url_template(version): # pylint:disable=invalid-name
     """Attempt to verify the version setting is valid
 
     This function will raise an Exception on finding an error.
