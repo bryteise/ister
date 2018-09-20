@@ -1145,8 +1145,6 @@ def validate_user_template(users):
             if len(key) < 3:
                 raise Exception("Invalid public SSH for user '{}'".format(name))
             try:
-                # SSH keys are not necessarioly padded as base64 requires, so
-                # pad the key before running the check.
                base64.b64decode(key[1], validate=True)
             except binascii.Error as err:
                 raise Exception("Invalid public SSH for user '{0}', base64 "
