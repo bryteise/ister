@@ -1386,10 +1386,14 @@ def validate_template(template):
     LOG.debug(template)
 
 
-def check_kernel_cmdline(f_kcmdline, sleep_time=15):
-    """Check if ister configuration (AKA ister.conf) is defined via kernel
-    command line (PXE environments). If it is defined, then download it and
-    return path to the local copy. Otherwise return 'None'.
+def process_kernel_cmdline(f_kcmdline, sleep_time=15):
+    """Some ister options can be passed via carnel configuration file. For
+    example, 'isterconf=<path>' can be used for passing ister configuration file
+    (AKA 'ister.conf') or ister template file (AKA 'ister.json'). This function
+    processes ister kernel command line options and returns the results.
+
+    If ister.conf/ister.json file was specified, this function downloads it and
+    returns path to a local copy of the file. Otherwise returns 'None'.
     """
     LOG.debug("Inspecting kernel command line for ister.conf location")
     LOG.debug("kernel command line file: {0}".format(f_kcmdline))
@@ -1567,7 +1571,7 @@ def parse_config(args):
     LOG.info("Reading configuration")
     config = {}
 
-    kconf_file = check_kernel_cmdline(args.kcmdline)
+    kconf_file = process_kernel_cmdline(args.kcmdline)
 
     if kconf_file:
         config["template"] = get_template_location(kconf_file)
