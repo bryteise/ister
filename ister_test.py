@@ -1915,7 +1915,7 @@ def chroot_open_class_bad_close():
 def create_account_good():
     """Create account no uid"""
     template = {"username": "user"}
-    commands = ["useradd -U -m user -p ''"]
+    commands = ["useradd -U -m -p '' user", False]
     ister.create_account(template, "/tmp")
     commands_compare_helper(commands)
 
@@ -1925,7 +1925,7 @@ def create_account_good():
 def create_account_good_uid():
     """Create account with uid"""
     template = {"username": "user", "uid": "1000"}
-    commands = ["useradd -U -m -u 1000 user -p ''"]
+    commands = ["useradd -U -m -p '' -u 1000 user", False]
     ister.create_account(template, "/tmp")
     commands_compare_helper(commands)
 
