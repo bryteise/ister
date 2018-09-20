@@ -530,6 +530,7 @@ class ChrootOpen(object):
         try:
             self.old_root = os.open("/", os.O_RDONLY)
             os.chroot(self.target_dir)
+            os.chdir("/")
         except Exception:
             raise Exception("Unable to setup chroot to create users")
 
