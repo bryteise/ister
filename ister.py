@@ -308,8 +308,8 @@ def create_filesystems(template):
                 encr = fst["encryption"]
                 c_dev="{0}{1}".format(dev, fst["partition"])
                 c = pycryptsetup.CryptSetup(device=c_dev)
-                c.luksFormat(cipher = "aes", cipherMode= "xts-plain64",
-                             keysize = 512, hashMode = "sha256")
+                c.luksFormat(cipher="aes", cipherMode="xts-plain64",
+                             keysize=512, hashMode="sha256")
                 c.addKeyByPassphrase(encr["passphrase"], encr["passphrase"])
                 c.activate(name=encr["name"], passphrase=encr["passphrase"])
                 command = "{0}{1} /dev/mapper/{2}".format(fsu["cmd"], opts,
