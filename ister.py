@@ -1386,7 +1386,31 @@ def validate_template(template):
     LOG.debug(template)
 
 
-def process_kernel_cmdline(f_kcmdline, sleep_time=15):
+def download_ister_conf(uri, timeout=15):
+    """Download the ister.conf/ister.json file from 'uri' to a local temporary
+    file and return the temporary file path. The timeout argument specifies for
+    how long to try downloading the file."""
+
+    tmpfd, abs_path = tempfile.mkstemp()
+    LOG.debug("ister_conf tmp file = {0}".format(abs_path))
+
+    start_time = time.time()
+    while True:
+        try:
+            with request.urlopen(uri) as response:
+                with closing(os.fdopen(tmpfd, "wb")) as out_file:
+                    shutil.copyfileobj(response, out_file)
+                    return abs_path
+            os.unlink(abs_path)
+        except Exception as err:
+            # In a PXE environment it's possible systemd launched us before the
+            # network is up. Therefore, keep trying for 'timeout' seconds.
+            if time.time() - start_time > timeout:
+                raise Exception("failed to download ister.conf from '{0}': {1}"\
+                                .format(uri, err))
+
+
+def process_kernel_cmdline(f_kcmdline):
     """Some ister options can be passed via carnel configuration file. For
     example, 'isterconf=<path>' can be used for passing ister configuration file
     (AKA 'ister.conf') or ister template file (AKA 'ister.json'). This function
@@ -1406,20 +1430,8 @@ def process_kernel_cmdline(f_kcmdline, sleep_time=15):
             ister_conf_uri = opt.split("=")[1]
 
     LOG.debug("ister_conf_uri = {0}".format(ister_conf_uri))
-
-    # Fetch the file
     if ister_conf_uri:
-        tmpfd, abs_path = tempfile.mkstemp()
-        LOG.debug("ister_conf tmp file = {0}".format(abs_path))
-        # in a PXE environment it's possible systemd launched us
-        # before the network is up. This is primitive but effective.
-        # And generally only pxe boots will trigger this.
-        time.sleep(sleep_time)
-        with request.urlopen(ister_conf_uri) as response:
-            with closing(os.fdopen(tmpfd, "wb")) as out_file:
-                shutil.copyfileobj(response, out_file)
-                return abs_path
-        os.unlink(abs_path)
+        return download_ister_conf(ister_conf_uri)
     return None
 
 

@@ -3663,12 +3663,12 @@ def parse_config_good():
         COMMAND_RESULTS.append(path)
         return "http://pxeserver/config.json"
 
-    def mock_process_kernel_cmdline_no(path, sleep_time=1):
+    def mock_process_kernel_cmdline_no(path):
         """mock_process_kernel_cmdline wrapper"""
         # COMMAND_RESULTS.append("no_kcmdline")
         return None
 
-    def mock_process_kernel_cmdline_yes(path, sleep_time=1):
+    def mock_process_kernel_cmdline_yes(path):
         """mock_process_kernel_cmdline wrapper"""
         COMMAND_RESULTS.append(path)
         return "/tmp/abcxyz"
@@ -4015,7 +4015,7 @@ def process_kernel_cmdline_good():
     commands = []
 
     try:
-        ister.process_kernel_cmdline("foo", sleep_time=0)
+        ister.process_kernel_cmdline("foo")
     except Exception as exep:
         raise exep
     finally:
@@ -4061,7 +4061,7 @@ def process_kernel_cmdline_bad_no_isterconf():
     os.unlink = mock_os_unlink
 
     try:
-        ister.process_kernel_cmdline("foo", sleep_time=0)
+        ister.process_kernel_cmdline("foo")
     except Exception as exep:
         raise exep
     finally:
@@ -4105,7 +4105,7 @@ def process_kernel_cmdline_bad_urlopen_fails():
     os.unlink = mock_os_unlink
 
     try:
-        ister.process_kernel_cmdline("foo", sleep_time=0)
+        ister.process_kernel_cmdline("foo")
     except Exception:
         exception_flag = True
     finally:
@@ -4148,7 +4148,7 @@ def process_kernel_cmdline_bad_fdopen_fails():
     os.unlink = mock_os_unlink
 
     try:
-        ister.process_kernel_cmdline("foo", sleep_time=0)
+        ister.process_kernel_cmdline("foo")
     except Exception:
         exception_flag = True
     finally:
