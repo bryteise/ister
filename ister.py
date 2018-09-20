@@ -374,39 +374,37 @@ Where = {1}\nType = {2}\n\n".format(uuid, mount, fs_type)
         if part["mount"] == "/boot":
             has_boot = True
     for part in parts:
+        pnum = part["partition"]
         dev, prefix = get_device_name(template, part["disk"])
         if prefix:
             base_dev = dev[:-1]
         else:
             base_dev = dev
-        LOG.debug("Mounting {0}{1} in {2}".format(dev,
-                                                  part['partition'],
-                                                  part["mount"]))
+        LOG.debug("Mounting {0}{1} in {2}".format(dev, pnum, part["mount"]))
         fs_type = [x["type"] for x in template["FilesystemTypes"]
-                   if x['disk'] == part['disk'] and
-                   x['partition'] == part['partition']][-1]
+                   if x['disk'] == part['disk'] and x['partition'] == pnum][-1]
         if part["mount"] == "/":
             run_command("sgdisk {0} --typecode={1}:\
 4f68bce3-e8cd-4db1-96e7-fbcaf984b709"
-                        .format(base_dev, part["partition"]))
+                        .format(base_dev, pnum))
             if not has_boot and template.get("LegacyBios"):
                 run_command("sgdisk {0} --attributes={1}:set:2"
-                            .format(base_dev, part["partition"]))
+                            .format(base_dev, pnum))
         if part["mount"] == "/boot" and not template.get("LegacyBios"):
             run_command("sgdisk {0} --typecode={1}:\
 c12a7328-f81f-11d2-ba4b-00a0c93ec93b"
-                        .format(base_dev, part["partition"]))
+                        .format(base_dev, pnum))
         if part["mount"] == "/boot" and template.get("LegacyBios"):
             run_command("sgdisk {0} --attributes={1}:set:2"
-                        .format(base_dev, part["partition"]))
+                        .format(base_dev, pnum))
         if part["mount"] == "/srv":
             run_command("sgdisk {0} --typecode={1}:\
 3B8F8425-20E0-4F3B-907F-1A25A76F98E8"
-                        .format(base_dev, part["partition"]))
+                        .format(base_dev, pnum))
         if part["mount"] == "/home" or part["mount"].startswith('/home/'):
             run_command("sgdisk {0} --typecode={1}:\
 933AC7E1-2EB4-4F13-B844-0E14E2AEF915"
-                        .format(base_dev, part["partition"]))
+                        .format(base_dev, pnum))
         if part["mount"] != "/":
             run_command("mkdir -p {0}{1}".format(target_dir, part["mount"]))
         if "encryption" in part:
@@ -415,7 +413,7 @@ c12a7328-f81f-11d2-ba4b-00a0c93ec93b"
                                                  target_dir,
                                                  part["mount"]))
         else:
-            command = "mount {0}{1} {2}{3}".format(dev, part["partition"],
+            command = "mount {0}{1} {2}{3}".format(dev, pnum,
                                                    target_dir, part["mount"])
             run_command(command)
         if part["mount"] not in ["/", "/boot", "/srv", "/home"]:
@@ -424,7 +422,7 @@ c12a7328-f81f-11d2-ba4b-00a0c93ec93b"
                 if not os.path.exists(units_dir):
                     os.makedirs(units_dir)
                 create_mount_unit(os.path.join(units_dir, filename),
-                                  get_uuid(part["partition"], base_dev),
+                                  get_uuid(pnum, base_dev),
                                   part["mount"], fs_type)
 
 
