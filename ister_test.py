@@ -55,6 +55,7 @@ import tempfile
 import urllib.request as request
 import pycurl
 import netifaces
+import traceback
 import types
 try:
     import pycryptsetup
@@ -5740,13 +5741,15 @@ def run_tests(tests):
             try:
                 test()
             except Exception as exep:
-                print("Test: {0} FAIL: {1}.".format(test.__name__, exep))
-                flog.write("Test: {0} FAIL: {1}.\n".format(test.__name__,
-                                                           exep))
+                msg = "Test: {0} FAIL: {1}.\nHere is the traceback:\n{2}" \
+                      .format(test.__name__, exep, traceback.format_exc())
+                print(msg)
+                flog.write(msg)
                 fail += 1
             else:
-                print("Test: {0} PASS.".format(test.__name__))
-                flog.write("Test: {0} PASS.\n".format(test.__name__))
+                msg = "Test: {0} PASS.".format(test.__name__)
+                print(msg)
+                flog.write(msg)
 
     return fail
 
