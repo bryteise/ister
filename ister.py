@@ -66,6 +66,35 @@ import pycryptsetup
 
 LOG = None
 
+def wait_for_process(proc, log_output, show_output):
+    """Wait for process 'proc' to finish."""
+
+    # The following code makes an assumption that 'cmd' outputs to 'stdout', but
+    # uses 'stderr' only in case of failure. Therefore we first exhaust the
+    # 'stdout' pipe and then look to the 'stderr' pipe. If 'cmd' outputs to
+    # 'stderr' as part of its normal operation, the below code may cause a
+    # deadlock:
+    # * 'cmd' prints to 'stderr'
+    # * 'stderr' pipe is full and 'cmd' gets blocked
+    # * we keep waiting on 'stdout'
+    # * deadlock
+    output = []
+    for stream in (proc.stdout, proc.stderr):
+        lines = []
+        output.append(lines)
+        for line in stream:
+            decoded_line = line.decode('ascii', 'ignore').rstrip()
+            lines.append(decoded_line)
+            if show_output:
+                LOG.info(decoded_line)
+            elif log_output:
+                LOG.debug(decoded_line)
+
+    # The process closed its stdout and stderr and we expect it to terminate
+    # soon. This should happen right away in a normal situation.
+    exitcode = proc.wait(timeout=60)
+    return output[0], output[1], exitcode
+
 def run_command(cmd, raise_exception=True, log_output=True, environ=None,
                 show_output=False, shell=False):
     """
@@ -76,6 +105,8 @@ def run_command(cmd, raise_exception=True, log_output=True, environ=None,
     This function will raise an Exception if the command fails unless
     raise_exception is False.
     """
+
+    result = ([], [], -1)
     try:
         LOG.debug("Running command {0}".format(cmd))
         sys.stdout.flush()
@@ -83,41 +114,19 @@ def run_command(cmd, raise_exception=True, log_output=True, environ=None,
             full_cmd = cmd
         else:
             full_cmd = shlex.split(cmd)
-        proc = subprocess.Popen(full_cmd,
-                                stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE,
-                                env=environ, shell=shell)
-
-        # The following code makes an assumption that 'cmd' outputs to 'stdout',
-        # but uses 'stderr' only in case of failure. Therefore we first exhaust
-        # the 'stdout' pipe and then look to the 'stderr' pipe. If 'cmd' outputs
-        # to 'stderr' as part of its normal operation, the below code may cause
-        # a deadlock:
-        # * 'cmd' prints to 'stderr'
-        # * 'stderr' pipe is full and 'cmd' gets blocked
-        # * we keep waiting on 'stdout'
-        # * deadlock
-        output = []
-        for stream in (proc.stdout, proc.stderr):
-            lines = []
-            output.append(lines)
-            for line in stream:
-                decoded_line = line.decode('ascii', 'ignore').rstrip()
-                lines.append(decoded_line)
-                if show_output:
-                    LOG.info(decoded_line)
-                elif log_output:
-                    LOG.debug(decoded_line)
-
-        if proc.poll() and raise_exception:
-            if output[1]:
-                LOG.debug("Error {0}".format('\n'.join(output[1])))
+        proc = subprocess.Popen(full_cmd, stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE, env=environ,
+                                shell=shell)
+        result = wait_for_process(proc, log_output, show_output)
+        _, stderr, exitcode = result
+        if exitcode and raise_exception:
+            if stderr:
+                LOG.debug("\n".join(stderr))
             raise Exception("{0}".format(cmd))
-        return output[0], output[1], proc.returncode
     except Exception as exep:
         if raise_exception:
-            raise Exception("{0} failed: {1}".format(cmd, exep))
-
+            raise Exception("Error: {0} failed:\n{1}".format(cmd, exep))
+    return result
 
 def validate_network(url):
     """Validate there is network connection to swupd
