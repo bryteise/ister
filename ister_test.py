@@ -1930,6 +1930,24 @@ def create_account_good_uid():
     ister.create_account(template, "/tmp")
     commands_compare_helper(commands)
 
+@run_command_wrapper
+@chroot_open_wrapper("silent")
+def create_account_existing():
+    """Create account with uid"""
+    backup_run_command = ister.run_command
+
+    def mock_run_command(cmd, **kwargs):
+        """mock_run_command for emoulateing useradd failure"""
+        result = backup_run_command(cmd, **kwargs)
+        return ["", "User already exists", 9]
+
+    ister.run_command = mock_run_command
+    template = {"username": "user", "uid": "1000"}
+    commands = ["useradd -U -m -p '' -u 1000 user", False,
+                "usermod -p '' -u 1000 user"]
+    ister.create_account(template, "/tmp")
+    commands_compare_helper(commands)
+    ister.run_command = backup_run_command
 
 @chroot_open_wrapper("silent")
 @open_wrapper("good", "")
@@ -5807,6 +5825,7 @@ if __name__ == '__main__':
         chroot_open_class_bad_close,
         create_account_good,
         create_account_good_uid,
+        create_account_existing,
         add_user_key_good,
         add_user_key_bad,
         setup_sudo_good,
