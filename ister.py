@@ -56,6 +56,12 @@ import tempfile
 import time
 import base64
 import binascii
+import codecs
+import errno
+import fcntl
+import queue
+import select
+import threading
 import traceback
 import urllib.request as request
 from urllib.error import URLError, HTTPError
@@ -66,29 +72,98 @@ import pycryptsetup
 
 LOG = None
 
+def extract_full_lines(text):
+    """Extract full lines from string 'text'. Return a tuple containing 2 elements
+    - list of full lines and a string containing the partial line.
+    """
+
+    full, partial = [], ""
+    for line_match in re.finditer("(.*)\n|(.+$)", text):
+        if line_match.group(2):
+            partial = line_match.group(2)
+            break
+        full.append(line_match.group(1))
+    return (full, partial)
+
+def stream_fetcher(info, streamid):
+    """This function runs in a separate thread and fetches data from 'stream',
+    which is a file associated with the stdout or stderr pipes of a process.
+    """
+
+    partial = ""
+    stream = info["streams"][streamid]
+    try:
+        # Set non-blocking mode for the stream. We are doing this because we
+        # want to regularly supply the consumers with the output data and never
+        # block for too long.
+        fno = stream.fileno()
+        fcntl.fcntl(fno, fcntl.F_SETFL,
+                    fcntl.fcntl(fno, fcntl.F_GETFL) | os.O_NONBLOCK)
+        decoder = codecs.getincrementaldecoder('utf8')(errors="surrogateescape")
+        while not info["die_now"]:
+            # Wait for someting to appear in the stream. Wait for longest 1
+            # second in order to ensure we exit on "die_now".
+            if not select.select([stream], [], [], 1)[0]:
+                continue
+            data = None
+            try:
+                data = stream.read(4096)
+            except OSError as err:
+                if err.errno == errno.EAGAIN:
+                    continue
+                raise
+            if not data:
+                break
+            data = decoder.decode(data)
+            if not data:
+                continue
+            data, partial = extract_full_lines(partial + data)
+            for line in data:
+                info["queue"].put((streamid, line))
+    except BaseException as err:
+        LOG.error(err)
+
+    if partial:
+        info["queue"].put((streamid, partial))
+    # "End of data stream" marker.
+    info["queue"].put((streamid, None))
+
 def wait_for_process(proc, log_output, show_output):
     """Wait for process 'proc' to finish."""
 
-    # The following code makes an assumption that 'cmd' outputs to 'stdout', but
-    # uses 'stderr' only in case of failure. Therefore we first exhaust the
-    # 'stdout' pipe and then look to the 'stderr' pipe. If 'cmd' outputs to
-    # 'stderr' as part of its normal operation, the below code may cause a
-    # deadlock:
-    # * 'cmd' prints to 'stderr'
-    # * 'stderr' pipe is full and 'cmd' gets blocked
-    # * we keep waiting on 'stdout'
-    # * deadlock
-    output = []
-    for stream in (proc.stdout, proc.stderr):
-        lines = []
-        output.append(lines)
-        for line in stream:
-            decoded_line = line.decode('ascii', 'ignore').rstrip()
-            lines.append(decoded_line)
-            if show_output:
-                LOG.info(decoded_line)
-            elif log_output:
-                LOG.debug(decoded_line)
+    info = {"streams" : (proc.stdout, proc.stderr),
+            "die_now" : False,
+            "queue" : queue.Queue()}
+
+    # Start the stream fetcher threads. They will read the output of the process
+    # and put to the queue.
+    threads = []
+    for streamid in (0, 1):
+        if info["streams"][streamid]:
+            threads.append(threading.Thread(target=stream_fetcher,
+                                            name='cmd-stream-fetcher',
+                                            args=(info, streamid)))
+            threads[-1].start()
+
+    output = ([], [])
+    try:
+        while True:
+            streamid, line = info["queue"].get()
+            if line is not None:
+                output[streamid].append(line)
+                if show_output:
+                    LOG.info(line)
+                elif log_output:
+                    LOG.debug(line)
+            else:
+                # 'None' means "no more output".
+                threads[streamid].join()
+                threads[streamid] = None
+                if all(thread is None for thread in threads):
+                    break
+    finally:
+        # Make sure threads always exit.
+        info["die_now"] = True
 
     # The process closed its stdout and stderr and we expect it to terminate
     # soon. This should happen right away in a normal situation.
