@@ -1386,7 +1386,7 @@ def validate_template(template):
     LOG.debug(template)
 
 
-def download_ister_conf(uri, timeout=15):
+def download_ister_conf(uri, timeout):
     """Download the ister.conf/ister.json file from 'uri' to a local temporary
     file and return the temporary file path. The timeout argument specifies for
     how long to try downloading the file."""
@@ -1409,7 +1409,7 @@ def download_ister_conf(uri, timeout=15):
                                 .format(uri, err))
 
 
-def process_kernel_cmdline(f_kcmdline):
+def process_kernel_cmdline(f_kcmdline, timeout=15):
     """Some ister options can be passed via carnel configuration file. For
     example, 'isterconf=<path>' can be used for passing ister configuration file
     (AKA 'ister.conf') or ister template file (AKA 'ister.json'). This function
@@ -1430,7 +1430,7 @@ def process_kernel_cmdline(f_kcmdline):
 
     LOG.debug("ister_conf_uri = {0}".format(ister_conf_uri))
     if ister_conf_uri:
-        return download_ister_conf(ister_conf_uri)
+        return download_ister_conf(ister_conf_uri, timeout)
     return None
 
 
