@@ -1919,17 +1919,34 @@ def chroot_open_class_bad_close():
 def create_account_good():
     """Create account no uid"""
     template = {"username": "user"}
-    commands = ["useradd -U -m -p '' user", False]
+    commands = ["useradd -U -m user", False]
     ister.create_account(template, "/tmp")
     commands_compare_helper(commands)
 
+@run_command_wrapper
+@chroot_open_wrapper("silent")
+def create_account_good_pass():
+    """Create account no uid"""
+    template = {"username": "user", "password" : "pass"}
+    commands = ["useradd -U -m -p 'pass' user", False]
+    ister.create_account(template, "/tmp")
+    commands_compare_helper(commands)
+
+@run_command_wrapper
+@chroot_open_wrapper("silent")
+def create_account_good_empty_pass():
+    """Create account no uid"""
+    template = {"username": "user", "password" : ""}
+    commands = ["useradd -U -m -p '' user", False]
+    ister.create_account(template, "/tmp")
+    commands_compare_helper(commands)
 
 @run_command_wrapper
 @chroot_open_wrapper("silent")
 def create_account_good_uid():
     """Create account with uid"""
     template = {"username": "user", "uid": "1000"}
-    commands = ["useradd -U -m -p '' -u 1000 user", False]
+    commands = ["useradd -U -m -u 1000 user", False]
     ister.create_account(template, "/tmp")
     commands_compare_helper(commands)
 
@@ -1946,8 +1963,8 @@ def create_account_existing():
 
     ister.run_command = mock_run_command
     template = {"username": "user", "uid": "1000"}
-    commands = ["useradd -U -m -p '' -u 1000 user", False,
-                "usermod -p '' -u 1000 user"]
+    commands = ["useradd -U -m -u 1000 user", False,
+                "usermod -u 1000 user"]
     ister.create_account(template, "/tmp")
     commands_compare_helper(commands)
     ister.run_command = backup_run_command
@@ -5729,6 +5746,8 @@ if __name__ == '__main__':
         chroot_open_class_bad_chdir,
         chroot_open_class_bad_close,
         create_account_good,
+        create_account_good_pass,
+        create_account_good_empty_pass,
         create_account_good_uid,
         create_account_existing,
         add_user_key_good,
