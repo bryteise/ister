@@ -665,7 +665,7 @@ def create_account(user, target_dir):
             if opts != user["username"]:
                 command = "usermod {0}".format(opts)
                 run_command(command)
-        elif ret != 0 or stderr:
+        elif ret != 0:
             if stderr:
                 LOG.debug(stderr)
             raise Exception("failed to create user '{0}', 'useradd' returned "
