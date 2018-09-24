@@ -648,21 +648,20 @@ def create_account(user, target_dir):
     """
 
     os.makedirs(target_dir + get_user_homedir(user["username"]), exist_ok=True)
-    if user.get("password"):
-        opts = "-p '{0}'".format(user["password"])
-    else:
-        opts = "-p ''"
+    opts = user["username"]
     if user.get("uid"):
-        opts += " -u {0}".format(user["uid"])
+        opts = "-u {0} ".format(user["uid"]) + opts
+    if "password" in user:
+        opts = "-p '{0}' ".format(user["password"]) + opts
 
-    command = "useradd -U -m {0} {1}".format(opts, user["username"])
+    command = "useradd -U -m {0}".format(opts)
 
     with ChrootOpen(target_dir) as _:
         _, stderr, ret = run_command(command, raise_exception=False)
         if ret == 9:
             # '9' is a documented exit code for the "user already exists" case.
             # In this case just modify the existing user settings.
-            command = "usermod {0} {1}".format(opts, user["username"])
+            command = "usermod {0}".format(opts)
             run_command(command)
         elif ret != 0 or stderr:
             if stderr:
