@@ -648,23 +648,24 @@ def create_account(user, target_dir):
     """
 
     os.makedirs(target_dir + get_user_homedir(user["username"]), exist_ok=True)
-    if user.get("password"):
-        opts = "-p '{0}'".format(user["password"])
-    else:
-        opts = "-p ''"
+    opts = user["username"]
     if user.get("uid"):
-        opts += " -u {0}".format(user["uid"])
+        opts = "-u {0} ".format(user["uid"]) + opts
+    if "password" in user:
+        opts = "-p '{0}' ".format(user["password"]) + opts
 
-    command = "useradd -U -m {0} {1}".format(opts, user["username"])
+    command = "useradd -U -m {0}".format(opts)
 
     with ChrootOpen(target_dir) as _:
         _, stderr, ret = run_command(command, raise_exception=False)
         if ret == 9:
             # '9' is a documented exit code for the "user already exists" case.
-            # In this case just modify the existing user settings.
-            command = "usermod {0} {1}".format(opts, user["username"])
-            run_command(command)
-        elif ret != 0 or stderr:
+            # In this case just modify the existing user settings (if there is
+            # something modify).
+            if opts != user["username"]:
+                command = "usermod {0}".format(opts)
+                run_command(command)
+        elif ret != 0:
             if stderr:
                 LOG.debug(stderr)
             raise Exception("failed to create user '{0}', 'useradd' returned "
@@ -1386,11 +1387,37 @@ def validate_template(template):
     LOG.debug(template)
 
 
-def check_kernel_cmdline(f_kcmdline, sleep_time=15):
-    """Check if ister.conf defined via kernel command line (pxe envs)
+def download_ister_conf(uri, timeout=15):
+    """Download the ister.conf/ister.json file from 'uri' to a local temporary
+    file and return the temporary file path. The timeout argument specifies for
+    how long to try downloading the file."""
 
-    Kernel command line trumps ister invocation args.
-    Return a tuple (True/False, "path")
+    tmpfd, abs_path = tempfile.mkstemp()
+    LOG.debug("ister_conf tmp file = {0}".format(abs_path))
+
+    start_time = time.time()
+    while True:
+        try:
+            with request.urlopen(uri) as response:
+                with closing(os.fdopen(tmpfd, "wb")) as out_file:
+                    shutil.copyfileobj(response, out_file)
+                    return abs_path
+        except Exception as err:
+            # In a PXE environment it's possible systemd launched us before the
+            # network is up. Therefore, keep trying for 'timeout' seconds.
+            if time.time() - start_time > timeout:
+                raise Exception("failed to download ister.conf from '{0}': {1}"\
+                                .format(uri, err))
+
+
+def process_kernel_cmdline(f_kcmdline):
+    """Some ister options can be passed via carnel configuration file. For
+    example, 'isterconf=<path>' can be used for passing ister configuration file
+    (AKA 'ister.conf') or ister template file (AKA 'ister.json'). This function
+    processes ister kernel command line options and returns the results.
+
+    If ister.conf/ister.json file was specified, this function downloads it and
+    returns path to a local copy of the file. Otherwise returns 'None'.
     """
     LOG.debug("Inspecting kernel command line for ister.conf location")
     LOG.debug("kernel command line file: {0}".format(f_kcmdline))
@@ -1403,21 +1430,9 @@ def check_kernel_cmdline(f_kcmdline, sleep_time=15):
             ister_conf_uri = opt.split("=")[1]
 
     LOG.debug("ister_conf_uri = {0}".format(ister_conf_uri))
-
-    # Fetch the file
     if ister_conf_uri:
-        tmpfd, abs_path = tempfile.mkstemp()
-        LOG.debug("ister_conf tmp file = {0}".format(abs_path))
-        # in a PXE environment it's possible systemd launched us
-        # before the network is up. This is primitive but effective.
-        # And generally only pxe boots will trigger this.
-        time.sleep(sleep_time)
-        with request.urlopen(ister_conf_uri) as response:
-            with closing(os.fdopen(tmpfd, "wb")) as out_file:
-                shutil.copyfileobj(response, out_file)
-                return True, abs_path
-        os.unlink(abs_path)
-    return False, ''
+        return download_ister_conf(ister_conf_uri)
+    return None
 
 
 def get_host_from_url(url):
@@ -1568,9 +1583,9 @@ def parse_config(args):
     LOG.info("Reading configuration")
     config = {}
 
-    kcmdline, kconf_file = check_kernel_cmdline(args.kcmdline)
+    kconf_file = process_kernel_cmdline(args.kcmdline)
 
-    if kcmdline:
+    if kconf_file:
         config["template"] = get_template_location(kconf_file)
     elif args.config_file:
         config["template"] = get_template_location(args.config_file)
