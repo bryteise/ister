@@ -4059,78 +4059,6 @@ def process_kernel_cmdline_bad_no_isterconf():
     commands_compare_helper(commands)
 
 
-@urlopen_wrapper("bad", "baz")
-@fdopen_wrapper("good", "")
-@open_wrapper("good", "bar isterconf=http://localhost/")
-def process_kernel_cmdline_bad_urlopen_fails():
-    """ If url given to isterconf param is bad, exception is raised.
-    """
-    global COMMAND_RESULTS
-    COMMAND_RESULTS = []
-
-    def mock_mkstemp():
-        """ works as intended """
-        COMMAND_RESULTS.append("mkstemp")
-        return 42, "/tmp/xyzzy"
-
-    def mock_copyfileobj(a, b):
-        """ breadcrumbs for file copy """
-        COMMAND_RESULTS.append(a.read())
-        COMMAND_RESULTS.append(b.read())
-
-    mkstemp_orig = tempfile.mkstemp
-    cfo_orig = shutil.copyfileobj
-
-    tempfile.mkstemp = mock_mkstemp
-    shutil.copyfileobj = mock_copyfileobj
-
-    try:
-        ister.process_kernel_cmdline("foo")
-    except Exception:
-        exception_flag = True
-    finally:
-        tempfile.mkstemp = mkstemp_orig
-        shutil.copyfileobj = cfo_orig
-    if not exception_flag:
-        raise Exception("Failed to fail getting bad url")
-
-
-@urlopen_wrapper("good", "baz")
-@fdopen_wrapper("bad", "")
-@open_wrapper("good", "bar isterconf=http://localhost/")
-def process_kernel_cmdline_bad_fdopen_fails():
-    """ Exception raised if result of mkstemp can't be opened.
-    """
-    global COMMAND_RESULTS
-    COMMAND_RESULTS = []
-
-    def mock_mkstemp():
-        """ works as intended """
-        COMMAND_RESULTS.append("mkstemp")
-        return 42, "/tmp/xyzzy"
-
-    def mock_copyfileobj(a, b):
-        """ breadcrumbs for file copy """
-        COMMAND_RESULTS.append(a.read())
-        COMMAND_RESULTS.append(b.read())
-
-    mkstemp_orig = tempfile.mkstemp
-    cfo_orig = shutil.copyfileobj
-
-    tempfile.mkstemp = mock_mkstemp
-    shutil.copyfileobj = mock_copyfileobj
-
-    try:
-        ister.process_kernel_cmdline("foo")
-    except Exception:
-        exception_flag = True
-    finally:
-        tempfile.mkstemp = mkstemp_orig
-        shutil.copyfileobj = cfo_orig
-    if not exception_flag:
-        raise Exception("Failed to fail on fdopen")
-
-
 @run_command_wrapper
 @open_wrapper("good", "")
 def set_kernel_cmdline_appends_good():
@@ -5916,8 +5844,6 @@ if __name__ == '__main__':
         handle_logging_good,
         process_kernel_cmdline_good,
         process_kernel_cmdline_bad_no_isterconf,
-        process_kernel_cmdline_bad_urlopen_fails,
-        process_kernel_cmdline_bad_fdopen_fails,
         set_kernel_cmdline_appends_good,
         set_kernel_cmdline_appends_not_in_template,
         get_host_from_url_good_1,
