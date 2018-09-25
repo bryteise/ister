@@ -1454,6 +1454,14 @@ def process_kernel_cmdline(f_kcmdline):
     if "ister.root_ssh" in kernel_args:
         # Handle the "root_ssh" option first enable root login ASAP.
         enable_root_ssh_login()
+    if "ister.exit" in kernel_args:
+        LOG.debug("exiting due to 'ister.exit' found in kernel command line")
+        # We really should just exit here, but unfortunately today ClearLinux
+        # PXE installer image will reboot immediately. Let's just sleep forever
+        # as a temporary workaround, until we find a better way.
+        # raise SystemExit(0)
+        while True:
+            time.sleep(0xFFFFFFFF)
     for opt in kernel_args:
         if opt.startswith("isterconf="):
             ister_conf_uri = opt.split("=")[1]
