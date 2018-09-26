@@ -660,9 +660,11 @@ def create_account(user, target_dir):
         _, stderr, ret = run_command(command, raise_exception=False)
         if ret == 9:
             # '9' is a documented exit code for the "user already exists" case.
-            # In this case just modify the existing user settings.
-            command = "usermod {0}".format(opts)
-            run_command(command)
+            # In this case just modify the existing user settings (if there is
+            # something to modify).
+            if opts != user["username"]:
+                command = "usermod {0}".format(opts)
+                run_command(command)
         elif ret != 0 or stderr:
             if stderr:
                 LOG.debug(stderr)
