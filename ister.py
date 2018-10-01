@@ -507,11 +507,15 @@ def setup_mounts(target_dir, template):
 
         # Create mount units for the partitions, except for those having standard
         # GPT type GUIDs, because the standard systemd 'systemd-gpt-auto-generator'
-        # tool will generate the mount points.
-        if part["mount"] in ["/", "/boot", "/srv", "/home"]:
-            continue
-        if part["mount"].startswith("/usr"):
-            continue
+        # tool will generate the mount points. However, in some rare cases the
+        # systemd tool may fail to generate a mount unit, in which case users
+        # have a possibility to force ister creating it by specifying 'forcemu'
+        # option.
+        if not part.get("forcemu"):
+            if part["mount"] in ["/", "/boot", "/srv", "/home"]:
+                continue
+            if part["mount"].startswith("/usr"):
+                continue
 
         if not os.path.exists(wants_dir):
             os.makedirs(wants_dir)
