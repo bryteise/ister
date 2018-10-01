@@ -3,8 +3,7 @@ Description=ister graphical installer
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/python3 /usr/bin/ister.py
-ExecStartPost=/usr/sbin/reboot
+ExecStart=/bin/sh -c '/usr/bin/python3 /usr/bin/ister.py && /usr/sbin/reboot'
 
 [Install]
 WantedBy=multi-user.target
