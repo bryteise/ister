@@ -1364,6 +1364,7 @@ def setup_mounts_good_units():
     """Setup mount points for install"""
     backup_run_command = ister.run_command
     backup_listdir = os.listdir
+    backup_symlink = os.symlink
 
     def mock_run_command(cmd, *_):
         """mock run for setup mounts test"""
@@ -1373,8 +1374,14 @@ def setup_mounts_good_units():
     def mock_listdir(_):
         return ['sda', 'sda1']
 
+    def mock_symlink(target, symlink):
+        if os.path.exists(symlink):
+            os.unlink(symlink)
+        backup_symlink(target, symlink)
+
     ister.run_command = mock_run_command
     os.listdir = mock_listdir
+    os.symlink = mock_symlink
     template = {"PartitionMountPoints": [{"mount": "/", "disk": "sda",
                                           "partition": 1},
                                          {"mount": "/boot", "disk": "sda",
