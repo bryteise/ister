@@ -432,14 +432,14 @@ def setup_mounts(target_dir, template):
     def get_uuid(part_num, dev):
         """Get the uuid for a partition on a device"""
         result = run_command("sgdisk --info={0} {1}".format(part_num, dev))
-        return result[0][1].split()[-1]
+        return result[0][1].split()[-1].lower()
 
     def create_mount_unit(unit_dir, wants_dir, filename, uuid, mount, fs_type):
         """Create mount unit file for systemd
         """
         LOG.debug("Creating mount unit for UUID: {0}".format(uuid))
         unit = "[Unit]\nDescription = Mount for %s\n\n" % mount
-        unit += "[Mount]\nWhat = PARTUUID={0}\nWhere = {1}\n" \
+        unit += "[Mount]\nWhat = /dev/disk/by-partuuid/{0}\nWhere = {1}\n" \
                 "Type = {2}\n\n".format(uuid, mount, fs_type)
         unit += "[Install]\nWantedBy = multi-user.target\n"
         unit_path = os.path.join(unit_dir, filename)
