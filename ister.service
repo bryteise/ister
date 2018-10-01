@@ -3,8 +3,7 @@ Description=ister graphical installer
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/python3 /usr/bin/ister_gui.py
-ExecStartPost=/usr/sbin/reboot
+ExecStart=/bin/sh -c '/usr/bin/python3 /usr/bin/ister_gui.py && /usr/sbin/reboot'
 StandardInput=tty
 StandardOutput=tty
 StandardError=tty
