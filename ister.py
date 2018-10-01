@@ -429,19 +429,12 @@ def setup_mounts(target_dir, template):
 
     This function will raise an Exception on finding an error.
     """
-    LOG.info("Setting up mount points")
-
-    has_boot = False
-
-    units_dir = os.path.join(target_dir, "etc", "systemd", "system",
-                             "local-fs.target.wants")
-
     def get_uuid(part_num, dev):
         """Get the uuid for a partition on a device"""
         result = run_command("sgdisk --info={0} {1}".format(part_num, dev))
         return result[0][1].split()[-1]
 
-    def create_mount_unit(filename, uuid, mount, fs_type):
+    def create_mount_unit(unit_dir, wants_dir, filename, uuid, mount, fs_type):
         """Create mount unit file for systemd
         """
         LOG.debug("Creating mount unit for UUID: {0}".format(uuid))
@@ -449,11 +442,19 @@ def setup_mounts(target_dir, template):
         unit += "[Mount]\nWhat = PARTUUID={0}\nWhere = {1}\n" \
                 "Type = {2}\n\n".format(uuid, mount, fs_type)
         unit += "[Install]\nWantedBy = multi-user.target\n"
-        unit_file = open(filename, 'w')
-        unit_file.write(unit)
-        unit_file.close()
+        unit_path = os.path.join(unit_dir, filename)
+        symlink_path = os.path.join(wants_dir, filename)
+        with open(unit_path, 'w') as unit_fobj:
+            unit_fobj.write(unit)
+        os.symlink(os.path.relpath(unit_path, wants_dir), symlink_path)
+
+    LOG.info("Setting up mount points")
+
+    units_dir = os.path.join(target_dir, "etc", "systemd", "system")
+    wants_dir = os.path.join(units_dir, "local-fs.target.wants")
 
     parts = sorted(template["PartitionMountPoints"], key=lambda v: v["mount"])
+    has_boot = False
     for part in parts:
         if part["mount"] == "/boot":
             has_boot = True
@@ -503,14 +504,20 @@ def setup_mounts(target_dir, template):
             cmd = "mount {0}{1} {2}{3}".format(dev, pnum, target_dir,
                                                part["mount"])
             run_command(cmd)
-        if part["mount"] not in ["/", "/boot", "/srv", "/home"]:
-            if not part["mount"].startswith("/usr"):
-                filename = part["mount"][1:].replace("/", "-") + ".mount"
-                if not os.path.exists(units_dir):
-                    os.makedirs(units_dir)
-                create_mount_unit(os.path.join(units_dir, filename),
-                                  get_uuid(pnum, base_dev),
-                                  part["mount"], fs_type)
+
+        # Create mount units for the partitions, except for those having standard
+        # GPT type GUIDs, because the standard systemd 'systemd-gpt-auto-generator'
+        # tool will generate the mount points.
+        if part["mount"] in ["/", "/boot", "/srv", "/home"]:
+            continue
+        if part["mount"].startswith("/usr"):
+            continue
+
+        if not os.path.exists(wants_dir):
+            os.makedirs(wants_dir)
+        filename = part["mount"][1:].replace("/", "-") + ".mount"
+        create_mount_unit(units_dir, wants_dir, filename,
+                          get_uuid(pnum, base_dev), part["mount"], fs_type)
 
 
 def add_bundles(template, target_dir):
