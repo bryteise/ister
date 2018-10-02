@@ -512,9 +512,9 @@ def setup_mounts(target_dir, template):
         # have a possibility to force ister creating it by specifying 'forcemu'
         # option.
         if not part.get("forcemu"):
-            if part["mount"] in ["/", "/boot", "/srv", "/home"]:
+            if part["mount"] in ["/", "/boot", "/srv", "/home", "/usr"]:
                 continue
-            if part["mount"].startswith("/usr"):
+            if part["mount"].startswith("/usr/"):
                 continue
 
         if not os.path.exists(wants_dir):
