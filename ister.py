@@ -1132,12 +1132,17 @@ def validate_partition_mounts(template, partition_fstypes):
         if mount in partition_mounts:
             raise Exception("Duplicate mount points found")
         if disk_part in disk_partitions:
-            raise Exception("Duplicate disk {0} and partition {1} entry in \
-PartitionMountPoints".format(disk, part))
+            raise Exception("Duplicate disk {0} and partition {1} entry in "
+                            "PartitionMountPoints".format(disk, part))
         if disk_part not in partition_fstypes:
-            raise Exception("disk {0} partition {1} used in \
-PartitionMountPoints not found in FilesystemTypes"
+            raise Exception("disk {0} partition {1} used in "
+                            "PartitionMountPoints not found in FilesystemTypes"
                             .format(disk, part))
+        if "forcemu" in pmount and not isinstance(pmount["forcemu"], bool):
+            raise Exception("'focecmu' of disk {0} partition {1} used in "
+                            "PartitionMountPoints has incorrect type '{2}', "
+                            "but it should be boolean"
+                            .format(disk, part, type(pmount["forcemu"])))
         partition_mounts.add(mount)
         disk_partitions.add(disk_part)
 
