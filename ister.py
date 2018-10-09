@@ -1094,10 +1094,10 @@ are: {1}".format(fstype, accepted_fstypes))
 
         disk_part = disk + str(part)
         if disk_part in partition_fstypes:
-            raise Exception("Duplicate disk {0} and partition {1} entry in \
+            raise Exception("Duplicate disk '{0}' and partition {1} entry in \
 FilesystemTypes".format(disk, part))
         if disk_part not in parts_to_size:
-            raise Exception("disk {0} partition {1} used in FilesystemTypes \
+            raise Exception("disk '{0}' partition {1} used in FilesystemTypes \
 not found in PartitionLayout".format(disk, part))
         if force_fmt and force_fmt[0][0] == disk \
                 and force_fmt[0][1] == part and disable_fmt is not None:
