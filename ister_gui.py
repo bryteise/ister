@@ -170,6 +170,10 @@ def get_list_of_disks():
     parts = output.split('\n')
     for part in parts:
         part = part.strip()
+        # This filter prevents the installer to stop on /dev/mmcblk0rpmb
+        # More on https://lwn.net/Articles/682276/
+        if part.startswith('mmc') and 'rpm' in part:
+            continue 
         if 'disk' in part:
             disks.append(part.split()[0])
         elif part.endswith('/'):
