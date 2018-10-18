@@ -1081,8 +1081,8 @@ class SplashScreen(ProcessStep):
     """
     def __init__(self):
         super(SplashScreen, self).__init__()
-        greeting = "The Clear Linux Project for Intel Architecture is a "     \
-                   "distribution built for various Cloud use cases. We want " \
+        greeting = "The Clear Linux* project is a distribution built for " \
+                   "cloud, client, and IoT use cases.  We want " \
                    "to showcase the best of Intel Architecture technology "   \
                    "and performance, from low-level kernel features to "      \
                    "complex applications that span across the entire OS "     \
@@ -1126,7 +1126,7 @@ class SplashScreen(ProcessStep):
 
     def build_ui(self):
         self._ui = SimpleForm(
-            u'Clear Linux OS for Intel Architecture Installer',
+            u'Clear Linux* OS Installer',
             self._ui_widgets, buttons=["Next"], align_title='center')
 
 
@@ -1947,7 +1947,7 @@ class TelemetryDisclosure(ProcessStep):
     """UI to accept telemetry"""
     def __init__(self, cur_step, tot_steps):
         super(TelemetryDisclosure, self).__init__()
-        self._msg_prefix = 'Allow the Clear Linux OS for Intel Architecture ' \
+        self._msg_prefix = 'Allow the Clear Linux* OS ' \
                            'to collect anonymous reports to improve system ' \
                            'stability? These reports only relate to ' \
                            'operating system details - no personally ' \
