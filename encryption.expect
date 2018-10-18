@@ -46,7 +46,7 @@ set timeout -1
 # set env(https_proxy) <set proxy here, if necessary, and uncomment>
 spawn /usr/bin/python3 /usr/bin/ister_gui.py --exit-after
 match_max 100000
-expect -re ".*Clear Linux OS for Intel Architecture Installer.*"
+expect -re ".*Clear Linux. OS Installer.*"
 send -- "\r"
 send -- "\t"
 expect -re ".*Network Requirements.*"
