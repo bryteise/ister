@@ -658,7 +658,6 @@ def create_account(user, target_dir):
     passwordless login. Also add a new group with same name as the user
     """
 
-    os.makedirs(target_dir + get_user_homedir(user["username"]), exist_ok=True)
     opts = user["username"]
     if user.get("uid"):
         opts = "-u {0} ".format(user["uid"]) + opts
