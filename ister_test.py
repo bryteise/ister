@@ -1154,7 +1154,7 @@ def create_target_dir_no_arg_good():
         if not kwargs.get("prefix"):
             raise Exception("Missing prefix argument to mkdtemp")
         COMMAND_RESULTS.append(kwargs["prefix"])
-        return "/tmp"
+        return "/not-writable/place"
 
     def args():
         """args empty object"""
@@ -1168,7 +1168,7 @@ def create_target_dir_no_arg_good():
         target_dir = ister.create_target_dir(args, template)
     finally:
         tempfile.mkdtemp = backup_mkdtemp
-    if target_dir != "/tmp":
+    if target_dir != "/not-writable/place":
         raise Exception("Target dir doesn't match expected: {0}"
                         .format(target_dir))
     commands_compare_helper(commands)
@@ -1188,14 +1188,14 @@ def create_target_dir_arg_good():
     def args():
         """args empty object"""
         pass
-    args.target_dir = "/tmp"
+    args.target_dir = "/not-writable/place"
 
-    commands = ["/tmp"]
+    commands = ["/not-writable/place"]
     try:
         target_dir = ister.create_target_dir(args, None)
     finally:
         os.path.isdir = backup_isdir
-    if target_dir != "/tmp":
+    if target_dir != args.target_dir:
         raise Exception("Target dir doesn't match expected: {0}"
                         .format(target_dir))
     commands_compare_helper(commands)
@@ -1257,13 +1257,13 @@ def setup_mounts_encryption_good():
                 "Version": 10}
     commands = ["sgdisk /dev/sda "
                 "--typecode=1:4f68bce3-e8cd-4db1-96e7-fbcaf984b709",
-                "mount /dev/mapper/mapper_name /tmp/",
+                "mount /dev/mapper/mapper_name /not-writable/place/",
                 "sgdisk /dev/sda "
                 "--typecode=2:c12a7328-f81f-11d2-ba4b-00a0c93ec93b",
-                "mkdir -p /tmp/boot",
-                "mount /dev/sda2 /tmp/boot"]
+                "mkdir -p /not-writable/place/boot",
+                "mount /dev/sda2 /not-writable/place/boot"]
     try:
-        ister.setup_mounts("/tmp", template)
+        ister.setup_mounts("/not-writable/place", template)
     finally:
         os.listdir = backup_listdir
     commands_compare_helper(commands)
@@ -1289,13 +1289,13 @@ def setup_mounts_good():
                 "Version": 10}
     commands = ["sgdisk /dev/sda "
                 "--typecode=1:4f68bce3-e8cd-4db1-96e7-fbcaf984b709",
-                "mount /dev/sda1 /tmp/",
+                "mount /dev/sda1 /not-writable/place/",
                 "sgdisk /dev/sda "
                 "--typecode=2:c12a7328-f81f-11d2-ba4b-00a0c93ec93b",
-                "mkdir -p /tmp/boot",
-                "mount /dev/sda2 /tmp/boot"]
+                "mkdir -p /not-writable/place/boot",
+                "mount /dev/sda2 /not-writable/place/boot"]
     try:
-        ister.setup_mounts("/tmp", template)
+        ister.setup_mounts("/not-writable/place", template)
     finally:
         os.listdir = backup_listdir
     commands_compare_helper(commands)
@@ -1322,12 +1322,12 @@ def setup_mounts_good_mbr():
                 "LegacyBios": True}
     commands = ["sgdisk /dev/sda "
                 "--typecode=1:4f68bce3-e8cd-4db1-96e7-fbcaf984b709",
-                "mount /dev/sda1 /tmp/",
+                "mount /dev/sda1 /not-writable/place/",
                 "sgdisk /dev/sda --attributes=2:set:2",
-                "mkdir -p /tmp/boot",
-                "mount /dev/sda2 /tmp/boot"]
+                "mkdir -p /not-writable/place/boot",
+                "mount /dev/sda2 /not-writable/place/boot"]
     try:
-        ister.setup_mounts("/tmp", template)
+        ister.setup_mounts("/not-writable/place", template)
     finally:
         os.listdir = backup_listdir
     commands_compare_helper(commands)
@@ -1351,20 +1351,23 @@ def setup_mounts_good_no_boot():
     commands = ["sgdisk /dev/sda "
                 "--typecode=1:4f68bce3-e8cd-4db1-96e7-fbcaf984b709",
                 "sgdisk /dev/sda --attributes=1:set:2",
-                "mount /dev/sda1 /tmp/"]
+                "mount /dev/sda1 /not-writable/place/"]
     try:
-        ister.setup_mounts("/tmp", template)
+        ister.setup_mounts("/not-writable/place", template)
     finally:
         os.listdir = backup_listdir
     commands_compare_helper(commands)
 
 
-@run_command_wrapper
+@open_wrapper("good", "")
 def setup_mounts_good_units():
     """Setup mount points for install"""
+    global COMMAND_RESULTS
+    COMMAND_RESULTS = []
     backup_run_command = ister.run_command
     backup_listdir = os.listdir
     backup_symlink = os.symlink
+    backup_exists = os.path.exists
 
     def mock_run_command(cmd, *_):
         """mock run for setup mounts test"""
@@ -1375,13 +1378,16 @@ def setup_mounts_good_units():
         return ['sda', 'sda1']
 
     def mock_symlink(target, symlink):
-        if os.path.exists(symlink):
-            os.unlink(symlink)
-        backup_symlink(target, symlink)
+        COMMAND_RESULTS.append(target)
+        COMMAND_RESULTS.append(symlink)
+
+    def mock_exists(_):
+        return True
 
     ister.run_command = mock_run_command
     os.listdir = mock_listdir
     os.symlink = mock_symlink
+    os.path.exists = mock_exists
     template = {"PartitionMountPoints": [{"mount": "/", "disk": "sda",
                                           "partition": 1},
                                          {"mount": "/boot", "disk": "sda",
@@ -1405,29 +1411,46 @@ def setup_mounts_good_units():
                 "Version": 10}
     commands = ["sgdisk /dev/sda "
                 "--typecode=1:4f68bce3-e8cd-4db1-96e7-fbcaf984b709",
-                "mount /dev/sda1 /tmp/",
+                "mount /dev/sda1 /not-writable/place/",
                 "sgdisk /dev/sda "
                 "--typecode=2:c12a7328-f81f-11d2-ba4b-00a0c93ec93b",
-                "mkdir -p /tmp/boot",
-                "mount /dev/sda2 /tmp/boot",
+                "mkdir -p /not-writable/place/boot",
+                "mount /dev/sda2 /not-writable/place/boot",
                 'sgdisk /dev/sda '
                 '--typecode=3:933AC7E1-2EB4-4F13-B844-0E14E2AEF915',
-                'mkdir -p /tmp/home',
-                'mount /dev/sda3 /tmp/home',
+                'mkdir -p /not-writable/place/home',
+                'mount /dev/sda3 /not-writable/place/home',
                 'sgdisk --info=3 /dev/sda',
-                'sgdisk /dev/sda '
-                '--typecode=4:933AC7E1-2EB4-4F13-B844-0E14E2AEF915',
-                'mkdir -p /tmp/home/data',
-                'mount /dev/sda4 /tmp/home/data',
+                "/not-writable/place/etc/systemd/system/home.mount",
+                "w",
+                "[Unit]\nDescription = Mount for /home\n\n[Mount]\nWhat = /dev/disk/by-partuuid/x\nWhere = /home\nType = ext4\n\n[Install]\nWantedBy = multi-user.target\n",
+                "../home.mount",
+                "/not-writable/place/etc/systemd/system/local-fs.target.wants/home.mount",
+                'mkdir -p /not-writable/place/home/data',
+                'mount /dev/sda4 /not-writable/place/home/data',
                 'sgdisk --info=4 /dev/sda',
-                'mkdir -p /tmp/root',
-                'mount /dev/sda5 /tmp/root',
-                'sgdisk --info=5 /dev/sda']
+                "/not-writable/place/etc/systemd/system/home-data.mount",
+                "w",
+                "[Unit]\nDescription = Mount for /home/data\n\n[Mount]\nWhat = /dev/disk/by-partuuid/x\nWhere = /home/data\nType = ext4\n\n[Install]\nWantedBy = multi-user.target\n",
+                "../home-data.mount",
+                "/not-writable/place/etc/systemd/system/local-fs.target.wants/home-data.mount",
+                'mkdir -p /not-writable/place/root',
+                'mount /dev/sda5 /not-writable/place/root',
+                'sgdisk --info=5 /dev/sda',
+                "/not-writable/place/etc/systemd/system/root.mount",
+                "w",
+                "[Unit]\nDescription = Mount for /root\n\n[Mount]\nWhat = /dev/disk/by-partuuid/x\nWhere = /root\nType = ext4\n\n[Install]\nWantedBy = multi-user.target\n",
+                "../root.mount",
+                "/not-writable/place/etc/systemd/system/local-fs.target.wants/root.mount"
+    ]
     try:
-        ister.setup_mounts("/tmp", template)
+        ister.setup_mounts("/not-writable/place", template)
     finally:
         ister.run_command = backup_run_command
         os.listdir = backup_listdir
+        os.symlink = backup_symlink
+        os.path.exists = backup_exists
+
     commands_compare_helper(commands)
 
 
@@ -1447,13 +1470,13 @@ def setup_mounts_virtual_good():
                 "Version": 10}
     commands = ["sgdisk /dev/loop0 "
                 "--typecode=1:4f68bce3-e8cd-4db1-96e7-fbcaf984b709",
-                "mount /dev/loop0p1 /tmp/",
+                "mount /dev/loop0p1 /not-writable/place/",
                 "sgdisk /dev/loop0 "
                 "--typecode=2:c12a7328-f81f-11d2-ba4b-00a0c93ec93b",
-                "mkdir -p /tmp/boot",
-                "mount /dev/loop0p2 /tmp/boot"]
+                "mkdir -p /not-writable/place/boot",
+                "mount /dev/loop0p2 /not-writable/place/boot"]
     try:
-        ister.setup_mounts("/tmp", template)
+        ister.setup_mounts("/not-writable/place", template)
     except:
         pass
     commands_compare_helper(commands)
@@ -1480,14 +1503,14 @@ def setup_mounts_mmcblk_good():
                 "Version": 10}
     commands = ["sgdisk /dev/mmcblk1 "
                 "--typecode=1:4f68bce3-e8cd-4db1-96e7-fbcaf984b709",
-                "mount /dev/mmcblk1p1 /tmp/",
+                "mount /dev/mmcblk1p1 /not-writable/place/",
                 "sgdisk /dev/mmcblk1 "
                 "--typecode=2:c12a7328-f81f-11d2-ba4b-00a0c93ec93b",
-                "mkdir -p /tmp/boot",
-                "mount /dev/mmcblk1p2 /tmp/boot"]
+                "mkdir -p /not-writable/place/boot",
+                "mount /dev/mmcblk1p2 /not-writable/place/boot"]
     os.listdir = mock_listdir
     try:
-        ister.setup_mounts("/tmp", template)
+        ister.setup_mounts("/not-writable/place", template)
     finally:
         os.listdir = listdir_backup
     commands_compare_helper(commands)
@@ -1736,14 +1759,14 @@ def copy_os_swupd_fast_install_good():
     args.statedir = "/statetest"
     args.fast_install = True
     args.cert_file = None
-    swupd_cmd = "swupd verify --install --path=/tmp --manifest=0 "           \
+    swupd_cmd = "swupd verify --install --path=/not-writable/place --manifest=0 "           \
                 "--contenturl=ctest --versionurl=vtest --format=formattest " \
-                "--statedir=/tmp/tmp/swupd"
+                "--statedir=/not-writable/place/tmp/swupd"
     commands = [swupd_cmd,
                 True,
                 True,
-                "rm -rf /tmp/tmp/swupd"]
-    ister.copy_os_swupd(args, {"Version": 0, "DestinationType": ""}, "/tmp")
+                "rm -rf /not-writable/place/tmp/swupd"]
+    ister.copy_os_swupd(args, {"Version": 0, "DestinationType": ""}, "/not-writable/place")
     ister.add_bundles = backup_add_bundles
     shutil.which = backup_which
     commands_compare_helper(commands)
@@ -1859,13 +1882,13 @@ def chroot_open_class_good():
     COMMAND_RESULTS = []
     commands = ["/",
                 os.O_RDONLY,
-                "/tmp",
+                "/not-writable/place",
                 "/",
                 "/",
                 ".",
                 "/"]
-    with ister.ChrootOpen("/tmp") as dest:
-        if dest != "/tmp":
+    with ister.ChrootOpen("/not-writable/place") as dest:
+        if dest != "/not-writable/place":
             raise Exception("target dir incorrect: {0}".format(dest))
     commands_compare_helper(commands)
 
@@ -1875,7 +1898,7 @@ def chroot_open_class_bad_open():
     """Ensure open failures handled in ChrootOpen"""
     exception_flag = False
     try:
-        with ister.ChrootOpen("/tmp"):
+        with ister.ChrootOpen("/not-writable/place"):
             pass
     except Exception:
         exception_flag = True
@@ -1888,7 +1911,7 @@ def chroot_open_class_bad_chroot():
     """Ensure chroot failures handled in ChrootOpen"""
     exception_flag = False
     try:
-        with ister.ChrootOpen("/tmp"):
+        with ister.ChrootOpen("/not-writable/place"):
             pass
     except Exception:
         exception_flag = True
@@ -1901,7 +1924,7 @@ def chroot_open_class_bad_chdir():
     """Ensure chdir failures handled in ChrootOpen"""
     exception_flag = False
     try:
-        with ister.ChrootOpen("/tmp"):
+        with ister.ChrootOpen("/not-writable/place"):
             pass
     except Exception:
         exception_flag = True
@@ -1914,7 +1937,7 @@ def chroot_open_class_bad_close():
     """Ensure close failures handled in ChrootOpen"""
     exception_flag = False
     try:
-        with ister.ChrootOpen("/tmp"):
+        with ister.ChrootOpen("/not-writable/place"):
             pass
     except Exception:
         exception_flag = True
@@ -1928,7 +1951,7 @@ def create_account_good():
     """Create account no uid"""
     template = {"username": "user"}
     commands = ["useradd -U -m user", False]
-    ister.create_account(template, "/tmp")
+    ister.create_account(template, "/not-writable/place")
     commands_compare_helper(commands)
 
 @run_command_wrapper
@@ -1937,7 +1960,7 @@ def create_account_good_pass():
     """Create account no uid"""
     template = {"username": "user", "password" : "pass"}
     commands = ["useradd -U -m -p 'pass' user", False]
-    ister.create_account(template, "/tmp")
+    ister.create_account(template, "/not-writable/place")
     commands_compare_helper(commands)
 
 @run_command_wrapper
@@ -1946,7 +1969,7 @@ def create_account_good_empty_pass():
     """Create account no uid"""
     template = {"username": "user", "password" : ""}
     commands = ["useradd -U -m -p '' user", False]
-    ister.create_account(template, "/tmp")
+    ister.create_account(template, "/not-writable/place")
     commands_compare_helper(commands)
 
 @run_command_wrapper
@@ -1955,7 +1978,7 @@ def create_account_good_uid():
     """Create account with uid"""
     template = {"username": "user", "uid": "1000"}
     commands = ["useradd -U -m -u 1000 user", False]
-    ister.create_account(template, "/tmp")
+    ister.create_account(template, "/not-writable/place")
     commands_compare_helper(commands)
 
 @run_command_wrapper
@@ -1973,7 +1996,7 @@ def create_account_existing():
     template = {"username": "user", "uid": "1000"}
     commands = ["useradd -U -m -u 1000 user", False,
                 "usermod -u 1000 user"]
-    ister.create_account(template, "/tmp")
+    ister.create_account(template, "/not-writable/place")
     commands_compare_helper(commands)
     ister.run_command = backup_run_command
 
@@ -1999,7 +2022,7 @@ def add_user_key_good():
                 "/home/user/.ssh/authorized_keys",
                 1000,
                 1000]
-    ister.add_user_key(template, "/tmp")
+    ister.add_user_key(template, "/not-writable/place")
     commands_compare_helper(commands)
 
 
@@ -2011,7 +2034,7 @@ def add_user_key_bad():
     template = {"username": "user", "key": "public"}
     exception_flag = False
     try:
-        ister.add_user_key(template, "/tmp")
+        ister.add_user_key(template, "/not-writable/place")
     except Exception:
         exception_flag = True
     if not exception_flag:
@@ -2036,7 +2059,7 @@ def setup_sudo_good():
 
     template = {"username": "user"}
     commands = ["usermod", "-a", "-G", "wheel", "user"]
-    ister.setup_sudo(template, "/tmp")
+    ister.setup_sudo(template, "/not-writable/place")
     subprocess.call = backup_call
     commands_compare_helper(commands)
 
@@ -2048,7 +2071,7 @@ def setup_sudo_bad():
     template = {"username": "user"}
     exception_flag = False
     try:
-        ister.setup_sudo(template, "/tmp")
+        ister.setup_sudo(template, "/not-writable/place")
     except Exception:
         exception_flag = True
     if not exception_flag:
@@ -2093,7 +2116,7 @@ def add_users_good():
     ister.add_user_fullname = mock_add_user_fullname
     global COMMAND_RESULTS
     COMMAND_RESULTS = []
-    target_dir = "/tmp"
+    target_dir = "/not-writable/place"
     commands = ["one",
                 target_dir,
                 "key",
@@ -2155,7 +2178,7 @@ def add_user_fullname():
 
     template = {"fullname": "Test User", "username": "user"}
     commands = ["chfn", "-f", "Test User", "user"]
-    ister.add_user_fullname(template, "/tmp")
+    ister.add_user_fullname(template, "/not-writable/place")
     subprocess.call = backup_call
     commands_compare_helper(commands)
 
@@ -2172,8 +2195,8 @@ def pre_install_shell_good():
 @run_command_wrapper
 def post_install_nonchroot_good():
     """Test post non-chroot install script execution"""
-    commands = ["file1 /tmp"]
-    ister.post_install_nonchroot({"PostNonChroot": ["file1"]}, "/tmp")
+    commands = ["file1 /not-writable/place"]
+    ister.post_install_nonchroot({"PostNonChroot": ["file1"]}, "/not-writable/place")
     commands_compare_helper(commands)
 
 
@@ -2182,7 +2205,7 @@ def post_install_nonchroot_shell_good():
     """Test post non-chroot install shell command execution"""
     cmdl = "cmd and options"
     commands = [cmdl, True, True]
-    ister.post_install_nonchroot_shell({"PostNonChrootShell": [cmdl]}, "/tmp")
+    ister.post_install_nonchroot_shell({"PostNonChrootShell": [cmdl]}, "/not-writable/place")
     commands_compare_helper(commands)
 
 
@@ -2191,7 +2214,7 @@ def post_install_nonchroot_shell_good():
 def post_install_chroot_good():
     """Test post install script execution"""
     commands = ["file1"]
-    ister.post_install_chroot({"PostChroot": ["file1"]}, "/tmp")
+    ister.post_install_chroot({"PostChroot": ["file1"]}, "/not-writable/place")
     commands_compare_helper(commands)
 
 
@@ -2201,7 +2224,7 @@ def post_install_chroot_shell_good():
     """Test post install shell command execution"""
     cmdl = "cmd and options"
     commands = [cmdl, True]
-    ister.post_install_chroot_shell({"PostChrootShell": [cmdl]}, "/tmp")
+    ister.post_install_chroot_shell({"PostChrootShell": [cmdl]}, "/not-writable/place")
     commands_compare_helper(commands)
 
 
@@ -2231,14 +2254,14 @@ def cleanup_physical_encrypted_good():
             "partition" : 1,
             "mount" : "/",
             "encryption" : {"name" : "mapper_name"}}]}
-    commands = ["/tmp/var/tmp",
+    commands = ["/not-writable/place/var/tmp",
                 "umount /swupd/state",
-                "rm -fr /tmp/var/tmp",
-                "umount -R /tmp",
-                "rm -fr /tmp",
+                "rm -fr /not-writable/place/var/tmp",
+                "umount -R /not-writable/place",
+                "rm -fr /not-writable/place",
                 "mapper_name",
                 'deactivating']
-    ister.cleanup(args, template, "/tmp")
+    ister.cleanup(args, template, "/not-writable/place")
     os.path.isdir = backup_isdir
     commands_compare_helper(commands)
 
@@ -2263,12 +2286,12 @@ def cleanup_physical_good():
 
     template = {"FilesystemTypes": [],
                 'PartitionMountPoints':[]}
-    commands = ["/tmp/var/tmp",
+    commands = ["/not-writable/place/var/tmp",
                 "umount /swupd/state",
-                "rm -fr /tmp/var/tmp",
-                "umount -R /tmp",
-                "rm -fr /tmp"]
-    ister.cleanup(args, template, "/tmp")
+                "rm -fr /not-writable/place/var/tmp",
+                "umount -R /not-writable/place",
+                "rm -fr /not-writable/place"]
+    ister.cleanup(args, template, "/not-writable/place")
     os.path.isdir = backup_isdir
     commands_compare_helper(commands)
 
@@ -2288,16 +2311,16 @@ def cleanup_arg_target_dir_good():
         """args empty object"""
         pass
     args.statedir = '/swupd/state'
-    args.target_dir = "/tmp"
+    args.target_dir = "/not-writable/place"
     args.no_unmount = False
 
     template = {"FilesystemTypes": [],
                 'PartitionMountPoints':[]}
-    commands = ["/tmp/var/tmp",
+    commands = ["/not-writable/place/var/tmp",
                 "umount /swupd/state",
-                "rm -fr /tmp/var/tmp",
-                "umount -R /tmp"]
-    ister.cleanup(args, template, "/tmp")
+                "rm -fr /not-writable/place/var/tmp",
+                "umount -R /not-writable/place"]
+    ister.cleanup(args, template, "/not-writable/place")
     os.path.isdir = backup_isdir
     commands_compare_helper(commands)
 
@@ -2335,11 +2358,11 @@ def cleanup_virtual_good():
     template = {"dev": "image",
                 "FilesystemTypes": [],
                 'PartitionMountPoints':[]}
-    commands = ["/tmp/var/tmp",
-                "umount -R /tmp",
-                "rm -fr /tmp",
+    commands = ["/not-writable/place/var/tmp",
+                "umount -R /not-writable/place",
+                "rm -fr /not-writable/place",
                 "losetup --detach image"]
-    ister.cleanup(args, template, "/tmp")
+    ister.cleanup(args, template, "/not-writable/place")
     os.path.isdir = backup_isdir
     commands_compare_helper(commands)
 
@@ -2366,12 +2389,12 @@ def cleanup_virtual_swap_good():
                 "FilesystemTypes": [{"disk": "fake",
                                      "partition": 1,
                                      "type": "swap"}]}
-    commands = ["/tmp/var/tmp",
-                "umount -R /tmp",
-                "rm -fr /tmp",
+    commands = ["/not-writable/place/var/tmp",
+                "umount -R /not-writable/place",
+                "rm -fr /not-writable/place",
                 "swapoff /dev/loop0p1",
                 "losetup --detach /dev/loop0"]
-    ister.cleanup(args, template, "/tmp")
+    ister.cleanup(args, template, "/not-writable/place")
     os.path.isdir = backup_isdir
     commands_compare_helper(commands)
 
@@ -5478,12 +5501,12 @@ def gui_get_root_present():
 
     part_info = {"partitions": [{"name": "/dev/sda1"},
                                 {"type": "Linux root", "name": "/dev/sda2"}]}
-    commands = ['mount', '/dev/sda2', '/tmp/ister-latest-temp',
-                '/tmp/ister-latest-temp/usr/lib/os-release', 'r', 'read',
-                'mount', '-o', 'bind', '/sys', '/tmp/ister-latest-temp/sys',
-                'mount', '-o', 'bind', '/proc', '/tmp/ister-latest-temp/proc']
+    commands = ['mount', '/dev/sda2', '/not-writable/place/ister-latest-temp',
+                '/not-writable/place/ister-latest-temp/usr/lib/os-release', 'r', 'read',
+                'mount', '-o', 'bind', '/sys', '/not-writable/place/ister-latest-temp/sys',
+                'mount', '-o', 'bind', '/proc', '/not-writable/place/ister-latest-temp/proc']
     chooseact = ister_gui.ChooseAction(0, 0)
-    chooseact.target_dir = "/tmp/ister-latest-temp"
+    chooseact.target_dir = "/not-writable/place/ister-latest-temp"
     result = chooseact._get_part(part_info, "Linux root", chooseact.target_dir)
     subprocess.call = call_backup
     if result != "/dev/sda2":
@@ -5510,7 +5533,7 @@ def gui_get_root_not_present():
                                 {"type": "SWAP", "name": "/dev/sda2"}]}
     commands = []
     chooseact = ister_gui.ChooseAction(0, 0)
-    chooseact.target_dir = "/tmp/ister-latest-abcdefg123"
+    chooseact.target_dir = "/not-writable/place/ister-latest-abcdefg123"
     result = chooseact._get_part(part_info, 'Linux root', chooseact.target_dir)
     subprocess.call = call_backup
     if result:
@@ -5534,9 +5557,9 @@ def gui_get_boot_present():
 
     part_info = {"partitions": [{"name": "/dev/sda1"},
                                 {"type": "EFI System", "name": "/dev/sda2"}]}
-    commands = ['mount', '/dev/sda2', '/tmp/ister-latest-abcdefg123/boot']
+    commands = ['mount', '/dev/sda2', '/not-writable/place/ister-latest-abcdefg123/boot']
     chooseact = ister_gui.ChooseAction(0, 0)
-    chooseact.target_dir = "/tmp/ister-latest-abcdefg123"
+    chooseact.target_dir = "/not-writable/place/ister-latest-abcdefg123"
     result = chooseact._get_part(part_info,
                                  "EFI System",
                                  "{}/boot".format(chooseact.target_dir))
@@ -5564,7 +5587,7 @@ def gui_get_boot_not_present():
                                 {"type": "SWAP", "name": "/dev/sda2"}]}
     commands = []
     chooseact = ister_gui.ChooseAction(0, 0)
-    chooseact.target_dir = "/tmp/ister-latest-abcdefg123"
+    chooseact.target_dir = "/not-writable/place/ister-latest-abcdefg123"
     result = chooseact._get_part(part_info,
                                  "EFI System",
                                  "{}/boot".format(chooseact.target_dir))
