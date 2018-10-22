@@ -489,7 +489,7 @@ def setup_mounts(target_dir, template):
             uuid = "3B8F8425-20E0-4F3B-907F-1A25A76F98E8"
             cmd = "sgdisk {0} --typecode={1}:{2}".format(base_dev, pnum, uuid)
             run_command(cmd)
-        if part["mount"] == "/home" or part["mount"].startswith('/home/'):
+        if part["mount"] == "/home":
             uuid = "933AC7E1-2EB4-4F13-B844-0E14E2AEF915"
             cmd = "sgdisk {0} --typecode={1}:{2}".format(base_dev, pnum, uuid)
             run_command(cmd)
