@@ -608,7 +608,7 @@ def create_virtual_disk_good_tera():
 def commands_compare_helper(commands):
     """Helper function to verify expected commands vs results"""
     if len(commands) != len(COMMAND_RESULTS):
-        raise Exception("results {0} don't match expectations: {1}"
+        raise Exception("results don't match expectations:\nresults -> {0}\nexpected -> {1}"
                         .format(COMMAND_RESULTS, commands))
     for idx, item in enumerate(commands):
         del item
