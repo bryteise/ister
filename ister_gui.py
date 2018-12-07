@@ -2069,7 +2069,7 @@ class ConfigureCmdline(ProcessStep):
     def handler(self, config):
 
         if not self._ui_widgets:
-            self.build_ui_widgets()
+            self.build_ui_widgets(config)
 
         if not self._ui:
             self.build_ui()
@@ -2085,7 +2085,7 @@ class ConfigureCmdline(ProcessStep):
     def run_ui(self):
         return self._ui.do_form()
 
-    def build_ui_widgets(self):
+    def build_ui_widgets(self, config):
         desc = urwid.Text('console=tty0 console=ttyS0,115200n8 quiet '
                           'init=/usr/lib/systemd/systemd-bootchart '
                           'initcall_debug tsc=reliable no_timer_check '
@@ -2093,6 +2093,9 @@ class ConfigureCmdline(ProcessStep):
                           'rootfstype=ext4,btrfs,xfs intel_iommu=igfx_off '
                           'cryptomgr.notests rcupdate.rcu_expedited=1 '
                           'i915.fastboot=1  rw rootwait')
+        for dev_entry in config['PartitionMountPoints']:
+            if 'encryption' in dev_entry:
+                self.cmdline_field.set_edit_text("rootflags=x-systemd.device-timeout=0")
         self._ui_widgets = [self.progress,
                             urwid.Divider(),
                             urwid.Text('Default kernel cmdline will be '
