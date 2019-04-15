@@ -68,7 +68,9 @@ from urllib.error import URLError, HTTPError
 from urllib.parse import urlparse
 from contextlib import closing
 import netifaces
-import pycryptsetup
+import gi
+gi.require_version("BlockDev", "2.0")
+from gi.repository import BlockDev as bd
 
 LOG = None
 
@@ -391,11 +393,15 @@ def create_filesystems(template):
             if "encryption" in fst:
                 encr = fst["encryption"]
                 c_dev = "{0}{1}".format(dev, fst["partition"])
-                crs = pycryptsetup.CryptSetup(device=c_dev)
-                crs.luksFormat(cipher="aes", cipherMode="xts-plain64",
-                               keysize=512, hashMode="sha256")
-                crs.addKeyByPassphrase(encr["passphrase"], encr["passphrase"])
-                crs.activate(name=encr["name"], passphrase=encr["passphrase"])
+
+                if not bd.crypto_luks_format(c_dev, "aes-xts-plain64", 512,
+                                             encr["passphrase"]):
+                    LOG.error("Could not format LUKS device %s" % encr["name"])
+
+                if not bd.crypto_luks_open(c_dev, encr["name"],
+                                           encr["passphrase"]):
+                    LOG.error("Could not open LUKS device %s" % encr["name"])
+
                 command = "{0}{1} /dev/mapper/{2}".format(fsu["cmd"], opts,
                                                           encr["name"])
             run_command(command)
@@ -964,8 +970,7 @@ def cleanup(args, template, target_dir, raise_exception=True):
                     raise_exception=raise_exception)
     for dev_entry in template['PartitionMountPoints']:
         if 'encryption' in dev_entry:
-            crs = pycryptsetup.CryptSetup(name=dev_entry['encryption']['name'])
-            crs.deactivate()
+            bd.crypto_luks_close(dev_entry['encryption']['name'])
 
 
 def get_template_location(path):
