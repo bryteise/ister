@@ -57,13 +57,9 @@ import pycurl
 import netifaces
 import traceback
 import types
-try:
-    import pycryptsetup
-except:
-    pycrypts = types.ModuleType("pycryptsetup")
-    pycrypts.CryptSetup = types.new_class("CryptSetup")
-    sys.modules["pycryptsetup"] = pycrypts
-    import pycryptsetup
+import gi
+gi.require_version("BlockDev", "2.0")
+from gi.repository import BlockDev as bd
 
 import ister
 import ister_gui
@@ -145,47 +141,46 @@ def good_template_string_partitions():
     "SoftwareManager": "swupd"}'
 
 
-def cryptsetup_wrapper(func):
+def blockdev_wrapper(func):
     """Wrapprt for test whose function use pycryptsetup"""
     @functools.wraps(func)
     def wrapper():
-        """CryptSetup Mock Class"""
-        class mock_CryptSetup:
-            def __init__(self, device=None, name=None):
+        """BlockDev Mock Class"""
+        class mock_BlockDev:
+            @staticmethod
+            def crypto_luks_open(device=None, name=None):
                 if device:
                     COMMAND_RESULTS.append(device)
                 if name:
                     COMMAND_RESULTS.append(name)
 
-            def luksFormat(self, cipher=None, cipherMode=None,
-                keysize=None, hashMode=None):
+            @staticmethod
+            def crypto_luks_format(device=None, cipher=None, keySize=None,
+                                   passphrase=None):
+                if device:
+                    COMMAND_RESULTS.append(device)
                 if cipher:
                     COMMAND_RESULTS.append(cipher)
-                if cipherMode:
-                    COMMAND_RESULTS.append(cipherMode)
-                if keysize:
-                    COMMAND_RESULTS.append(keysize)
-                if hashMode:
-                    COMMAND_RESULTS.append(hashMode)
+                if keySize:
+                    COMMAND_RESULTS.append(keySize)
+                if passphrase:
+                    COMMAND_RESULTS.append(passphrase)
 
-            def addKeyByPassphrase(self, passphrase1, passphrase2):
-                COMMAND_RESULTS.append(
-                    "{0} - {1}".format(passphrase1, passphrase2))
+            @staticmethod
+            def crypto_luks_close(device=None)
+                if device:
+                    COMMAND_RESULTS(device)
 
-            def activate(self, name='', passphrase=''):
-                COMMAND_RESULTS.append("activating")
+        orig_bd = bd
+        bd = mock_BlockDev
 
-            def deactivate(self):
-                COMMAND_RESULTS.append("deactivating")
-
-        pycrypt = pycryptsetup.CryptSetup
-        pycryptsetup.CryptSetup = mock_CryptSetup
         try:
             func()
         except Exception as e:
             raise e
         finally:
-            pycryptsetup.CryptSetup = pycrypt
+            bd = orig_bd
+
     return wrapper
 
 
@@ -912,7 +907,7 @@ def get_part_devname_exception():
         raise Exception("Result was {}, expected None".format(res))
 
 
-@cryptsetup_wrapper
+@blockdev_wrapper
 @run_command_wrapper
 def create_filesystems_encrypted_good():
     """Create filesystems without options"""
@@ -950,10 +945,7 @@ def create_filesystems_encrypted_good():
                 "mkswap /dev/sdb2",
                 "swapon /dev/sdb2",
                 False,
-                '/dev/sdb3', 'aes',
-                'xts-plain64', 512, 'sha256',
-                'abc@123 - abc@123',
-                'activating',
+                '/dev/sdb3', 'aes-xts-plain64', "abc@123",
                 'mkfs.xfs -f /dev/mapper/mapper_name'
                 ]
     os.listdir = mock_listdir
@@ -1231,7 +1223,7 @@ def create_target_dir_arg_bad():
         raise Exception("Failed to detect open failure")
 
 
-@cryptsetup_wrapper
+@blockdev_wrapper
 @run_command_wrapper
 def setup_mounts_encryption_good():
     """Setup mount points for install"""
@@ -2228,7 +2220,7 @@ def post_install_chroot_shell_good():
     commands_compare_helper(commands)
 
 
-@cryptsetup_wrapper
+@blockdev_wrapper
 @run_command_wrapper
 def cleanup_physical_encrypted_good():
     """Test cleanup of physical device"""
@@ -2260,7 +2252,7 @@ def cleanup_physical_encrypted_good():
                 "umount -R /not-writable/place",
                 "rm -fr /not-writable/place",
                 "mapper_name",
-                'deactivating']
+                "mapper_name"]
     ister.cleanup(args, template, "/not-writable/place")
     os.path.isdir = backup_isdir
     commands_compare_helper(commands)
